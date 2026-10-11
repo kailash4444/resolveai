@@ -1,4 +1,5 @@
 from collections import Counter
+import logging
 from pathlib import Path
 from uuid import uuid4
 
@@ -17,6 +18,7 @@ from realapp.livekit_setup import restore_livekit_settings
 from realapp.incident_context import knowledge_context
 from realapp.models import KnowledgeFromIncidentsRequest, CustomerIncidentCreate, Ticket, TranscriptTurn, Understanding, RoutingDecision
 from realapp.access import actor, can_read, require_case, visible_case
+from realapp.resolved_knowledge import ResolvedKnowledgePublisher
 
 
 settings = get_settings()
@@ -29,6 +31,7 @@ if settings.environment == 'local' and settings.llm_provider == 'google_ai' and 
 store = create_store(settings)
 engine = create_engine(settings, store.list_knowledge)
 static_dir = Path(__file__).parent / "static"
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ResolveAI API", version="2.0.0")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -182,6 +185,21 @@ def run_background_qa(case_id: str):
     store.save_audit(case, audit)
 
 
+def run_background_knowledge(case_id: str):
+    def lookup_call(call_id):
+        try:
+            return app.state.calling.get(call_id)
+        except HTTPException as error:
+            if error.status_code != 404:
+                raise
+            return None
+
+    try:
+        ResolvedKnowledgePublisher(store, store, engine, lookup_call).publish(case_id)
+    except Exception:
+        logger.exception("Automatic knowledge publishing failed for incident %s", case_id)
+
+
 @app.patch("/api/cases/{case_id}/ticket", response_model=CaseRecord)
 def update_ticket(case_id: str, update: TicketUpdate, background_tasks: BackgroundTasks, http: Request = None):
     case = store.get_case(case_id)
@@ -249,6 +267,7 @@ def update_ticket(case_id: str, update: TicketUpdate, background_tasks: Backgrou
     saved = store.save_case(case)
     if case.ticket.state == "Resolved" and changed_fields:
         background_tasks.add_task(run_background_qa, case.id)
+        background_tasks.add_task(run_background_knowledge, case.id)
     return saved
 
 
