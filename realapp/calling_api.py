@@ -1,0 +1,338 @@
+import asyncio
+import hmac
+from contextlib import asynccontextmanager
+from pydantic import BaseModel, Field
+
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
+
+from realapp.calling import CallingService, TechnicianCreate, Login, Presence, Heartbeat, SupportRequest, CustomerMessage, TERMINAL
+from realapp.calling_store import create_calling_store
+from realapp.models import TicketUpdate
+from realapp.livekit_transport import LiveKitTransport
+from realapp.livekit_setup import LiveKitSetup, LiveKitCredentials, check_connection
+
+
+class BrowserCallRequest(BaseModel):
+    caller: str = Field(min_length=2, max_length=100)
+    language: str = Field(default='en', pattern=r'^[a-z]{2}(-[A-Z]{2})?$')
+
+
+def install_calling(app, settings, store, engine, update_ticket):
+    service = CallingService(settings, create_calling_store(settings), store, engine)
+    transport = LiveKitTransport(settings, service)
+    setup_service = LiveKitSetup(settings, service)
+    app.state.livekit_setup = setup_service
+    app.state.calling = service
+    app.state.voice = transport
+    app.state.calling_task = None
+    app.state.qa_tasks = set()
+    router = APIRouter()
+    # Preserve legacy assignments where they identify exactly one existing account.
+    existing = service.snapshot()
+    for case in store.list_cases():
+        if not case.ticket.assigned_user_id and case.ticket.assigned_to:
+            matches = [u for u in existing['technicians'] if u['role'] in {'admin','technician'} and u['name'] == case.ticket.assigned_to]
+            if len(matches) == 1:
+                case.ticket.assigned_user_id = matches[0]['id']
+                store.save_case(case)
+
+    def local(request):
+        return settings.environment == "local" and request.client.host in {"127.0.0.1", "::1", "testclient"} and request.url.hostname in {"127.0.0.1", "localhost", "::1", "testserver"}
+
+    def user(request, admin=False, staff=False):
+        result = service.authenticate(request.cookies.get("resolveai_session"))
+        if not result:
+            raise HTTPException(401, "Sign in to ResolveAI.")
+        if admin and result["role"] != "admin":
+            raise HTTPException(403, "Administrator access is required.")
+        if staff and result['role'] not in {'admin','technician'}:
+            raise HTTPException(403, 'Technician access is required.')
+        return result
+
+    @app.middleware("http")
+    async def protect_api(request, next_handler):
+        path = request.url.path
+        if path.startswith("/api/"):
+            if request.method not in {"GET", "HEAD", "OPTIONS"}:
+                origin = request.headers.get("origin")
+                allowed = {str(request.base_url).rstrip("/"), settings.public_base_url.rstrip("/")}
+                if origin and origin not in allowed:
+                    return JSONResponse({"detail": "Cross-site requests are not allowed."}, status_code=403)
+            public = path in {'/api/health','/api/auth/status','/api/auth/setup','/api/auth/login'}
+            if not public:
+                actor = service.authenticate(request.cookies.get('resolveai_session'))
+                if not actor:
+                    return JSONResponse({'detail':'Sign in to ResolveAI.'},status_code=401)
+                request.state.user = actor
+                if (path.startswith('/api/config/') or path == '/api/users' or path == '/api/technicians') and actor['role'] != 'admin':
+                    return JSONResponse({'detail':'Administrator access is required.'},status_code=403)
+                if actor['role'] == 'customer':
+                    allowed = (path in {'/api/config','/api/auth/logout','/api/cases','/api/customer/incidents','/api/customer/calls'}
+                        or path.startswith('/api/support/')
+                        or path == '/api/knowledge' and request.method == 'GET'
+                        or path.startswith('/api/cases/') and (request.method == 'GET' or path.endswith('/work-notes') and request.method == 'POST'))
+                    if not allowed:
+                        return JSONResponse({'detail':'This feature is available to support staff only.'},status_code=403)
+        response = await next_handler(request)
+        if path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+    def cookie(response, token, request):
+        response.set_cookie("resolveai_session", token, httponly=True, secure=not local(request), samesite="strict", max_age=43200)
+
+    @router.get("/api/auth/status")
+    def auth_status(request: Request):
+        return {"setup_required": not service.has_users(), "user": service.authenticate(request.cookies.get("resolveai_session")),
+                "setup_token_required": not local(request), "login_required": True}
+
+    @router.post("/api/auth/setup", status_code=201)
+    def setup(value: TechnicianCreate, request: Request, response: Response):
+        if not local(request) and (not settings.admin_setup_token or not hmac.compare_digest(value.setup_token, settings.admin_setup_token)):
+            raise HTTPException(403, "Enter the administrator setup token configured on the server.")
+        service.create_technician(value, first=True)
+        token, tech = service.login(Login(username=value.username, password=value.password), request.client.host)
+        cookie(response, token, request)
+        return tech
+
+    @router.post("/api/auth/login")
+    def login(value: Login, request: Request, response: Response):
+        token, tech = service.login(value, request.client.host)
+        cookie(response, token, request)
+        return tech
+
+    @router.post("/api/auth/logout")
+    def logout(request: Request, response: Response):
+        actor = user(request)
+        if actor["current_call_id"]:
+            raise HTTPException(409, "Finish or decline your call before signing out.")
+        service.logout(request.cookies.get("resolveai_session", ""), actor["id"])
+        response.delete_cookie("resolveai_session")
+        return {"ok": True}
+
+    @router.get("/api/calling")
+    def workspace(request: Request):
+        actor = user(request, staff=True)
+        data = service.snapshot(actor)
+        data["calls"] = [{k: v for k, v in c.items() if k != "customer_token_hash"} for c in data["calls"]]
+        data.update(user=actor, voice=transport.config())
+        return data
+
+    @router.get('/api/customer/calls')
+    def customer_calls(request: Request):
+        actor = user(request)
+        return [{key:call.get(key) for key in ('id','status','created_at','case_id','technician_name')}
+                for call in service.snapshot()['calls'] if call.get('customer_id') == actor['id']]
+
+    @router.get('/api/users')
+    def list_users(request: Request):
+        user(request, admin=True)
+        return service.snapshot()['technicians']
+
+    @router.post('/api/users', status_code=201)
+    def create_account(value: TechnicianCreate, request: Request):
+        user(request, admin=True)
+        return service.create_technician(value)
+
+    @router.post("/api/technicians", status_code=201)
+    def create_technician(value: TechnicianCreate, request: Request):
+        user(request, admin=True)
+        return service.create_technician(value)
+
+    def setup_admin(request):
+        user(request, admin=True)
+        if not local(request) or not setup_service.available:
+            raise HTTPException(403, "Open ResolveAI on this Windows computer at localhost to manage credentials. Use environment secrets for cloud deployment.")
+
+    @router.get("/api/config/livekit")
+    def livekit_status(request: Request):
+        setup_admin(request)
+        return setup_service.status()
+
+    @router.post("/api/config/livekit")
+    async def livekit_save(value: LiveKitCredentials, request: Request):
+        setup_admin(request)
+        async with transport.start_lock:
+            return await setup_service.save(value)
+
+    @router.post("/api/technicians/me/heartbeat")
+    def heartbeat(value: Heartbeat, request: Request):
+        return service.heartbeat(user(request, staff=True)["id"], value.voice_ready)
+
+    @router.patch("/api/technicians/me/presence")
+    def presence(value: Presence, request: Request):
+        return service.presence(user(request, staff=True)["id"], value.status)
+
+    @router.get("/api/calling/check")
+    async def voice_check(request: Request):
+        user(request)
+        await check_connection(settings)
+        return {"ok": True}
+
+    @router.get("/api/support/status")
+    def support_status():
+        return {"configured": transport.configured and service.has_users(), "provider": "LiveKit"}
+
+    @router.post("/api/support/calls", status_code=201)
+    async def browser_call(value: BrowserCallRequest, request: Request):
+        actor = user(request)
+        return await transport.start(actor['name'], value.language, request.client.host, actor['id'])
+
+    def customer_call(call_id, request):
+        actor = user(request)
+        call = transport.customer_call(call_id, request.headers.get('x-support-token',''))
+        if call.get('customer_id') != actor['id']:
+            raise HTTPException(404, 'Call not found.')
+        return call
+
+    @router.get("/api/support/calls/{call_id}")
+    def customer_status(call_id: str, request: Request):
+        return transport.customer_status(customer_call(call_id, request))
+
+    @router.post("/api/support/calls/{call_id}/end")
+    async def customer_end(call_id: str, request: Request):
+        customer_call(call_id, request)
+        return transport.customer_status(await transport.end(call_id))
+
+    @router.post("/api/support/calls/{call_id}/technician")
+    async def customer_technician(call_id: str, request: Request):
+        call = customer_call(call_id, request)
+        if call['status'] in {'Triage', 'AI'}:
+            session = transport.sessions.get(call_id)
+            if session:
+                session.interrupt()
+                # Queue this request behind any active transcription/analysis.
+                await session.queue.put(('Customer', None))
+        return transport.customer_status(call)
+
+    @router.post("/api/calling/requests", status_code=201)
+    def support_request(value: SupportRequest, request: Request):
+        user(request)
+        call = service.create_call(value.caller, language=value.language)
+        service.add_turn(call["id"], "Customer", value.description)
+        call = service.triage(call["id"])
+        if call["status"] == "AI":
+            try:
+                reply = service.reply(call["id"])
+                service.add_turn(call["id"], "AI Agent", reply.reply)
+                if reply.escalate:
+                    service.enqueue(call["id"], "AI requested technician assistance")
+            except Exception:
+                service.enqueue(call["id"], "AI assistance is unavailable")
+        return service.get(call["id"])
+
+    @router.post("/api/calling/{call_id}/message")
+    def message(call_id: str, value: CustomerMessage, request: Request, background_tasks: BackgroundTasks):
+        actor, call = own_call(request, call_id)
+        if call["origin"] != "desk" or call["status"] != "AI":
+            raise HTTPException(409, "Customer replies are available for desk requests being handled by AI.")
+        service.add_turn(call_id, "Customer", value.text)
+        try:
+            reply = service.reply(call_id)
+            service.add_turn(call_id, "AI Agent", reply.reply)
+            if reply.escalate:
+                service.enqueue(call_id, "AI requested technician assistance")
+            elif reply.customer_confirmed_resolved:
+                update_ticket(call["case_id"], TicketUpdate(state="Resolved", resolution="Customer confirmed the issue was fixed. " + reply.reply), background_tasks)
+                service.finish(call_id)
+        except Exception:
+            service.enqueue(call_id, "AI assistance is unavailable")
+        return service.get(call_id)
+
+    def own_call(request, call_id):
+        actor = user(request)
+        call = service.get(call_id)
+        if actor["role"] != "admin" and call["technician_id"] != actor["id"]:
+            raise HTTPException(403, "This call is assigned to another technician.")
+        return actor, call
+
+    @router.post("/api/calling/{call_id}/accept")
+    def accept(call_id: str, request: Request):
+        actor = user(request, staff=True)
+        call = service.claim_pickup(call_id, actor["id"])
+        return transport.offer(call_id, actor) if call["origin"] == "browser" else service.accept(call_id, actor["id"])
+
+    @router.post("/api/calling/{call_id}/connected")
+    async def connected(call_id: str, request: Request):
+        return await transport.confirm_join(call_id, user(request, staff=True))
+
+    @router.post("/api/calling/{call_id}/decline")
+    async def decline(call_id: str, request: Request):
+        actor, call = own_call(request, call_id)
+        if call["origin"] == "browser":
+            await transport.remove_technician(call)
+        return service.decline(call_id, actor["id"])
+
+    @router.post("/api/calling/{call_id}/finish")
+    async def finish(call_id: str, request: Request):
+        _, call = own_call(request, call_id)
+        return await transport.end(call_id) if call["origin"] == "browser" else service.finish(call_id)
+
+    @router.post("/api/calling/{call_id}/transfer")
+    async def transfer(call_id: str, request: Request):
+        actor, call = own_call(request, call_id)
+        if call["status"] == "Ringing":
+            if call["origin"] == "browser":
+                await transport.remove_technician(call)
+            return service.decline(call_id, None if actor['role'] == 'admin' else actor['id'])
+        if call["status"] == "Connected":
+            if call["origin"] == "browser":
+                await transport.remove_technician(call)
+            def requeue(db):
+                current = db["calls"][call_id]
+                if current["status"] == "Connected":
+                    service._release(db, current, f"Transferred by {actor['name']}", away=True)
+                return current
+            return service.repository.mutate(requeue)
+        updated = service.enqueue(call_id, f"Technician requested by {actor['name']}")
+        if call["origin"] == "browser":
+            session = transport.sessions.get(call_id)
+            if session:
+                session.interrupt()
+            updated = service.mark_waiting(call_id)
+        return updated
+
+    async def resolve(call, reply):
+        if not call["case_id"]:
+            return
+        notes = "Customer confirmed that the issue was resolved during the AI-assisted call.\n" + reply
+        tasks = BackgroundTasks()
+        await asyncio.to_thread(update_ticket, call["case_id"], TicketUpdate(state="Resolved", resolution=notes), tasks)
+        task = asyncio.create_task(tasks())
+        app.state.qa_tasks.add(task)
+        task.add_done_callback(app.state.qa_tasks.discard)
+
+    transport.resolve = resolve
+
+    async def loop():
+        while True:
+            try:
+                await transport.maintenance()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning("Call dispatcher temporarily unavailable; retrying")
+            await asyncio.sleep(2)
+
+    @asynccontextmanager
+    async def lifespan(_):
+        # One voice worker per deployment; recover calls left by a process crash.
+        for call in service.snapshot()["calls"]:
+            if call["origin"] != "desk" and call["status"] not in TERMINAL:
+                service.error(call["id"], "Voice service restarted. Please start a new call.")
+                service.finish(call["id"], "Failed")
+        app.state.calling_task = asyncio.create_task(loop())
+        try:
+            yield
+        finally:
+            app.state.calling_task.cancel()
+            await asyncio.gather(app.state.calling_task, return_exceptions=True)
+            await transport.close()
+            if app.state.qa_tasks:
+                await asyncio.gather(*app.state.qa_tasks, return_exceptions=True)
+
+    app.router.lifespan_context = lifespan
+    app.include_router(router)
+    return service

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="ResolveAI - AI-first enterprise support from conversation to insight." />
+  <title>ResolveAI | Enterprise Support</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23102e46'/%3E%3Ccircle cx='19' cy='32' r='6' fill='%2364ded6'/%3E%3Ccircle cx='43' cy='18' r='6' fill='%2364ded6'/%3E%3Ccircle cx='43' cy='46' r='6' fill='%2364ded6'/%3E%3Cpath d='M24 29 37 21M24 35l13 8' stroke='%2364ded6' stroke-width='4'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark"><span></span><span></span><span></span></span>
+        <span>ResolveAI</span>
+      </div>
+      <p class="sidebar-label">Workspace</p>
+      <nav aria-label="Primary navigation">
+        <button class="nav-item active" data-view="overview"><span class="nav-icon">◫</span>Overview</button>
+        <button class="nav-item" data-view="case"><span class="nav-icon">◉</span>Live case</button>
+        <button class="nav-item" data-view="tickets"><span class="nav-icon">▤</span>Tickets</button>
+        <button class="nav-item" data-view="qa"><span class="nav-icon">✓</span>Quality audit</button>
+        <button class="nav-item" data-view="analytics"><span class="nav-icon">↗</span>Analytics</button>
+      </nav>
+      <div class="sidebar-spacer"></div>
+      <div class="mode-card">
+        <div class="mode-dot"></div>
+        <div>
+          <strong id="providerLabel">Mock AI mode</strong>
+          <span id="modelLabel">No credentials required</span>
+        </div>
+      </div>
+      <button class="nav-item secondary" data-view="settings"><span class="nav-icon">⚙</span>Configuration</button>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <button class="mobile-menu" aria-label="Open navigation">☰</button>
+        <div class="environment"><span></span>Hackathon workspace</div>
+        <div class="topbar-actions">
+          <button class="icon-button" aria-label="Notifications">●</button>
+          <div class="avatar">MC</div>
+          <div class="user-copy"><strong>Maya Chen</strong><span>Service desk technician</span></div>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="view active" id="view-overview">
+          <div class="page-heading split-heading">
+            <div>
+              <p class="eyebrow">Operations center</p>
+              <h1>Good morning, Maya.</h1>
+              <p>Here is what needs attention across enterprise support.</p>
+            </div>
+            <button class="primary-button" data-open-case>Open live workspace <span>→</span></button>
+          </div>
+
+          <div class="metric-grid" id="metricGrid">
+            <article class="metric-card"><span>Active cases</span><strong>12</strong><small><b>3</b> need attention</small></article>
+            <article class="metric-card"><span>AI containment</span><strong>42%</strong><small><b>+7%</b> from last week</small></article>
+            <article class="metric-card"><span>Avg. resolution</span><strong>11m</strong><small><b>4m faster</b> than target</small></article>
+            <article class="metric-card"><span>QA pass rate</span><strong>88%</strong><small><b>+3%</b> this week</small></article>
+          </div>
+
+          <div class="dashboard-grid">
+            <article class="panel attention-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Queue intelligence</p><h2>Needs attention</h2></div><span class="count-badge">3</span></div>
+              <div class="attention-list">
+                <button class="attention-item" data-demo="sap"><span class="severity critical">P1</span><span><strong>SAP production unavailable</strong><small>50+ Finance users · 8 min ago</small></span><b>→</b></button>
+                <button class="attention-item" data-demo="vpn"><span class="severity high">P2</span><span><strong>VPN disconnects after login</strong><small>Client meeting approaching · 14 min ago</small></span><b>→</b></button>
+                <button class="attention-item" data-demo="account"><span class="severity standard">P3</span><span><strong>Corporate account locked</strong><small>AI verification complete · 2 min ago</small></span><b>→</b></button>
+              </div>
+            </article>
+
+            <article class="panel trend-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Last 7 days</p><h2>Top issue themes</h2></div><button class="text-button" data-view-jump="analytics">Explore →</button></div>
+              <div class="bar-list" id="themeBars">
+                <div><span>VPN connectivity</span><b style="--size:100%">38</b><small>+46%</small></div>
+                <div><span>Password & access</span><b style="--size:82%">31</b><small>+8%</small></div>
+                <div><span>Teams audio</span><b style="--size:58%">22</b><small>-4%</small></div>
+                <div><span>Business applications</span><b style="--size:45%">17</b><small>+12%</small></div>
+              </div>
+            </article>
+
+            <article class="panel demo-panel">
+              <div class="demo-copy">
+                <p class="eyebrow light">Guided product story</p>
+                <h2>Follow one case through the entire support loop.</h2>
+                <p>Understand the issue, route it, retrieve knowledge, create the ticket, audit quality, and learn from the outcome.</p>
+                <button class="light-button" data-demo="vpn">Run the VPN demo <span>→</span></button>
+              </div>
+              <div class="loop-visual" aria-hidden="true">
+                <span>Listen</span><i>→</i><span>Route</span><i>→</i><span>Resolve</span><i>→</i><span>Learn</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="view-case">
+          <div class="page-heading case-heading">
+            <div>
+              <p class="eyebrow">Live support workspace</p>
+              <h1 id="caseTitle">Start a support interaction</h1>
+              <p id="caseSubtitle">Choose a guided scenario or paste a transcript to see ResolveAI work.</p>
+            </div>
+            <div class="case-actions">
+              <span class="live-pill"><i></i><span id="caseStatus">READY</span></span>
+              <button class="outline-button" id="resolveButton" disabled>Mark resolved</button>
+            </div>
+          </div>
+
+          <div class="scenario-strip">
+            <div>
+              <span>Guided scenarios</span>
+              <button class="scenario-button" data-demo="account">Account lock <small>AI resolves</small></button>
+              <button class="scenario-button active" data-demo="vpn">VPN instability <small>Human + AI</small></button>
+              <button class="scenario-button" data-demo="sap">SAP outage <small>Escalation</small></button>
+            </div>
+            <button class="text-button" id="toggleTranscript">Use my transcript</button>
+          </div>
+
+          <div class="transcript-entry" id="transcriptEntry" hidden>
+            <label for="transcriptInput">Paste a call transcript</label>
+            <textarea id="transcriptInput" rows="5" placeholder="Customer: Describe the issue here...&#10;Technician: Add the next response..."></textarea>
+            <div class="entry-actions"><button class="outline-button" id="voiceButton">Use microphone</button><button class="primary-button" id="analyzeButton">Analyze transcript</button></div>
+            <p class="helper" id="voiceHelper">Microphone capture uses your browser's speech-recognition support when available.</p>
+          </div>
+
+          <div class="workspace-empty" id="workspaceEmpty">
+            <div class="empty-orbit"><span></span><span></span><b>AI</b></div>
+            <h2>Ready for the first case</h2>
+            <p>Run the VPN scenario to see the complete technician workflow, including an evidence-based QA correction.</p>
+            <button class="primary-button" data-demo="vpn">Run VPN scenario <span>→</span></button>
+          </div>
+
+          <div class="case-workspace" id="caseWorkspace" hidden>
+            <section class="workspace-column transcript-column">
+              <div class="column-heading"><div><span class="column-number">01</span><h2>Conversation</h2></div><span class="streaming-label">● LIVE</span></div>
+              <div class="transcript" id="transcriptPanel"></div>
+              <div class="call-controls"><button aria-label="Mute">⌁</button><button class="end-call" aria-label="End call">■</button><span id="callTimer">04:26</span></div>
+            </section>
+
+            <section class="workspace-column intelligence-column">
+              <div class="column-heading"><div><span class="column-number">02</span><h2>AI copilot</h2></div><span class="confidence-pill" id="routeConfidence">--</span></div>
+              <div id="intelligencePanel"></div>
+            </section>
+
+            <section class="workspace-column ticket-column">
+              <div class="column-heading"><div><span class="column-number">03</span><h2>Case record</h2></div><button class="text-button" id="toggleTicket">Ticket</button></div>
+              <div id="ticketPanel"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="view-tickets">
+          <div class="page-heading"><p class="eyebrow">Case management</p><h1>Tickets</h1><p>AI-generated records remain reviewable and editable by technicians.</p></div>
+          <article class="panel table-panel">
+            <div class="panel-heading"><div><h2>Recent tickets</h2><p>Cases created during this session appear first.</p></div><button class="outline-button" id="refreshTickets">Refresh</button></div>
+            <div class="ticket-table" id="ticketTable"><div class="table-empty">Run a demo scenario to create the first ticket.</div></div>
+          </article>
+        </section>
+
+        <section class="view" id="view-qa">
+          <div class="page-heading"><p class="eyebrow">Independent quality audit</p><h1>Ticket QA</h1><p>Every recommendation is tied to a field, reason, confidence, and evidence.</p></div>
+          <div class="qa-summary" id="qaSummary"><div class="score-ring"><strong>--</strong><span>Quality score</span></div><div><h2>No case selected</h2><p>Run a scenario, then return here to inspect its audit.</p></div></div>
+          <div class="qa-grid" id="qaGrid"></div>
+        </section>
+
+        <section class="view" id="view-analytics">
+          <div class="page-heading"><p class="eyebrow">Enterprise intelligence</p><h1>Operations analytics</h1><p>Turn closed cases into trends, quality signals, and knowledge improvements.</p></div>
+          <div class="analytics-grid">
+            <article class="panel wide-chart"><div class="panel-heading"><div><h2>Incident trend</h2><p>Tickets created over the last seven days</p></div><span class="positive">+12.4%</span></div><div class="line-chart" aria-label="Illustrative incident volume chart"><svg viewBox="0 0 700 230" role="img"><defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#008a88" stop-opacity=".28"/><stop offset="1" stop-color="#008a88" stop-opacity="0"/></linearGradient></defs><path class="grid-line" d="M20 50H680M20 100H680M20 150H680M20 200H680"/><path class="area" d="M20 180 C80 165 95 120 150 135 S235 165 285 110 S375 55 420 82 S505 138 550 80 S635 32 680 45 L680 215 L20 215Z"/><path class="trend" d="M20 180 C80 165 95 120 150 135 S235 165 285 110 S375 55 420 82 S505 138 550 80 S635 32 680 45"/></svg><div class="axis"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div></div></article>
+            <article class="panel insight-card"><p class="eyebrow">Emerging pattern</p><h2>VPN certificate expiry</h2><strong>27 of 38</strong><p>VPN incidents mention successful authentication followed by a disconnect within five minutes.</p><div class="insight-action"><span>Knowledge coverage</span><b>LOW</b></div><button class="primary-button">Draft KB improvement</button></article>
+            <article class="panel"><div class="panel-heading"><div><h2>AI vs human</h2><p>Resolution outcomes</p></div></div><div class="donut-row"><div class="donut"><strong>42%</strong><span>AI contained</span></div><div class="legend"><span><i class="ai"></i>AI resolved <b>42%</b></span><span><i class="human"></i>Human resolved <b>51%</b></span><span><i class="escalated"></i>Escalated <b>7%</b></span></div></div></article>
+            <article class="panel"><div class="panel-heading"><div><h2>Quality errors</h2><p>Most common audit findings</p></div></div><div class="error-list"><div><span>Impact</span><b>18</b></div><div><span>Assignment</span><b>11</b></div><div><span>Priority</span><b>9</b></div><div><span>Resolution code</span><b>6</b></div></div></article>
+          </div>
+        </section>
+
+        <section class="view" id="view-settings">
+          <div class="page-heading"><p class="eyebrow">Deployment readiness</p><h1>Configuration</h1><p>The app is safe to explore now and ready for GCP credentials later.</p></div>
+          <div class="settings-grid">
+            <article class="panel setting-card"><span class="setting-icon">AI</span><div><h2>Gemini provider</h2><p id="configProvider">Mock</p><small>Switch with GEMINI_PROVIDER=vertex or google_ai.</small></div><span class="status-badge ready">Ready</span></article>
+            <article class="panel setting-card"><span class="setting-icon">DB</span><div><h2>Case storage</h2><p id="configStore">Memory</p><small>Switch to Firestore for durable GCP storage.</small></div><span class="status-badge ready">Ready</span></article>
+            <article class="panel setting-card"><span class="setting-icon">GC</span><div><h2>Cloud Run</h2><p>Container-ready</p><small>Health checks, PORT 8080, and source deployment included.</small></div><span class="status-badge ready">Ready</span></article>
+            <article class="panel architecture-card"><p class="eyebrow">Target architecture</p><h2>Browser → Cloud Run → Gemini / Vertex AI</h2><div class="architecture-flow"><span>Responsive web app</span><i>→</i><span>FastAPI service</span><i>→</i><span>Gemini reasoning</span><i>→</i><span>Firestore cases</span></div><p>Secret Manager supplies the Gemini API key when using Google AI. Vertex AI uses the Cloud Run service account through Application Default Credentials.</p></article>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

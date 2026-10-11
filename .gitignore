@@ -1,0 +1,33 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+coverage.xml
+data/
+node_modules/
+
+# Local credentials and environment overrides
+.env.*
+!.env.example
+!.env.real.example
+*.dpapi
+*.pem
+*.key
+*service-account*.json
+*credentials*.json
+
+# Runtime records, recordings, and build output
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.log
+*.wav
+*.mp3
+*.webm
+.coverage
+htmlcov/
+dist/
+build/

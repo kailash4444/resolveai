@@ -1,0 +1,36 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$BUILD_ID", "."]
+  - name: gcr.io/cloud-builders/docker
+    args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$BUILD_ID"]
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$BUILD_ID
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --port=8080
+      - --memory=1Gi
+      - --cpu=1
+      - --min-instances=1
+      - --max-instances=1
+      - --no-cpu-throttling
+      - --timeout=3600
+      - --update-env-vars=ENVIRONMENT=production,LLM_PROVIDER=${_LLM_PROVIDER},GEMINI_PROVIDER=${_LLM_PROVIDER},GEMINI_MODEL=${_GEMINI_MODEL},GEMINI_TRANSCRIPTION_MODEL=${_TRANSCRIPTION_MODEL},GEMINI_TTS_MODEL=gemini-3.8-flash-lite-tts,EMBEDDING_MODEL=${_EMBEDDING_MODEL},DATA_BACKEND=${_DATA_BACKEND},CALLING_BACKEND=${_DATA_BACKEND},GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$BUILD_ID
+substitutions:
+  _REGION: asia-south1
+  _REPOSITORY: resolveai
+  _SERVICE: resolveai
+  _LLM_PROVIDER: vertex
+  _GEMINI_MODEL: gemini-3.8-flash
+  _TRANSCRIPTION_MODEL: gemini-3.8-flash
+  _EMBEDDING_MODEL: gemini-embedding-001
+  _DATA_BACKEND: firestore
+options:
+  logging: CLOUD_LOGGING_ONLY

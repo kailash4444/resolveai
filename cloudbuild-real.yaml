@@ -1,0 +1,27 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "Dockerfile.gcp", "-t", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/resolveai:$BUILD_ID", "."]
+  - name: gcr.io/cloud-builders/docker
+    args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/resolveai:$BUILD_ID"]
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - resolveai
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/resolveai:$BUILD_ID
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --timeout=3600
+      - --no-cpu-throttling
+      - --min-instances=1
+      - --max-instances=1
+      - --update-env-vars=ENVIRONMENT=production,LLM_PROVIDER=vertex,GEMINI_PROVIDER=vertex,GEMINI_MODEL=gemini-3.8-flash,GEMINI_TRANSCRIPTION_MODEL=gemini-3.8-flash,GEMINI_TTS_MODEL=gemini-3.8-flash-lite-tts,EMBEDDING_MODEL=gemini-embedding-001,GOOGLE_CLOUD_LOCATION=global,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,DATA_BACKEND=firestore,CALLING_BACKEND=firestore,FIRESTORE_COLLECTION=resolveai_cases
+substitutions:
+  _REGION: asia-south1
+  _REPOSITORY: resolveai
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/resolveai:$BUILD_ID
+options:
+  logging: CLOUD_LOGGING_ONLY

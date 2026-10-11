@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ResolveAI · Enterprise Service Desk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/overrides.css?v=5">
+<link rel="stylesheet" href="/static/microphone.css?v=1"></head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">R</span><span>ResolveAI</span></div>
+    <p class="workspace-label">SERVICE OPERATIONS</p>
+    <nav><button class="nav-item" data-view="customer-home" hidden><span>⌂</span>My support</button>
+      <button class="nav-item active" data-view="overview"><span>⌂</span>Overview</button>
+      <button class="nav-item" data-view="case"><span>＋</span>New case</button>
+      <button class="nav-item" data-view="tickets"><span>▤</span>Tickets</button>
+      <button class="nav-item" data-view="calls"><span>◉</span>Calls & queue</button>
+      <button class="nav-item" data-view="technicians"><span>♧</span>Users</button>
+      <button class="nav-item" data-view="analytics"><span>◫</span>Analytics</button>
+      <button class="nav-item" data-view="knowledge"><span>◇</span>Knowledge</button>
+      <button class="nav-item" data-view="qa"><span>✓</span>Quality audit</button>
+    </nav>
+    <div class="system-card">
+      <span class="status-dot" id="statusDot"></span>
+      <div><strong id="systemStatus">Checking AI connection</strong><small id="modelLabel">Server connection</small><button class="key-link" id="openKeyPanel">Configure key</button></div>
+    </div>
+  </aside>
+
+  <main>
+    <div id="incomingCallBanner" class="incoming-call-banner" hidden role="status"></div>
+    <header class="topbar">
+      <div><p class="eyebrow">AI-FIRST ENTERPRISE SUPPORT</p><h1 id="pageTitle">Operations overview</h1></div>
+      <div class="account-menu"><span id="accountIdentity"></span><button class="text-button" id="accountSignOut" hidden>Sign out</button></div><button class="primary small" id="topStartCase" data-open-case hidden>Start a case</button>
+    </header>
+
+    <section class="view" id="view-signin"><article class="panel"><p class="eyebrow">YOUR SUPPORT WORKSPACE</p><h2>Welcome to ResolveAI</h2><p>Sign in to access your support workspace. Your administrator creates technician and customer accounts.</p><button class="primary" id="accountSignIn">Sign in</button></article></section>
+    <section class="view" id="view-customer-home">
+      <article class="panel"><p class="eyebrow">MY SUPPORT</p><h2>How can we help?</h2><p>Speak with support, report a problem, or find a solution in Knowledge.</p><div class="call-actions"><a class="primary" href="/support" target="_blank" rel="noopener">Call support</a><button class="secondary" data-view="customer-create">Create an incident</button><button class="text-button" data-view="knowledge">Browse knowledge</button></div></article>
+      <article class="panel"><h3>Your recent calls</h3><div id="customerCalls" class="empty-list">No calls yet.</div></article>
+    </section>
+    <section class="view" id="view-customer-create"><article class="panel intake-panel"><p class="eyebrow">REPORT A PROBLEM</p><h2>Create an incident</h2><form id="customerIncidentForm"><label>Short description<input name="short_description" required minlength="3" maxlength="200"></label><label>Description<textarea name="description" rows="7" required minlength="10" maxlength="8000" placeholder="What happened, and how is it affecting you?"></textarea></label><label>Service<input name="service" value="General" required minlength="2" maxlength="100"></label><button class="primary" type="submit">Create incident</button><p class="form-message" id="customerIncidentMessage"></p></form></article></section>
+    <section class="view active" id="view-overview">
+      <div class="hero">
+        <div><span class="pill">AI-powered triage</span><h2>Turn support conversations into action.</h2><p>Transcribe the call, understand the issue, find the right knowledge, route safely, draft the ticket, and audit its quality in one workflow.</p></div>
+        <button class="primary" data-open-case>Analyze a conversation <span>→</span></button>
+      </div>
+      <div class="metrics">
+        <article><span>Total cases</span><strong id="metricTotal">0</strong><small>Processed conversations</small></article>
+        <article><span>Open work</span><strong id="metricOpen">0</strong><small>Needs follow-up</small></article>
+        <article><span>AI handled</span><strong id="metricAI">0</strong><small>Safe routine requests</small></article>
+        <article><span>Average QA</span><strong id="metricQA">0%</strong><small>Ticket quality score</small></article>
+      </div>
+      <div class="grid two">
+        <article class="panel"><div class="panel-head"><div><p class="eyebrow">LIVE WORK</p><h3>Recent cases</h3></div><button class="text-button" data-view-target="tickets">View all</button></div><div id="recentCases" class="empty-list">No cases yet. Start with a real support conversation.</div></article>
+        <article class="panel"><div class="panel-head"><div><p class="eyebrow">SIGNALS</p><h3>Issue themes</h3></div></div><div id="themeList" class="empty-list">Themes appear as conversations are analyzed.</div></article>
+      </div>
+    </section>
+
+    <section class="view" id="view-case">
+      <div class="case-layout">
+        <article class="panel intake-panel">
+          <div class="panel-head"><div><p class="eyebrow">CONVERSATION INTAKE</p><h3>Describe the customer issue</h3></div><span class="connection" id="connectionBadge">Checking…</span></div>
+          <p class="helper">Paste a transcript, upload an audio recording, or record directly in the browser. Audio is transcribed by the configured AI service before analysis.</p>
+          <div class="form-row"><label>Caller<input id="callerInput" value="Customer"></label><label>Channel<select id="channelInput"><option>Voice</option><option>Chat</option><option>Email</option><option>Walk-up</option></select></label></div>
+          <div class="audio-row"><label>Audio recording<input type="file" id="audioFile" accept="audio/*,.mp3,.mp4,.mpeg,.mpga,.m4a,.wav,.webm"></label><button class="secondary" id="transcribeFileButton">Transcribe file</button></div>
+          <label>Conversation<textarea id="transcriptInput" rows="13" placeholder="Customer: I cannot access my account this morning.\nAgent: What message do you see?\nCustomer: It says my account is locked after too many attempts."></textarea></label>
+          <div class="action-row"><button class="secondary" id="captureButton">● Record call</button><button class="primary" id="analyzeButton">Analyze with Gemini <span>→</span></button></div>
+          <p class="form-message" id="analysisMessage"></p>
+        </article>
+        <aside class="flow-card"><p class="eyebrow">WHAT HAPPENS</p><ol><li><b>Transcribe</b><span>Gemini converts call audio to text.</span></li><li><b>Understand</b><span>Gemini extracts intent, urgency, risk, and entities.</span></li><li><b>Retrieve & route</b><span>Embeddings rank knowledge; confidence and risk choose the handler.</span></li><li><b>Create, work & audit</b><span>The incident starts New. Technicians update it through resolution, then Gemini runs QA.</span></li></ol></aside>
+      </div>
+      <div id="caseResult" hidden></div>
+    </section>
+
+    <section class="view" id="view-tickets">
+      <div class="panel-head page-section-head"><div><p class="eyebrow">CASE MANAGEMENT</p><h2>Tickets</h2></div><button class="primary small" data-open-case>New case</button></div>
+      <div class="panel table-wrap"><table><thead><tr><th>Ticket</th><th>Issue</th><th>Service</th><th>Priority</th><th>Handler</th><th>State</th></tr></thead><tbody id="ticketRows"></tbody></table><div id="ticketsEmpty" class="empty-list">No tickets yet. Analyze a conversation to create one.</div></div>
+    </section>
+
+    <section class="view" id="view-ticket-detail">
+      <div class="panel-head page-section-head"><div><p class="eyebrow">CASE MANAGEMENT</p><h2>Ticket details</h2></div><button class="secondary" data-view="tickets">← Back to tickets</button></div>
+      <div id="ticketDetailPage" class="panel empty-list">Select a ticket to open its details.</div>
+    </section>
+
+    <section class="view" id="view-calls">
+      <div class="panel-head page-section-head"><div><p class="eyebrow">VOICE OPERATIONS</p><h2>Calls & queue</h2><p class="helper">AI assistance and the right technician, in one conversation.</p></div><button class="secondary" id="routeRequestButton">Route a support request</button></div>
+      <div class="panel presence-panel"><div><strong id="technicianIdentity">Technician workspace</strong><p id="phoneConnection" class="helper">Sign in to receive assignments.</p></div><div class="call-actions"><button class="secondary" id="signInButton">Sign in</button><button class="secondary" id="enablePhoneButton" hidden>Enable calls</button><label id="presenceControl" hidden>Availability<select id="presenceSelect"><option>Offline</option><option>Available</option><option>Away</option><option disabled>Busy</option><option disabled>Wrap-up</option></select></label><button class="text-button" id="signOutButton" hidden>Sign out</button></div></div>
+      <div class="metrics call-metrics"><article><span>Waiting</span><strong id="callsQueued">0</strong><small>In technician queues</small></article><article><span>With AI</span><strong id="callsAI">0</strong><small>Guided support</small></article><article><span>Connected</span><strong id="callsConnected">0</strong><small>With technicians</small></article><article><span>Available</span><strong id="callsAvailable">0</strong><small>Ready for assignments</small></article></div>
+      <section class="microphone-panel" data-microphone-panel hidden></section><article class="panel" id="sharedQueuePanel" hidden><h3>Incoming calls — available to answer</h3><div id="sharedQueue"></div></article><div class="calling-layout"><article class="panel"><div class="panel-head"><h3>Call activity</h3><span class="tag" id="callingSync">Live queue</span></div><div id="callList" class="empty-list">Sign in to view calls and assignments.</div></article><article class="panel" id="callWorkspace"><p class="eyebrow">CONVERSATION</p><h3>Ready when you are</h3><p class="helper">Choose a call to see the transcript, routing decision, and linked incident.</p></article></div>
+      <article class="panel telephony-panel"><div class="panel-head"><div><p class="eyebrow">LIVEKIT CONNECTION</p><h3 id="telephonyTitle">Connect browser calling</h3></div><div class="call-actions"><button class="secondary small" id="connectLiveKitButton" hidden>Connect LiveKit</button><a class="text-button" href="/support" target="_blank" rel="noopener">Open customer call page ↗</a><button class="text-button" id="telephonyHelpButton">Connection details</button></div></div><p id="telephonySummary" class="helper">Customers call from the support page. Available technicians receive browser calls here.</p><div id="telephonyDetails" hidden></div></article>
+    </section>
+
+    <section class="view" id="view-technicians">
+      <div class="panel-head page-section-head"><div><p class="eyebrow">SERVICE TEAM</p><h2>Users</h2><p class="helper">Create technician and customer accounts. All users share the AI connection configured by the administrator.</p></div><button class="primary small" id="addTechnicianButton" hidden>Add user</button></div>
+      <div class="panel table-wrap"><table><thead><tr><th>User</th><th>Skills</th><th>Languages</th><th>Availability</th><th>Phone</th><th>Current call</th></tr></thead><tbody id="technicianRows"></tbody></table><div class="empty-list" id="techniciansEmpty">Open Calls & queue and sign in to manage your team.</div></div>
+    </section>
+
+    <section class="view" id="view-knowledge">
+      <article class="panel"><div class="panel-head"><div><p class="eyebrow">RETRIEVAL LIBRARY</p><h2>Knowledge articles</h2></div><div class="knowledge-actions"><span class="count-badge" id="knowledgeCount">0</span><button class="secondary small" id="openIncidentKnowledgePanel">Create from incidents</button><button class="primary small" id="openKnowledgePanel">Add knowledge</button></div></div><div class="knowledge-search"><input id="knowledgeSearch" type="search" placeholder="Search by title, service, symptoms, or tags" aria-label="Search knowledge articles"></div><div id="knowledgeList"></div></article>
+    </section>
+
+    <section class="view" id="view-analytics">
+      <div class="panel-head page-section-head"><div><p class="eyebrow">SERVICE INTELLIGENCE</p><h2>Incident analytics</h2><p class="helper">Operational trends calculated from every created incident.</p></div></div>
+      <div class="metrics analytics-metrics"><article><span>Total incidents</span><strong id="analyticsTotal">0</strong><small>Across all services</small></article><article><span>Active services</span><strong id="analyticsServices">0</strong><small>Services with incidents</small></article><article><span>Resolved</span><strong id="analyticsResolved">0%</strong><small>Resolution rate</small></article><article><span>Average QA</span><strong id="analyticsQA">—</strong><small>Resolved tickets</small></article></div>
+      <div class="analytics-grid"><article class="panel"><div class="panel-head"><div><p class="eyebrow">SERVICE VOLUME</p><h3>Incidents by service</h3></div></div><div id="serviceVolume" class="empty-list">Analytics appear after an incident is created.</div></article><article class="panel"><div class="panel-head"><div><p class="eyebrow">WORKFLOW</p><h3>State distribution</h3></div></div><div id="stateDistribution" class="empty-list">No incident data yet.</div></article><article class="panel"><div class="panel-head"><div><p class="eyebrow">URGENCY</p><h3>Priority distribution</h3></div></div><div id="priorityDistribution" class="empty-list">No incident data yet.</div></article><article class="panel"><div class="panel-head"><div><p class="eyebrow">ROUTING</p><h3>Handling model</h3></div></div><div id="routingDistribution" class="empty-list">No incident data yet.</div></article></div>
+      <article class="panel analytics-table"><div class="panel-head"><div><p class="eyebrow">SERVICE PERFORMANCE</p><h3>Service-level incident summary</h3></div></div><div class="table-wrap"><table><thead><tr><th>Service</th><th>Total</th><th>Open</th><th>Resolved</th><th>AI handled</th><th>Average QA</th></tr></thead><tbody id="serviceAnalyticsRows"></tbody></table><div id="serviceAnalyticsEmpty" class="empty-list">Create an incident to begin service analytics.</div></div></article>
+    </section>
+
+    <section class="view" id="view-qa">
+      <div class="panel-head page-section-head"><div><p class="eyebrow">INDEPENDENT REVIEW</p><h2>Ticket quality audit</h2></div></div>
+      <div id="qaWorkspace" class="panel empty-list">Select a ticket to inspect its evidence and rerun AI QA.</div>
+    </section>
+  </main>
+  <div class="modal-backdrop" id="keyModal" hidden>
+    <section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="keyModalTitle">
+      <button class="modal-close" id="closeKeyPanel" aria-label="Close">×</button>
+      <p class="eyebrow">LOCAL CONNECTION</p><h2 id="keyModalTitle">Connect Gemini</h2>
+      <p class="helper">Your key is protected in your local Windows profile and reused after builds, tests, and server restarts. It is not saved in the browser, Firestore, project files, or downloadable archive.</p>
+      <form id="keyForm"><label><span id="apiKeyLabel">Gemini API key</span><input type="password" id="aiKeyInput" autocomplete="off" spellcheck="false" placeholder="Enter your existing API key" required minlength="20"></label><button class="primary full" type="submit">Use this key</button><p class="form-message" id="keyMessage"></p></form>
+    </section>
+  </div>
+  <div class="modal-backdrop" id="knowledgeModal" hidden>
+    <section class="key-modal knowledge-modal" role="dialog" aria-modal="true" aria-labelledby="knowledgeModalTitle">
+      <button class="modal-close" id="closeKnowledgePanel" aria-label="Close">×</button>
+      <p class="eyebrow">ADD ARTICLE</p><h2 id="knowledgeModalTitle">Make guidance searchable</h2>
+      <p class="helper" id="knowledgeSources" hidden></p><form id="knowledgeForm"><label>Title<input name="title" required></label><label>Product or service<input name="product" required></label><label>Symptoms<textarea name="symptoms" rows="3" required></textarea></label><label>Steps, one per line<textarea name="steps" rows="5" required></textarea></label><label>Expected resolution<textarea name="resolution" rows="3" required></textarea></label><label>Tags, comma separated<input name="tags"></label><button class="primary full" type="submit">Add to knowledge</button><p class="form-message" id="knowledgeMessage"></p></form>
+    </section>
+  </div>
+  <div class="modal-backdrop" id="incidentKnowledgeModal" hidden>
+    <section class="key-modal knowledge-modal" role="dialog" aria-modal="true" aria-labelledby="incidentKnowledgeTitle">
+      <button class="modal-close" id="closeIncidentKnowledgePanel" aria-label="Close">×</button>
+      <p class="eyebrow">KNOWLEDGE FROM EXPERIENCE</p><h2 id="incidentKnowledgeTitle">Create from incidents</h2>
+      <p class="helper">Use incident details, comments, resolution notes, and source conversations to draft a reusable article. Review and edit it before adding it to Knowledge.</p>
+      <form id="incidentKnowledgeForm"><label>Ticket numbers<textarea name="ticket_numbers" rows="4" placeholder="INC-12345678, INC-87654321" required maxlength="2000"></textarea></label>
+      <p class="helper">Enter up to 20 ticket numbers, separated by commas, spaces, or new lines.</p>
+      <button class="primary full" id="generateIncidentKnowledge" type="submit">Generate draft</button><p class="form-message" id="incidentKnowledgeMessage" role="status"></p></form>
+    </section>
+  </div>
+  <div class="toast" id="toast" hidden></div>
+  <div class="modal-backdrop" id="authModal" hidden><section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="authTitle"><button class="modal-close" data-close-call-modal="authModal" aria-label="Close">×</button><p class="eyebrow">TECHNICIAN WORKSPACE</p><h2 id="authTitle">Sign in</h2><p class="helper" id="authDescription">Use your technician account to receive calls.</p><form id="authForm"><label id="setupNameLabel" hidden>Your name<input name="name" autocomplete="name"></label><label>Username<input name="username" autocomplete="username" required maxlength="80"></label><label>Password<input name="password" type="password" autocomplete="current-password" required maxlength="128"></label><label id="setupTokenLabel" hidden>Administrator setup token<input name="setup_token" type="password" autocomplete="off"></label><button class="primary full" id="authSubmit">Sign in</button><p class="form-message" id="authMessage"></p></form></section></div>
+  <div class="modal-backdrop" id="technicianModal" hidden><section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="technicianTitle"><button class="modal-close" data-close-call-modal="technicianModal" aria-label="Close">×</button><p class="eyebrow">YOUR TEAM</p><h2 id="technicianTitle">Add user</h2><form id="technicianForm"><label>Role<select name="role"><option value="technician">Technician</option><option value="customer">Customer</option></select></label><label>Name<input name="name" required minlength="2" maxlength="80"></label><label>Username<input name="username" required minlength="3" pattern="[a-zA-Z0-9_.@-]+" autocomplete="off"></label><label>Password<input name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label><label>Services or skills, separated by commas<input name="skills" value="general" required></label><p class="helper">Use the service name to match specialist work. “general” receives work when no specialist is available.</p><label>Languages, separated by commas<input name="languages" value="en" required></label><button class="primary full">Create user</button><p class="form-message" id="technicianMessage"></p></form></section></div>
+  <div class="modal-backdrop" id="requestModal" hidden><section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="requestTitle"><button class="modal-close" data-close-call-modal="requestModal" aria-label="Close">×</button><p class="eyebrow">SERVICE DESK INTAKE</p><h2 id="requestTitle">Route a support request</h2><p class="helper">Create an incident from a customer request and send it through the same AI and technician routing used by phone calls.</p><form id="routeRequestForm"><label>Customer<input name="caller" required maxlength="100"></label><label>Problem description<textarea name="description" rows="5" required minlength="20" maxlength="8000"></textarea></label><label>Language<input name="language" value="en" required maxlength="10"></label><button class="primary full">Create and route</button><p class="form-message" id="requestMessage"></p></form></section></div>
+  <div class="modal-backdrop" id="livekitModal" hidden><section class="key-modal livekit-modal" role="dialog" aria-modal="true" aria-labelledby="livekitTitle"><button class="modal-close" data-close-call-modal="livekitModal" aria-label="Close">×</button><p class="eyebrow">BROWSER CALLING</p><h2 id="livekitTitle">Connect LiveKit</h2><p class="helper">Use the local LiveKit server or your LiveKit Cloud project. Credentials are protected in your Windows profile and retained after restarts.</p><form id="livekitForm"><label>LiveKit server address<input name="url" required placeholder="ws://127.0.0.1:7880" autocomplete="off" spellcheck="false"></label><label>API key<input name="api_key" required autocomplete="off" spellcheck="false"></label><label>API secret<input name="api_secret" type="password" autocomplete="off" spellcheck="false" placeholder="Enter your API secret"></label><p class="helper">Cloud credentials are available in <a href="https://cloud.livekit.io/" target="_blank" rel="noopener noreferrer">LiveKit Cloud</a>. For local calls, run start-livekit-local.ps1 in the project.</p><button type="submit" class="primary full">Verify and save connection</button><p id="livekitMessage" class="form-message" role="status"></p></form></section></div>
+  <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="primary resume-audio" hidden>Enable call audio</button>
+  <script src="/static/vendor/livekit-client.umd.js"></script>
+  <script src="/static/voice-browser.js?v=3"></script>
+  <script src="/static/app.js?v=6"></script>
+  <script src="/static/calling.js?v=6"></script>
+</body>
+</html>
