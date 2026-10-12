@@ -23,7 +23,8 @@ def test_ticket_list_opens_dedicated_editor_without_qa_controls():
     assert 'id="view-ticket-detail"' in page.text
     assert 'id="ticketDetailPage"' in page.text
     assert "<th>QA</th>" not in page.text
-    assert 'id="topStartCase" data-open-case hidden' in page.text
+    assert 'id="topStartCase"' not in page.text
+    assert 'data-open-case>New case</button>' in page.text
     assert 'id="knowledgeSearch"' in page.text
     assert 'id="openKnowledgePanel"' in page.text
     assert 'id="knowledgeModal" hidden' in page.text

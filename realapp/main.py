@@ -19,6 +19,7 @@ from realapp.incident_context import knowledge_context
 from realapp.models import KnowledgeFromIncidentsRequest, CustomerIncidentCreate, Ticket, TranscriptTurn, Understanding, RoutingDecision
 from realapp.access import actor, can_read, require_case, visible_case
 from realapp.resolved_knowledge import ResolvedKnowledgePublisher
+from realapp.bulk_qa import BulkAudit
 
 
 settings = get_settings()
@@ -34,6 +35,7 @@ static_dir = Path(__file__).parent / "static"
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ResolveAI API", version="2.0.0")
+app.state.bulk_audit = BulkAudit()
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
@@ -287,6 +289,24 @@ def add_work_note(case_id: str, note: WorkNoteCreate, http: Request):
     case.ticket.work_notes.append(WorkNote(id=f"NOTE-{uuid4().hex[:8].upper()}", author=user['name'],
         author_type='Customer' if user['role'] == 'customer' else 'Technician', text=note.text))
     return visible_case(store.save_case(case), user)
+
+
+@app.get('/api/qa/rerun-all')
+def bulk_qa_status(http: Request):
+    if actor(http)['role'] not in {'admin', 'technician'}:
+        raise HTTPException(403, 'Technician access is required.')
+    return app.state.bulk_audit.status()
+
+
+@app.post('/api/qa/rerun-all', status_code=202)
+def rerun_all_qa(http: Request, background_tasks: BackgroundTasks):
+    user = actor(http)
+    if user['role'] not in {'admin', 'technician'}:
+        raise HTTPException(403, 'Technician access is required.')
+    job, ids = app.state.bulk_audit.start([case for case in store.list_cases() if can_read(case, user)])
+    if ids:
+        background_tasks.add_task(app.state.bulk_audit.run, ids, store, engine)
+    return job
 
 
 @app.post("/api/cases/{case_id}/qa", response_model=CaseRecord)

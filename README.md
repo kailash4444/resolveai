@@ -139,3 +139,13 @@ In Knowledge, select **Create from incidents** and enter up to 20 incident numbe
 Both background and manual quality audits exclude automatic System activity from work notes. Technician and customer comments remain available to the auditor alongside ticket fields and transcript evidence. The original activity history remains on the incident. Existing audit scores can be refreshed with **Rerun AI QA**.
 
 QA treats Category / Subcategory as one classification check. State, ID, Call ID, and Assigned to are excluded from auditing and scoring. Ticket number and Call ID appear as reference details at the top of the audit. Older saved checks are combined/filtered for display; rerun QA to recalculate an older score under the current rules.
+
+## Rerun all quality audits
+
+Staff can select **Quality audit → Rerun all audits** to audit every currently resolved ticket in the background. The page reports completed, failed, and skipped records. Duplicate clicks share the active batch, failures do not stop other tickets, and concurrent ticket edits are preserved. Customers cannot start or inspect batches. Batch progress is held in memory for the single application worker; restarting the server ends an unfinished batch, which can be rerun.
+
+## Call preferences and completed incidents
+
+Staff accounts retain **Enable calls** and **Availability** across refreshes and sign-ins. Available is the initial preference; completing, declining, or timing out a call restores the saved preference. Routing still requires a recent heartbeat and, for browser calls, microphone readiness. Granted microphone permission is checked again automatically after refresh. Disabled calls and Away/Offline preferences remain unchanged until the user changes them.
+
+The Calls page places call activity above the full-width conversation and displays its incident underneath, with an **Edit incident** link. New browser calls keep routing analysis as a draft until the call ends; the incident is generated from the completed transcript and starts with blank resolution notes. A provider failure retains the conversation in a fallback incident. Retries use the same incident ID and preserve subsequent edits. An empty call creates no incident. AI-confirmed resolutions are applied after incident creation and trigger the existing background QA workflow. Existing incidents and manually routed desk requests retain their current workflow.

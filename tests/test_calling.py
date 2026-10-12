@@ -74,7 +74,8 @@ def test_stale_presence_language_and_voice_capacity(service):
     service.repository.mutate(lambda db: db["calls"][call["id"]].update(language="en"))
     service.clock[0] += 46
     assert service.dispatch() == []
-    assert service.snapshot()["technicians"][0]["status"] == "Offline"
+    assert service.snapshot()["technicians"][0]["status"] == "Available"
+    assert service.snapshot()["technicians"][0]["voice_ready"] is False
 
 
 def test_decline_timeout_stale_callback_and_fair_reassignment(service):
@@ -109,7 +110,7 @@ def test_accept_requires_owner_and_updates_incident_once(service):
     assert "Assigned to : Alex was Empty" in case.ticket.work_notes[1].text
     assert len(case.ticket.work_notes) == 2
     service.finish(call["id"])
-    assert service.snapshot()["technicians"][0]["status"] == "Wrap-up"
+    assert service.snapshot()["technicians"][0]["status"] == "Available"
     assert service.case_store.get_case(call["case_id"]).ticket.state == "In Progress"
     service.presence(a["id"], "Available")
     assert service.snapshot()["technicians"][0]["status"] == "Available"

@@ -25,3 +25,20 @@
 .account-menu{display:flex;align-items:center;gap:14px;font-size:13px;color:#49655b}#view-customer-home>.panel{margin-bottom:22px}.customer-ticket{margin-bottom:24px}.customer-ticket p{white-space:pre-wrap}body[data-role="customer"] .system-card #modelLabel{display:none}@media(max-width:680px){.topbar{flex-wrap:wrap;gap:12px}.account-menu{flex-wrap:wrap}}
 
 .ticket-filters{display:flex;align-items:end;gap:20px;flex-wrap:wrap;margin-bottom:18px}.ticket-filters label{flex:1;min-width:200px}.ticket-filters input,.ticket-filters select{width:100%}body[data-role="customer"] #presenceControl,body[data-role="customer"] #enablePhoneButton,body[data-role="customer"] #incomingCallBanner{display:none!important}
+
+/* One heading per page; account controls stay at the foot of the sidebar. */
+main{padding-top:30px}.sidebar{overflow-y:auto}.sidebar-footer{margin-top:auto;padding-top:24px}.sidebar-footer .system-card{margin-top:0}.sidebar-footer .account-menu{flex-direction:column;align-items:flex-start;gap:10px;padding:16px 4px 0;color:#cfe3da}.sidebar-footer .text-button{color:#eff8f3;padding:4px 0}.sidebar-footer .text-button:hover{color:var(--lime)}.overview-heading{margin-bottom:26px}.overview-heading h1{font:700 25px Manrope;margin:7px 0 0}
+@media(max-width:1000px) and (min-width:681px){.sidebar-footer #accountIdentity{display:none}.sidebar-footer .account-menu{font-size:11px;padding-left:0;align-items:center}}
+@media(max-width:680px){.sidebar{flex-wrap:wrap}.sidebar nav{flex-wrap:wrap}.sidebar-footer{width:100%;padding-top:8px}.sidebar-footer .account-menu{flex-direction:row;justify-content:space-between;padding-top:4px}main{padding-top:22px}}
+
+/* Call history sits above the full-width conversation and its completed incident. */
+.calling-layout{display:flex;flex-direction:column;align-items:stretch}
+.call-activity-panel .call-list{display:flex;gap:12px;overflow-x:auto;max-height:210px;padding-bottom:8px}
+.call-activity-panel .call-row{flex:0 0 300px;max-width:100%}
+.call-preference{display:flex;align-items:center;gap:8px;font-weight:700}
+.call-preference input{width:18px;height:18px;margin:0;accent-color:#16745b}
+.call-ticket-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin:18px 0}
+.call-ticket-fields strong{display:block;margin-top:5px;overflow-wrap:anywhere}
+.call-ticket-description{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}
+body[data-role="customer"] #callPreferenceControl{display:none!important}
+@media(max-width:680px){.call-ticket-fields{grid-template-columns:1fr 1fr}.call-activity-panel .call-row{flex-basis:260px}}

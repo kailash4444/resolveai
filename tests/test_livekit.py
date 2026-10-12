@@ -115,8 +115,8 @@ def test_technician_join_is_authoritative_and_rejects_other_technicians(voice_ap
     assert f.client.post('/api/calling/'+call['id']+'/connected').status_code==200
     current=f.service.get(call['id'])
     assert current['status']=='Connected'
-    ticket=f.service.case_store.get_case(current['case_id']).ticket
-    assert ticket.state=='In Progress' and not ticket.resolution
+    assert current['case_id'] is None
+    assert f.service.case_store.list_cases() == []
     assert f.client.post('/api/calling/'+call['id']+'/transfer').status_code==200
     assert f.service.get(call['id'])['status']=='Queued'
     assert f.client.post('/api/calling/'+call['id']+'/connected').status_code==403
@@ -145,7 +145,7 @@ def test_permission_failure_requeues_and_does_not_leave_technician_busy(voice_ap
     f.room.update_participant.side_effect=RuntimeError('connection failure')
     assert f.client.post('/api/calling/'+call['id']+'/connected').status_code==502
     assert f.service.get(call['id'])['status']=='Queued'
-    assert f.client.get('/api/auth/status').json()['user']['status']=='Away'
+    assert f.client.get('/api/auth/status').json()['user']['status']=='Available'
 
 
 def test_ai_voice_resolution_only_after_confirmed_outcome(service,monkeypatch):
@@ -167,6 +167,7 @@ def test_ai_voice_resolution_only_after_confirmed_outcome(service,monkeypatch):
         monkeypatch.setattr(service,'reply',lambda _:VoiceReply(reply='Glad it is working.',escalate=False,customer_confirmed_resolved=True))
         await session.process_utterance('Customer',b'audio')
         transport.resolve.assert_awaited_once()
+        assert transport.resolve.call_args.args[0]['case_id']
         assert service.get(call['id'])['status']=='Completed'
     asyncio.run(run())
 
@@ -240,10 +241,11 @@ def test_voice_transcription_routes_and_preserves_technician_comments(service,mo
         monkeypatch.setattr(service.engine,'transcribe',lambda *args:'The payroll app crashes. I need a technician.')
         await session.process_utterance('Customer',b'test-audio')
         current=service.get(call['id'])
-        assert current['status']=='Queued' and current['case_id'] and current['ready_at'] is not None
+        assert current['status']=='Queued' and current['case_id'] is None and current['ready_at'] is not None
         monkeypatch.setattr(service.engine,'transcribe',lambda *args:'I am checking the application logs.')
         await session.process_utterance('Technician',b'test-audio')
-        case=service.case_store.get_case(current['case_id'])
+        completed = service.finish(call['id'])
+        case=service.case_store.get_case(completed['case_id'])
         assert case.transcript[-1].speaker=='Technician'
         assert case.ticket.resolution=='' and case.quality_score is None
     asyncio.run(run())

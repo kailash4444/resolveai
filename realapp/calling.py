@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import secrets
 import time
+from threading import RLock
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -38,6 +39,10 @@ class Heartbeat(BaseModel):
     voice_ready: bool = False
 
 
+class CallSettings(BaseModel):
+    enabled: bool
+
+
 class SupportRequest(BaseModel):
     caller: str = Field(min_length=1, max_length=100)
     description: str = Field(min_length=20, max_length=8000)
@@ -55,7 +60,10 @@ class CustomerMessage(BaseModel):
 
 
 def public_technician(tech):
-    return {k: v for k, v in tech.items() if k not in {"password_hash", "salt"}}
+    value = {k: v for k, v in tech.items() if k not in {"password_hash", "salt"}}
+    value.setdefault('availability', tech['status'] if tech['status'] in {'Available', 'Away'} else 'Available')
+    value.setdefault('calls_enabled', tech['role'] in {'admin', 'technician'})
+    return value
 
 
 def stamp():
@@ -72,6 +80,7 @@ class CallingService:
         self.settings, self.repository, self.case_store, self.engine, self.now = settings, repository, case_store, engine, now
         from realapp.gemini import GeminiEngine
         self.knowledge_engine = GeminiEngine(settings, case_store.list_knowledge)
+        self._ticket_lock = RLock()
 
     def has_users(self):
         return self.repository.mutate(lambda db: bool(db["technicians"]))
@@ -89,6 +98,7 @@ class CallingService:
                     "salt": salt, "password_hash": password_hash, "role": "admin" if first else value.role,
                     "skills": [s.strip().lower()[:80] for s in value.skills if s.strip()] or ["general"],
                     "languages": [s.strip().lower()[:10] for s in value.languages], "status": "Offline",
+                    "availability": "Available", "calls_enabled": first or value.role != 'customer',
                     "voice_ready": False, "last_seen": 0, "last_assigned": 0, "current_call_id": None}
             db["technicians"][tech["id"]] = tech
             return public_technician(tech)
@@ -120,8 +130,11 @@ class CallingService:
             db["login_attempts"].pop(key, None)
             db["sessions"] = {k: v for k, v in db["sessions"].items() if v["expires"] > now}
             db["sessions"][hashed] = {"technician_id": tech["id"], "expires": now + 43200}
+            current = db['technicians'][tech['id']]
+            if current['role'] != 'customer' and not current['current_call_id']:
+                current['status'] = public_technician(current)['availability']
         self.repository.mutate(save)
-        return token, public_technician(tech)
+        return token, self.authenticate(token)
 
     def authenticate(self, token):
         hashed = hashlib.sha256((token or "").encode()).hexdigest()
@@ -146,7 +159,11 @@ class CallingService:
             tech = db["technicians"][tech_id]
             if tech['role'] not in {'admin', 'technician'}:
                 raise HTTPException(403, 'Only support staff can receive calls.')
-            tech.update(last_seen=self.now(), voice_ready=voice_ready)
+            preferences = public_technician(tech)
+            tech.update(availability=preferences['availability'], calls_enabled=preferences['calls_enabled'],
+                        last_seen=self.now(), voice_ready=voice_ready and preferences['calls_enabled'])
+            if not tech['current_call_id']:
+                tech['status'] = tech['availability']
             return public_technician(tech)
         return self.repository.mutate(update)
 
@@ -157,7 +174,20 @@ class CallingService:
                 raise HTTPException(403, 'Only support staff can receive calls.')
             if tech["current_call_id"]:
                 raise HTTPException(409, "Finish or decline the current call before changing availability.")
-            tech.update(status=status, last_seen=self.now())
+            tech.update(status=status, availability=status, last_seen=self.now())
+            return public_technician(tech)
+        return self.repository.mutate(update)
+
+    def call_settings(self, tech_id, enabled):
+        def update(db):
+            tech = db['technicians'][tech_id]
+            if tech['role'] not in {'admin', 'technician'}:
+                raise HTTPException(403, 'Only support staff can receive calls.')
+            if tech['current_call_id']:
+                raise HTTPException(409, 'Finish the current call before changing call settings.')
+            tech['calls_enabled'] = enabled
+            if not enabled:
+                tech['voice_ready'] = False
             return public_technician(tech)
         return self.repository.mutate(update)
 
@@ -180,7 +210,8 @@ class CallingService:
                                 "queued": sum(c["status"] == "Queued" for c in calls),
                                 "ai": sum(c["status"] == "AI" for c in calls),
                                 "connected": sum(c["status"] == "Connected" for c in calls),
-                                "available": sum(t['role'] in {'admin','technician'} and t["status"] == "Available" for t in techs)}}
+                                "available": sum(t['role'] in {'admin','technician'} and t["status"] == "Available"
+                                    and t['voice_ready'] and self.now()-t['last_seen'] <= self.settings.technician_heartbeat_seconds for t in techs)}}
         return self.repository.mutate(read)
 
     def get(self, call_id):
@@ -251,7 +282,7 @@ class CallingService:
 
     def triage(self, call_id):
         call = self.get(call_id)
-        if call["case_id"]:
+        if call["case_id"] or call.get('draft_case'):
             return call
         transcript = "\n".join(f"{t['speaker']}: {t['text']}" for t in call["transcript"])
         try:
@@ -280,14 +311,17 @@ class CallingService:
         fields = ("short_description", "description", "category", "subcategory", "service", "priority", "assignment_group", "state")
         case.ticket.work_notes.append(WorkNote(id=f"NOTE-{uuid4().hex[:8]}", author="Ticket created", author_type="System",
             text="\n".join(f"{field.replace('_', ' ').capitalize()} : {getattr(case.ticket, field)}" for field in fields)))
-        self.case_store.save_case(case)
+        if call['origin'] != 'browser':
+            self.case_store.save_case(case)
 
         def save(db):
             current = db["calls"][call_id]
             # Keep the link even if the customer hung up while analysis ran.
-            if current["case_id"]:
+            if current["case_id"] or current.get('draft_case'):
                 return current
-            current.update(case_id=case.id, service=case.ticket.service, priority=case.ticket.priority,
+            current.update(case_id=case.id if call['origin'] != 'browser' else None,
+                           draft_case=case.model_dump(mode='json') if call['origin'] == 'browser' else None,
+                           service=case.ticket.service, priority=case.ticket.priority,
                            summary=case.understanding.summary, reason=case.routing.rationale)
             if current["status"] == "Triage":
                 current["status"] = "AI" if ai else "Queued"
@@ -322,8 +356,6 @@ class CallingService:
             for tech in db["technicians"].values():
                 if now - tech["last_seen"] > self.settings.technician_heartbeat_seconds:
                     tech["voice_ready"] = False
-                    if not tech["current_call_id"]:
-                        tech["status"] = "Offline"
             for call in db["calls"].values():
                 if call["status"] == "Ringing" and call["reserved_until"] <= now:
                     self._release(db, call, "Offer timed out", away=True)
@@ -364,7 +396,7 @@ class CallingService:
         tech = db["technicians"].get(call["technician_id"])
         if tech and tech["current_call_id"] == call["id"]:
             call["declined"][tech["id"]] = self.now() + 30
-            tech.update(status="Away" if away else "Available", current_call_id=None)
+            tech.update(status=public_technician(tech)['availability'], current_call_id=None)
         call.update(status="Queued", technician_id=None, technician_name="", reserved_until=None, dispatch_sent=False, pickup_claimed=False)
         history(call, reason)
 
@@ -432,7 +464,7 @@ class CallingService:
             if not mine:
                 previous = db['technicians'].get(call['technician_id'])
                 if previous and previous['current_call_id'] == call_id:
-                    previous.update(status='Available',current_call_id=None)
+                    previous.update(status=public_technician(previous)['availability'],current_call_id=None)
                 call.update(technician_id=tech_id,technician_name=tech['name'],dispatch_id=uuid4().hex,
                             status='Ringing',reserved_until=self.now()+self.settings.call_reservation_seconds)
                 tech.update(status='Busy',current_call_id=call_id,last_assigned=self.now())
@@ -455,11 +487,55 @@ class CallingService:
                 return call
             tech = db["technicians"].get(call["technician_id"])
             if tech and tech["current_call_id"] == call_id:
-                tech.update(status="Wrap-up", current_call_id=None)
+                tech.update(status=public_technician(tech)['availability'], current_call_id=None)
             call.update(status=status, ended_at=self.now(), reserved_until=None)
             history(call, "Call ended; incident remains available for updates" if status == "Completed" else status)
             return call
-        return self.repository.mutate(update)
+        call = self.repository.mutate(update)
+        if call['origin'] == 'browser' and not call['case_id']:
+            self.finalize_ticket(call_id)
+        return self.get(call_id)
+
+    def finalize_ticket(self, call_id):
+        with self._ticket_lock:
+            call = self.get(call_id)
+            if call['case_id'] or call['status'] not in TERMINAL:
+                return
+            turns = call['transcript']
+            if not any(t['speaker'] == 'Customer' and t['text'].strip() for t in turns):
+                return
+            transcript = '\n'.join(f"{t['speaker']}: {t['text']}" for t in turns)
+            try:
+                case = self.engine.analyze(AnalysisRequest(transcript=transcript, caller=call['caller'], channel='Voice'))
+            except Exception:
+                if not call.get('draft_case'):
+                    self.triage(call_id)
+                    call = self.get(call_id)
+                case = CaseRecord.model_validate(call['draft_case'])
+                case.ticket.description = transcript
+            # Deterministic IDs make retrying publication safe after a restart.
+            suffix = call_id.removeprefix('CALL-')
+            case.id, case.ticket.id = 'CASE-' + suffix, 'INC-' + suffix
+            existing = self.case_store.get_case(case.id)
+            if not existing:
+                case.customer_id = call.get('customer_id', '')
+                case.created_by = case.customer_id
+                case.transcript = [TranscriptTurn(**turn) for turn in turns]
+                case.ticket.call_id = call_id
+                case.ticket.assigned_user_id = call['technician_id'] or ''
+                case.ticket.assigned_to = call['technician_name'] or ''
+                case.ticket.state, case.ticket.resolution = 'New', ''
+                case.qa_checks, case.quality_score = [], None
+                fields = ('short_description', 'description', 'category', 'subcategory', 'service', 'priority', 'assignment_group', 'assigned_to', 'state')
+                case.ticket.work_notes = [WorkNote(id=f'NOTE-{uuid4().hex[:8]}', author='Ticket created', author_type='System',
+                    text='\n'.join(f"{key.replace('_', ' ').capitalize()} : {getattr(case.ticket, key)}" for key in fields))]
+                self.case_store.save_case(case)
+            def link(db):
+                current = db['calls'][call_id]
+                current['case_id'] = case.id
+                current.pop('draft_case', None)
+                history(current, 'Incident created from the completed conversation')
+            self.repository.mutate(link)
 
     def error(self, call_id, message):
         def update(db):
@@ -470,7 +546,8 @@ class CallingService:
 
     def reply(self, call_id):
         call = self.get(call_id)
-        case = self.case_store.get_case(call["case_id"])
+        case = self.case_store.get_case(call["case_id"]) if call['case_id'] else (
+            CaseRecord.model_validate(call['draft_case']) if call.get('draft_case') else None)
         if not case:
             return VoiceReply(reply="I will connect you with a technician.", escalate=True, customer_confirmed_resolved=False)
         latest = next((t["text"].lower() for t in reversed(call["transcript"]) if t["speaker"] == "Customer"), "")

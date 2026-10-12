@@ -194,7 +194,6 @@ class LiveKitTransport:
                 raise
 
     async def end(self, call_id, status='Completed'):
-        call = await asyncio.to_thread(self.service.finish, call_id, status)
         session = self.sessions.pop(call_id, None)
         if session:
             await session.close()
@@ -203,11 +202,13 @@ class LiveKitTransport:
                 await client.room.delete_room(api.DeleteRoomRequest(room=self.room_name(call_id)))
         except Exception:
             pass  # Local RTC peers are closed even if the provider is unreachable.
-        return call
+        return await asyncio.to_thread(self.service.finish, call_id, status)
 
     async def maintenance(self):
         await asyncio.to_thread(self.service.dispatch)
         for call_id, session in list(self.sessions.items()):
+            if session.finalizing:
+                continue
             call = await asyncio.to_thread(self.service.get, call_id)
             now = time.time()
             if call['status'] in TERMINAL:
@@ -238,6 +239,7 @@ class BrowserSession:
         self.queue = asyncio.Queue(maxsize=12)
         self.speech_task = None
         self.closed = False
+        self.finalizing = False
         self.customer_seen = False
         self.customer_left_at = None
         self.started_at = time.time()
@@ -423,9 +425,13 @@ class BrowserSession:
             if reply.escalate:
                 await self.escalate('AI requested technician assistance')
             elif reply.customer_confirmed_resolved:
-                if self.transport.resolve:
-                    await self.transport.resolve(call, reply.reply)
-                await asyncio.to_thread(self.service.finish, self.call_id)
+                self.finalizing = True
+                try:
+                    completed = await asyncio.to_thread(self.service.finish, self.call_id)
+                    if self.transport.resolve:
+                        await self.transport.resolve(completed, reply.reply)
+                finally:
+                    self.finalizing = False
 
     async def process(self):
         while not self.closed:

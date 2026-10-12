@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css">
-  <link rel="stylesheet" href="/static/overrides.css?v=6">
+  <link rel="stylesheet" href="/static/overrides.css?v=8">
 <link rel="stylesheet" href="/static/microphone.css?v=1"></head>
 <body>
   <aside class="sidebar">
@@ -24,18 +24,18 @@
       <button class="nav-item" data-view="knowledge"><span>◇</span>Knowledge</button>
       <button class="nav-item" data-view="qa"><span>✓</span>Quality audit</button>
     </nav>
+    <div class="sidebar-footer">
     <div class="system-card">
       <span class="status-dot" id="statusDot"></span>
       <div><strong id="systemStatus">Checking AI connection</strong><small id="modelLabel">Server connection</small><button class="key-link" id="openKeyPanel">Configure key</button></div>
+    </div>
+      <div class="account-menu" id="sidebarAccount" hidden><span id="accountIdentity"></span><button class="text-button" id="accountSignOut" hidden>Sign out</button></div>
     </div>
   </aside>
 
   <main>
     <div id="incomingCallBanner" class="incoming-call-banner" hidden role="status"></div>
-    <header class="topbar">
-      <div><p class="eyebrow">AI-FIRST ENTERPRISE SUPPORT</p><h1 id="pageTitle">Operations overview</h1></div>
-      <div class="account-menu"><span id="accountIdentity"></span><button class="text-button" id="accountSignOut" hidden>Sign out</button></div><button class="primary small" id="topStartCase" data-open-case hidden>Start a case</button>
-    </header>
+
 
     <section class="view" id="view-signin"><article class="panel"><p class="eyebrow">YOUR SUPPORT WORKSPACE · DEPLOY CHECK</p><h2>Welcome to ResolveAI</h2><p>Sign in to access your support workspace. Your administrator creates technician and customer accounts.</p><button class="primary" id="accountSignIn">Sign in</button></article></section>
     <section class="view" id="view-customer-home">
@@ -44,6 +44,7 @@
     </section>
     <section class="view" id="view-customer-create"><article class="panel intake-panel"><p class="eyebrow">REPORT A PROBLEM</p><h2>Create an incident</h2><form id="customerIncidentForm"><label>Short description<input name="short_description" required minlength="3" maxlength="200"></label><label>Description<textarea name="description" rows="7" required minlength="10" maxlength="8000" placeholder="What happened, and how is it affecting you?"></textarea></label><label>Service<input name="service" value="General" required minlength="2" maxlength="100"></label><button class="primary" type="submit">Create incident</button><p class="form-message" id="customerIncidentMessage"></p></form></article></section>
     <section class="view active" id="view-overview">
+      <header class="overview-heading"><p class="eyebrow">AI-FIRST ENTERPRISE SUPPORT</p><h1>Operations overview</h1></header>
       <div class="hero">
         <div><span class="pill">AI-powered triage</span><h2>Turn support conversations into action.</h2><p>Transcribe the call, understand the issue, find the right knowledge, route safely, draft the ticket, and audit its quality in one workflow.</p></div>
         <button class="primary" data-open-case>Analyze a conversation <span>→</span></button>
@@ -89,10 +90,9 @@
 
     <section class="view" id="view-calls">
       <div class="panel-head page-section-head"><div><p class="eyebrow">VOICE OPERATIONS</p><h2>Calls & queue</h2><p class="helper">AI assistance and the right technician, in one conversation.</p></div><button class="secondary" id="routeRequestButton">Route a support request</button></div>
-      <div class="panel presence-panel"><div><strong id="technicianIdentity">Technician workspace</strong><p id="phoneConnection" class="helper">Sign in to receive assignments.</p></div><div class="call-actions"><button class="secondary" id="signInButton">Sign in</button><button class="secondary" id="enablePhoneButton" hidden>Enable calls</button><label id="presenceControl" hidden>Availability<select id="presenceSelect"><option>Offline</option><option>Available</option><option>Away</option><option disabled>Busy</option><option disabled>Wrap-up</option></select></label><button class="text-button" id="signOutButton" hidden>Sign out</button></div></div>
+      <div class="panel presence-panel"><div><strong id="technicianIdentity">Technician workspace</strong><p id="phoneConnection" class="helper">Sign in to receive assignments.</p></div><div class="call-actions"><button class="secondary" id="signInButton">Sign in</button><label id="callPreferenceControl" class="call-preference" hidden><input type="checkbox" id="receiveCallsToggle"> Enable calls</label><button class="secondary" id="enablePhoneButton" hidden>Enable microphone</button><label id="presenceControl" hidden>Availability<select id="presenceSelect"><option>Offline</option><option>Available</option><option>Away</option></select></label></div></div>
       <div class="metrics call-metrics"><article><span>Waiting</span><strong id="callsQueued">0</strong><small>In technician queues</small></article><article><span>With AI</span><strong id="callsAI">0</strong><small>Guided support</small></article><article><span>Connected</span><strong id="callsConnected">0</strong><small>With technicians</small></article><article><span>Available</span><strong id="callsAvailable">0</strong><small>Ready for assignments</small></article></div>
-      <section class="microphone-panel" data-microphone-panel hidden></section><article class="panel" id="sharedQueuePanel" hidden><h3>Incoming calls — available to answer</h3><div id="sharedQueue"></div></article><div class="calling-layout"><article class="panel"><div class="panel-head"><h3>Call activity</h3><span class="tag" id="callingSync">Live queue</span></div><div id="callList" class="empty-list">Sign in to view calls and assignments.</div></article><article class="panel" id="callWorkspace"><p class="eyebrow">CONVERSATION</p><h3>Ready when you are</h3><p class="helper">Choose a call to see the transcript, routing decision, and linked incident.</p></article></div>
-      <article class="panel telephony-panel"><div class="panel-head"><div><p class="eyebrow">LIVEKIT CONNECTION</p><h3 id="telephonyTitle">Connect browser calling</h3></div><div class="call-actions"><button class="secondary small" id="connectLiveKitButton" hidden>Connect LiveKit</button><a class="text-button" href="/support" target="_blank" rel="noopener">Open customer call page ↗</a><button class="text-button" id="telephonyHelpButton">Connection details</button></div></div><p id="telephonySummary" class="helper">Customers call from the support page. Available technicians receive browser calls here.</p><div id="telephonyDetails" hidden></div></article>
+      <section class="microphone-panel" data-microphone-panel hidden></section><article class="panel" id="sharedQueuePanel" hidden><h3>Incoming calls — available to answer</h3><div id="sharedQueue"></div></article><div class="calling-layout"><article class="panel call-activity-panel"><div class="panel-head"><h3>Call activity</h3><span class="tag" id="callingSync">Live queue</span></div><div id="callList" class="empty-list">Sign in to view calls and assignments.</div></article><article class="panel" id="callWorkspace"><p class="eyebrow">CONVERSATION</p><h3>Ready when you are</h3><p class="helper">Choose a call to see the transcript, routing decision, and linked incident.</p></article><article class="panel" id="callTicketPanel" hidden></article></div>
     </section>
 
     <section class="view" id="view-technicians">
@@ -112,7 +112,8 @@
     </section>
 
     <section class="view" id="view-qa">
-      <div class="panel-head page-section-head"><div><p class="eyebrow">INDEPENDENT REVIEW</p><h2>Ticket quality audit</h2></div></div>
+      <div class="panel-head page-section-head"><div><p class="eyebrow">INDEPENDENT REVIEW</p><h2>Ticket quality audit</h2></div><button class="primary small" id="rerunAllQa">Rerun all audits</button></div>
+      <p class="helper" id="bulkQaStatus" role="status" aria-live="polite">Rerun AI QA for all resolved tickets.</p>
       <div id="qaWorkspace" class="panel empty-list">Select a ticket to inspect its evidence and rerun AI QA.</div>
     </section>
   </main>
@@ -149,7 +150,7 @@
   <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="primary resume-audio" hidden>Enable call audio</button>
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=3"></script>
-  <script src="/static/app.js?v=7"></script>
-  <script src="/static/calling.js?v=7"></script>
+  <script src="/static/app.js?v=8"></script>
+  <script src="/static/calling.js?v=9"></script>
 </body>
 </html>

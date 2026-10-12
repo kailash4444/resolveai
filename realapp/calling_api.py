@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
-from realapp.calling import CallingService, TechnicianCreate, Login, Presence, Heartbeat, SupportRequest, CustomerMessage, TERMINAL
+from realapp.calling import CallingService, TechnicianCreate, Login, Presence, Heartbeat, CallSettings, SupportRequest, CustomerMessage, TERMINAL
 from realapp.calling_store import create_calling_store
 from realapp.models import TicketUpdate
 from realapp.livekit_transport import LiveKitTransport
@@ -116,7 +116,7 @@ def install_calling(app, settings, store, engine, update_ticket):
         actor = user(request, staff=True)
         data = service.snapshot(actor)
         data['technicians'] = [t for t in data['technicians'] if t['role'] in {'admin', 'technician'}]
-        data["calls"] = [{k: v for k, v in c.items() if k != "customer_token_hash"} for c in data["calls"]]
+        data["calls"] = [{k: v for k, v in c.items() if k not in {"customer_token_hash", "draft_case"}} for c in data["calls"]]
         data.update(user=actor, voice=transport.config())
         return data
 
@@ -164,6 +164,10 @@ def install_calling(app, settings, store, engine, update_ticket):
     @router.patch("/api/technicians/me/presence")
     def presence(value: Presence, request: Request):
         return service.presence(user(request, staff=True)["id"], value.status)
+
+    @router.patch('/api/technicians/me/call-settings')
+    def call_settings(value: CallSettings, request: Request):
+        return service.call_settings(user(request, staff=True)['id'], value.enabled)
 
     @router.get("/api/calling/check")
     async def voice_check(request: Request):

@@ -23,8 +23,8 @@ function showView(name) {
   $$(".view").forEach(el => el.classList.toggle("active", el.id === `view-${name}`));
   $$(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.view === name));
   const titles = { overview: "Operations overview", case: "New support case", tickets: "Tickets", "ticket-detail": "Ticket details", analytics: "Incident analytics", knowledge: "Knowledge management", qa: "Quality audit", calls: "Calls & queue", technicians: "Technicians" };
-  $("#pageTitle").textContent = ({"customer-home":"My support","customer-create":"Create an incident","signin":"Welcome","technicians":"User management"})[name] || titles[name] || "ResolveAI";
-  $("#topStartCase").hidden = name !== "tickets";
+  document.title = ({"customer-home":"My support","customer-create":"Create an incident","signin":"Welcome","technicians":"User management"})[name] || titles[name] || "ResolveAI";
+
   if (name === "customer-home") loadCustomerCalls();
   if (name === "tickets") loadCases();
   if (name === "knowledge") loadKnowledge();
@@ -203,10 +203,11 @@ function visibleAuditChecks(checks) {
 }
 
 function renderQA(item) {
+  refreshBulkQA();
   state.current = item;
   $$(".view").forEach(el => el.classList.toggle("active", el.id === "view-qa"));
   $$(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.view === "qa"));
-  $("#pageTitle").textContent = "Quality audit";
+  document.title = "Quality audit";
   const heading = `<div class="qa-head"><div><div class="qa-identifiers"><span>Ticket number: <b>${esc(item.ticket.id)}</b></span><span>Call ID: <b>${esc(item.ticket.call_id || 'Not linked')}</b></span></div><h3>${esc(item.issue_title)}</h3></div><strong>${item.quality_score == null ? 'Pending' : `${item.quality_score}%`}</strong></div>`;
   if (item.ticket.state !== "Resolved") {
     $("#qaWorkspace").className = "panel empty-list";
@@ -228,9 +229,40 @@ function renderQA(item) {
 async function loadQA() {
   const cases = await api("/api/cases");
   const resolved = cases.filter(item => item.ticket.state === "Resolved");
+  state.qaResolvedCount = resolved.length;
+  refreshBulkQA();
   $("#qaWorkspace").className = resolved.length ? "panel table-wrap" : "panel empty-list";
   $("#qaWorkspace").innerHTML = resolved.length ? `<table><thead><tr><th>Ticket</th><th>Issue</th><th>Service</th><th>Priority</th><th>QA status</th></tr></thead><tbody>${resolved.map(item => `<tr data-qa-case-id="${esc(item.id)}"><td><strong>${esc(item.ticket.id)}</strong></td><td>${esc(item.ticket.short_description)}</td><td>${esc(item.ticket.service)}</td><td><span class="tag">${esc(item.ticket.priority)}</span></td><td><b>${item.quality_score == null ? "Pending" : `${item.quality_score}%`}</b></td></tr>`).join("")}</tbody></table>` : "No resolved tickets yet. Resolved tickets appear here immediately while AI QA runs in the background.";
 }
+
+
+let bulkQaTimer, lastBulkQaStatus;
+async function refreshBulkQA() {
+  clearTimeout(bulkQaTimer);
+  if (!state.user || state.user.role === 'customer') return;
+  const userId = state.user.id;
+  try {
+    const job = await api('/api/qa/rerun-all');
+    if (state.user?.id !== userId) return;
+    const running = job.status === 'running';
+    $('#rerunAllQa').disabled = running || state.qaResolvedCount === 0;
+    $('#rerunAllQa').textContent = running ? 'Audits running…' : 'Rerun all audits';
+    $('#bulkQaStatus').textContent = job.status === 'idle' ? 'Rerun AI QA for all resolved tickets.' :
+      `${running ? 'Auditing' : 'Finished'}: ${job.completed} completed, ${job.failed} failed, ${job.skipped} skipped · ${job.total} resolved tickets.${job.skipped ? ' Skipped tickets changed during the audit or are no longer resolved.' : ''}${job.failed ? ' Check the AI connection and rerun to retry.' : ''}`;
+    const finished = lastBulkQaStatus === 'running' && !running;
+    lastBulkQaStatus = job.status;
+    if (running && $('#view-qa').classList.contains('active')) bulkQaTimer = setTimeout(refreshBulkQA, 2000);
+    if (finished && $('#view-qa').classList.contains('active')) await loadQA();
+  } catch (error) { $('#bulkQaStatus').textContent = error.message; $('#rerunAllQa').disabled = false; }
+}
+$('#rerunAllQa').addEventListener('click', async () => {
+  const button = $('#rerunAllQa'); button.disabled = true;
+  try {
+    await api('/api/qa/rerun-all', {method:'POST', body:'{}'});
+    lastBulkQaStatus = 'running';
+    await refreshBulkQA();
+  } catch(error) { $('#bulkQaStatus').textContent = error.message; button.disabled = false; }
+});
 
 async function loadCases() {
   const userId = state.user?.id;
@@ -288,6 +320,8 @@ function renderAnalyticsBars(target, counts, total) {
 async function loadAnalytics() {
   const cases = await api("/api/cases");
   const resolved = cases.filter(item => item.ticket.state === "Resolved");
+  state.qaResolvedCount = resolved.length;
+  refreshBulkQA();
   const scored = resolved.map(item => item.quality_score).filter(value => value != null);
   const serviceCounts = groupedCounts(cases.map(item => item.ticket.service));
   $("#analyticsTotal").textContent = cases.length;
@@ -451,6 +485,7 @@ window.applyAccountRole = user => {
   $$('.nav-item').forEach(nav => {nav.hidden = !user || (customer ? !['customer-home','tickets','knowledge'].includes(nav.dataset.view) : nav.dataset.view === 'customer-home' || nav.dataset.view === 'technicians' && !admin);});
   $('#accountIdentity').textContent = user ? `${user.name} · ${user.role === 'admin' ? 'Admin' : customer ? 'Customer' : 'Technician'}` : '';
   $('#accountSignOut').hidden = !user;
+  $('#sidebarAccount').hidden = !user;
   if (!user || customer) {
     $('#presenceControl').hidden = $('#enablePhoneButton').hidden = true;
     $('#incomingCallBanner').hidden = true;
@@ -477,7 +512,7 @@ $('#customerIncidentForm').addEventListener('submit', async event => {
 });
 document.addEventListener('click',event=>{const source=event.target.closest('[data-customer-ticket]');if(source)openTicketDetails(source.dataset.customerTicket);});
 $('#accountSignIn').addEventListener('click',()=>window.openTechnicianAuth?.());
-$('#accountSignOut').addEventListener('click',()=>$('#signOutButton').click());
+
 
 window.loadApplication = async () => {
   try {

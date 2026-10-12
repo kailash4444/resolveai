@@ -27,9 +27,9 @@ window.loadCalling = async () => {
     if (!calling.user) {
       $('#signInButton').hidden = false;
       $('#signInButton').textContent = auth.setup_required ? 'Set up your team' : 'Sign in';
-      $('#signOutButton').hidden = $('#presenceControl').hidden = $('#enablePhoneButton').hidden = true;
+      $('#presenceControl').hidden = $('#enablePhoneButton').hidden = true;
       $('#addTechnicianButton').hidden = true;
-      $('#connectLiveKitButton').hidden = true;
+      $('#callPreferenceControl').hidden = true;
       $('#routeRequestButton').disabled = true;
       $('#callList').innerHTML = '<p class="helper">Sign in to view your team’s calls and queue.</p>';
       $('#technicianRows').innerHTML = '';
@@ -39,6 +39,7 @@ window.loadCalling = async () => {
     if (calling.user.role === 'customer') { calling.data = null; calling.selected = null; return; }
     calling.data = await api('/api/calling');
     calling.user = calling.data.user;
+    await restorePhone();
     renderCalling();
     if (new URLSearchParams(location.search).get('connect') === 'livekit' && !calling.livekitShown && calling.user.role === 'admin') {
       calling.livekitShown = true;
@@ -52,13 +53,16 @@ function renderCalling() {
   const { calls, metrics, voice: telephony } = calling.data;
   const technicians = calling.data.technicians.filter(t=>t.role !== 'customer');
   $('#signInButton').hidden = true;
-  $('#signOutButton').hidden = $('#presenceControl').hidden = false;
+  $('#presenceControl').hidden = false;
   $('#routeRequestButton').disabled = false;
   $('#technicianIdentity').textContent = calling.user.name;
-  $('#presenceSelect').value = calling.user.status;
+  $('#presenceSelect').value = calling.user.availability;
   $('#presenceSelect').disabled = !!calling.user.current_call_id;
-  $('#phoneConnection').textContent = calling.ready ? 'Ready to receive browser calls · microphone permission granted' : telephony.configured ? 'Enable calls to receive customers in your browser.' : 'Local request routing is ready. Connect LiveKit for browser calls.';
-  $('#enablePhoneButton').hidden = !telephony.configured || calling.ready;
+  $('#callPreferenceControl').hidden = false;
+  $('#receiveCallsToggle').checked = calling.user.calls_enabled;
+  $('#receiveCallsToggle').disabled = !!calling.user.current_call_id;
+  $('#phoneConnection').textContent = !calling.user.calls_enabled ? 'Calls disabled · your availability is saved.' : calling.user.current_call_id ? 'On a call · your saved availability resumes afterward.' : calling.ready ? (calling.user.availability === 'Available' ? 'Ready to receive calls · preferences saved' : `${calling.user.availability} · preferences saved`) : telephony.configured ? 'Calls enabled · allow microphone access to receive calls.' : 'Browser calling is not configured.';
+  $('#enablePhoneButton').hidden = !telephony.configured || calling.ready || !calling.user.calls_enabled;
   $('#addTechnicianButton').hidden = calling.user.role !== 'admin';
   $('#callsQueued').textContent = metrics.queued;
   $('#callsAI').textContent = metrics.ai;
@@ -73,11 +77,6 @@ function renderCalling() {
   $('#sharedQueue').innerHTML = (calling.data.incoming_calls || []).map(call=>`<div class="case-row"><div><strong>${esc(call.origin === 'browser' ? 'Incoming call' : 'Support request')}</strong><small>${esc(call.service)} · ${esc(call.priority)}</small></div><button class="primary small" data-pickup-call="${esc(call.id)}">Answer</button></div>`).join('');
   $('#technicianRows').innerHTML = technicians.map(t => `<tr><td><strong>${esc(t.name)}</strong><br><small>${esc(t.role)}</small></td><td>${esc(t.skills.join(', '))}</td><td>${esc(t.languages.join(', '))}</td><td>${callBadge(t.status)}</td><td>${t.voice_ready ? 'Connected' : 'Not connected'}</td><td>${esc(t.current_call_id || '—')}</td></tr>`).join('');
   $('#techniciansEmpty').hidden = technicians.length > 0;
-  $('#connectLiveKitButton').hidden = calling.user.role !== 'admin' || !telephony.setup_available;
-  $('#connectLiveKitButton').textContent = telephony.configured ? 'Manage LiveKit' : 'Connect LiveKit';
-  $('#telephonyTitle').textContent = telephony.configured ? 'LiveKit browser calling configured' : 'Connect browser calling';
-  $('#telephonySummary').textContent = telephony.configured ? `${telephony.local_server ? 'Local LiveKit server' : 'LiveKit Cloud'} · Enable calls, choose Available, then open the customer call page.` : 'Connect LiveKit to receive browser calls from customers and transfer them from AI to an available technician.';
-  $('#telephonyDetails').innerHTML = `<div class="connection-checks">${Object.entries(telephony.checks).map(([label,ready])=>`<div><span>${ready?'✓':'○'}</span>${esc(label)}<b>${ready?'Configured':'Required'}</b></div>`).join('')}</div><p class="helper">Server: ${esc(telephony.url || 'Not configured')}</p><p class="helper">${telephony.local_server ? 'Local calls work on this computer. For callers on other devices, connect a LiveKit Cloud project and share an HTTPS address for ResolveAI.' : 'Customers use the support page to call. A separate phone number is not required.'}</p>`;
   const offer = calls.find(c => c.technician_id === calling.user.id && c.status === 'Ringing');
   $('#incomingCallBanner').hidden = !offer;
   if (offer) {
@@ -108,13 +107,43 @@ function renderCallDetail() {
   if (c.status === 'Connected' && own && calling.room) controls.push(`<button class="secondary" id="muteCallButton">${!calling.room.localParticipant.isMicrophoneEnabled ? 'Unmute' : 'Mute'}</button>`);
   if (c.status === 'AI' || c.status === 'Connected' && canManage) controls.push('<button class="secondary" data-call-action="transfer">Transfer to queue</button>');
   if ((c.status === 'Connected' || c.status === 'AI') && canManage) controls.push('<button class="secondary danger" data-call-action="finish">End call</button>');
-  if (c.case_id) controls.push(`<button class="text-button" data-call-ticket="${esc(c.case_id)}">Open incident →</button>`);
   $('#callWorkspace').innerHTML = `<div class="panel-head"><div><p class="eyebrow">${esc(c.id)}</p><h3>${esc(c.caller)}</h3></div>${callBadge(c.status)}</div><p>${esc(c.summary)}</p><div class="call-context"><span>${esc(c.service)} · ${esc(c.priority)}</span><span>${esc(c.technician_name || 'Not assigned')}</span></div><p class="helper">${esc(c.reason)}</p>${c.last_error ? `<p class="form-message error">${esc(c.last_error)}</p>` : ''}<div class="call-actions">${controls.join('')}</div><h4 class="call-section-label">Conversation</h4><div class="live-transcript">${c.transcript.map(t => `<div class="transcript-turn"><b>${esc(t.speaker)}</b><small>${t.timestamp ? new Date(t.timestamp).toLocaleTimeString() : ''}</small><p>${esc(t.text)}</p></div>`).join('') || '<p class="helper">The transcript will appear as participants speak.</p>'}</div><div id="callKnowledge"></div><details class="routing-history"><summary>Routing history</summary>${c.events.slice().reverse().map(e => `<p><small>${new Date(e.at).toLocaleTimeString()}</small> ${esc(e.text)}</p>`).join('')}</details>`;
   if (c.origin === 'desk' && c.status === 'AI') $('#callWorkspace').insertAdjacentHTML('beforeend', '<form id="callReplyForm"><label>Customer reply<textarea name="text" rows="2" required maxlength="4000"></textarea></label><button class="primary small">Send reply</button><p class="form-message" id="callReplyMessage"></p></form>');
   const guidance = c.knowledge_matches || [];
   const status = c.knowledge_status;
   $('#callKnowledge').innerHTML = `<h4 class="call-section-label">Suggested knowledge · Top 5</h4><p class="helper">${status === 'searching' ? 'Finding guidance for the latest customer problem…' : status === 'error' ? esc(c.knowledge_error) : 'Updated as the customer describes the issue.'}</p>${guidance.map(k => `<details class="call-knowledge" data-kb="${esc(k.id)}" ${openKnowledge.has(k.id) ? 'open' : ''}><summary>${esc(k.id)} · ${esc(k.title)}</summary><p>${esc(k.excerpt)}</p><ol>${k.steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol></details>`).join('') || '<p class="helper">' + (status === 'ready' ? 'No relevant knowledge articles found.' : 'Suggestions will appear after the customer speaks.') + '</p>'}`;
+  renderCallTicket(c);
+}
 
+async function renderCallTicket(call) {
+  const panel = $('#callTicketPanel');
+  panel.hidden = false;
+  if (!call.case_id) {
+    panel.innerHTML = `<h3>Incident</h3><p class="helper">${['Completed','Failed','Callback requested'].includes(call.status) ? (call.transcript.some(t=>t.speaker==='Customer') ? 'Creating the incident from the conversation…' : 'No incident created because the customer did not describe an issue.') : 'An incident will be created from the conversation when the call ends.'}</p>`;
+    return;
+  }
+  try {
+    const item = await api(`/api/cases/${call.case_id}`);
+    if (calling.selected !== call.id) return;
+    const t = item.ticket;
+    panel.innerHTML = `<div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h3>${esc(t.id)}</h3></div><button class="secondary" data-call-ticket="${esc(item.id)}">Edit incident</button></div><h4>${esc(t.short_description)}</h4><div class="call-ticket-fields">${[['State',t.state],['Priority',t.priority],['Service',t.service],['Assigned to',t.assigned_to || 'Unassigned'],['Category',t.category],['Subcategory',t.subcategory]].map(([label,value])=>`<div><span class="helper">${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('')}</div><h4>Description</h4><p class="call-ticket-description">${esc(t.description)}</p>${t.resolution ? `<h4>Resolution notes</h4><p class="call-ticket-description">${esc(t.resolution)}</p>` : ''}`;
+  } catch(error) {
+    if (calling.selected === call.id) panel.innerHTML = `<h3>Incident</h3><p class="form-message error">${esc(error.message)}</p>`;
+  }
+}
+
+async function restorePhone() {
+  if (!calling.user.calls_enabled) { calling.ready = false; return; }
+  if (calling.ready || !calling.data.voice.configured || Date.now() < (calling.retryPhoneAt || 0)) return;
+  calling.retryPhoneAt = Date.now() + 30000;
+  try {
+    const permission = await navigator.permissions.query({name:'microphone'});
+    if (permission.state !== 'granted') return;
+    await ResolveAIVoice.microphonePermission();
+    await api('/api/calling/check');
+    calling.ready = true;
+    await heartbeat();
+  } catch (_) { calling.ready = false; }
 }
 
 async function heartbeat() {
@@ -186,9 +215,7 @@ document.addEventListener('click', async event => {
     if (event.target.closest('#enablePhoneButton')) await enablePhone();
     if (event.target.closest('#addTechnicianButton')) $('#technicianModal').hidden = false;
     if (event.target.closest('#routeRequestButton')) $('#requestModal').hidden = false;
-    if (event.target.closest('#telephonyHelpButton')) $('#telephonyDetails').hidden = !$('#telephonyDetails').hidden;
-    if (event.target.closest('#connectLiveKitButton')) await openLiveKitSetup();
-    if (event.target.closest('#signOutButton')) {
+    if (event.target.closest('#accountSignOut')) {
       await api('/api/auth/logout', {method:'POST',body:'{}'}); await calling.room?.disconnect(); calling.ready = false; calling.user = null; location.reload();
     }
   } catch(error) { toast(error.message); loadCalling(); }
@@ -197,6 +224,18 @@ document.addEventListener('click', async event => {
 $('#presenceSelect').addEventListener('change', async event => {
   try { await api('/api/technicians/me/presence', {method:'PATCH',body:JSON.stringify({status:event.target.value})}); await heartbeat(); await loadCalling(); }
   catch(error) { toast(error.message); }
+});
+
+$('#receiveCallsToggle').addEventListener('change', async event => {
+  const enabled = event.target.checked;
+  event.target.disabled = true;
+  try {
+    calling.user = await api('/api/technicians/me/call-settings', {method:'PATCH',body:JSON.stringify({enabled})});
+    calling.ready = false;
+    if (enabled) await enablePhone();
+    else { await heartbeat(); await loadCalling(); }
+  } catch(error) { toast(error.message); }
+  finally { event.target.disabled = false; await loadCalling(); }
 });
 
 async function submitCallingForm(event, path, messageId, transform, after) {
@@ -212,7 +251,7 @@ async function submitCallingForm(event, path, messageId, transform, after) {
 }
 
 $('#authForm').addEventListener('submit', event => submitCallingForm(event, calling.auth?.setup_required ? '/api/auth/setup' : '/api/auth/login', '#authMessage', null, async result => {
-  calling.user = result; window.applyAccountRole?.(result); $('#authModal').hidden = true; await heartbeat(); await window.loadApplication();
+  calling.user = result; calling.ready = false; calling.retryPhoneAt = 0; window.applyAccountRole?.(result); $('#authModal').hidden = true; await window.loadApplication();
 }));
 document.addEventListener('submit', event => {
   if (event.target.id === 'callReplyForm') submitCallingForm(event, `/api/calling/${calling.selected}/message`, '#callReplyMessage', null, async () => document.activeElement?.blur());
