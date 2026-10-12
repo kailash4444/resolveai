@@ -36,7 +36,7 @@ window.loadCalling = async () => {
       $('#techniciansEmpty').hidden = false;
       return;
     }
-    if (calling.user.role === 'customer') return;
+    if (calling.user.role === 'customer') { calling.data = null; calling.selected = null; return; }
     calling.data = await api('/api/calling');
     calling.user = calling.data.user;
     renderCalling();
@@ -49,7 +49,8 @@ window.loadCalling = async () => {
 };
 
 function renderCalling() {
-  const { calls, technicians, metrics, voice: telephony } = calling.data;
+  const { calls, metrics, voice: telephony } = calling.data;
+  const technicians = calling.data.technicians.filter(t=>t.role !== 'customer');
   $('#signInButton').hidden = true;
   $('#signOutButton').hidden = $('#presenceControl').hidden = false;
   $('#routeRequestButton').disabled = false;
@@ -96,6 +97,7 @@ function renderCallDetail() {
   if ($('#callReplyForm')?.contains(document.activeElement)) return;
   const c = calling.data?.calls.find(c => c.id === calling.selected);
   if (!c) {$('#callWorkspace').innerHTML='<p class="helper">Choose one of your calls to view its details.</p>';return;}
+  const openKnowledge = new Set([...document.querySelectorAll('#callKnowledge details[open]')].map(item=>item.dataset.kb));
   const own = c.technician_id === calling.user.id;
   const canManage = own || calling.user.role === 'admin';
   const controls = [];
@@ -109,10 +111,10 @@ function renderCallDetail() {
   if (c.case_id) controls.push(`<button class="text-button" data-call-ticket="${esc(c.case_id)}">Open incident →</button>`);
   $('#callWorkspace').innerHTML = `<div class="panel-head"><div><p class="eyebrow">${esc(c.id)}</p><h3>${esc(c.caller)}</h3></div>${callBadge(c.status)}</div><p>${esc(c.summary)}</p><div class="call-context"><span>${esc(c.service)} · ${esc(c.priority)}</span><span>${esc(c.technician_name || 'Not assigned')}</span></div><p class="helper">${esc(c.reason)}</p>${c.last_error ? `<p class="form-message error">${esc(c.last_error)}</p>` : ''}<div class="call-actions">${controls.join('')}</div><h4 class="call-section-label">Conversation</h4><div class="live-transcript">${c.transcript.map(t => `<div class="transcript-turn"><b>${esc(t.speaker)}</b><small>${t.timestamp ? new Date(t.timestamp).toLocaleTimeString() : ''}</small><p>${esc(t.text)}</p></div>`).join('') || '<p class="helper">The transcript will appear as participants speak.</p>'}</div><div id="callKnowledge"></div><details class="routing-history"><summary>Routing history</summary>${c.events.slice().reverse().map(e => `<p><small>${new Date(e.at).toLocaleTimeString()}</small> ${esc(e.text)}</p>`).join('')}</details>`;
   if (c.origin === 'desk' && c.status === 'AI') $('#callWorkspace').insertAdjacentHTML('beforeend', '<form id="callReplyForm"><label>Customer reply<textarea name="text" rows="2" required maxlength="4000"></textarea></label><button class="primary small">Send reply</button><p class="form-message" id="callReplyMessage"></p></form>');
-  if (c.case_id) api(`/api/cases/${c.case_id}`).then(item => {
-    if (calling.selected !== c.id || !$('#callKnowledge')) return;
-    $('#callKnowledge').innerHTML = `<h4 class="call-section-label">Suggested knowledge</h4>${item.knowledge_matches.map(k => `<details class="call-knowledge"><summary>${esc(k.title)}</summary><p>${esc(k.excerpt)}</p><ol>${k.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol></details>`).join('') || '<p class="helper">No matching guidance.</p>'}`;
-  }).catch(() => {});
+  const guidance = c.knowledge_matches || [];
+  const status = c.knowledge_status;
+  $('#callKnowledge').innerHTML = `<h4 class="call-section-label">Suggested knowledge · Top 5</h4><p class="helper">${status === 'searching' ? 'Finding guidance for the latest customer problem…' : status === 'error' ? esc(c.knowledge_error) : 'Updated as the customer describes the issue.'}</p>${guidance.map(k => `<details class="call-knowledge" data-kb="${esc(k.id)}" ${openKnowledge.has(k.id) ? 'open' : ''}><summary>${esc(k.id)} · ${esc(k.title)}</summary><p>${esc(k.excerpt)}</p><ol>${k.steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol></details>`).join('') || '<p class="helper">' + (status === 'ready' ? 'No relevant knowledge articles found.' : 'Suggestions will appear after the customer speaks.') + '</p>'}`;
+
 }
 
 async function heartbeat() {

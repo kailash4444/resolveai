@@ -52,6 +52,16 @@ For local Vertex development, install the Google Cloud CLI and run `gcloud auth 
 
 ## Verification
 
-The provider unit tests cover structured analysis/QA, per-document embeddings, upload transcription, WAV-to-PCM speech playback, admin-only shared key entry and isolated protected storage. Browser tests use actual local LiveKit audio with deterministic Google API responses. Real Google model access requires credentials and must be verified separately; the current setup has not made a successful live Google model request.
+The provider unit tests cover structured analysis/QA, per-document embeddings, upload transcription, WAV-to-PCM speech playback, admin-only shared key entry and isolated protected storage. Browser tests use actual local LiveKit audio with deterministic Google API responses. Local ADC was verified with successful Gemini text generation and Google embedding requests, including retrieval that ranked the account-unlock KB first for an account-lock query. Speech model access and full end-to-end cloud calls still require separate verification.
 
 References: https://ai.google.dev/gemini-api/docs/models , https://ai.google.dev/gemini-api/docs/generate-content/audio , https://ai.google.dev/gemini-api/docs/generate-content/speech-generation , https://docs.cloud.google.com/vertex-ai/generative-ai/docs/speech/text-to-speech
+
+## Local ADC and live knowledge suggestions
+
+On Windows, use `gcloud auth application-default login --project=YOUR_PROJECT_ID` and `gcloud auth application-default set-quota-project YOUR_PROJECT_ID`. The Google sample `setup_adc.sh` performs this flow for Linux/macOS; ADC authorizes Vertex AI and does not create an API key. Keep ADC files outside the repository. Running the setup in Cloud Shell does not authenticate this Windows computer.
+
+Set `LLM_PROVIDER=vertex`, `GEMINI_PROVIDER=vertex`, `GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID`, `GOOGLE_CLOUD_LOCATION=global`, and `EMBEDDING_MODEL=gemini-embedding-001` in the ignored local `.env`. Leave both storage backends as `sqlite` for local records. Cloud Run continues to use its service identity and Firestore. Run `run-local-real.ps1`; an existing Python environment can be passed with `-PythonPath`.
+
+Technicians and admins can view all incidents. Customers can view only their own incidents; filters never expand this scope. Ticket number search supports partial, case-insensitive matches. Assigned-name filtering includes Unassigned. Calls remain scoped to the assigned technician or admin. Customers are excluded from call availability and the service-team roster.
+
+During calls, customer speech triggers background Google embedding retrieval. Knowledge articles are split into overlapping passages and cached by model and content hash. Updated articles are re-embedded. The latest customer context is ranked by cosine similarity, grouped into unique articles, and up to five suggestions appear with article IDs and guidance steps. Fewer than five articles appear if the library is smaller. Retrieval errors are shown separately and do not interrupt audio; a subsequent customer utterance retries retrieval. The in-process vector cache is rebuilt after restart. No OpenAI embeddings are used by live call suggestions.

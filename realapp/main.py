@@ -163,9 +163,12 @@ def customer_incident(value: CustomerIncidentCreate, http: Request):
 
 
 @app.get("/api/cases", response_model=list[CaseRecord])
-def list_cases(http: Request):
+def list_cases(http: Request, ticket_number: str = '', assigned_to: str = ''):
     user = actor(http)
-    return [visible_case(case, user) for case in store.list_cases() if can_read(case, user)]
+    return [visible_case(case, user) for case in store.list_cases() if can_read(case, user)
+            and ticket_number.strip().casefold() in case.ticket.id.casefold()
+            and (not assigned_to or (not case.ticket.assigned_to if assigned_to == '__unassigned__'
+                 else assigned_to.strip().casefold() == case.ticket.assigned_to.casefold()))]
 
 
 @app.get("/api/cases/{case_id}", response_model=CaseRecord)

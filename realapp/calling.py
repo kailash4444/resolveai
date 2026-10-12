@@ -70,6 +70,8 @@ def history(call, text):
 class CallingService:
     def __init__(self, settings, repository, case_store, engine, now=time.time):
         self.settings, self.repository, self.case_store, self.engine, self.now = settings, repository, case_store, engine, now
+        from realapp.gemini import GeminiEngine
+        self.knowledge_engine = GeminiEngine(settings, case_store.list_knowledge)
 
     def has_users(self):
         return self.repository.mutate(lambda db: bool(db["technicians"]))
@@ -142,6 +144,8 @@ class CallingService:
     def heartbeat(self, tech_id, voice_ready):
         def update(db):
             tech = db["technicians"][tech_id]
+            if tech['role'] not in {'admin', 'technician'}:
+                raise HTTPException(403, 'Only support staff can receive calls.')
             tech.update(last_seen=self.now(), voice_ready=voice_ready)
             return public_technician(tech)
         return self.repository.mutate(update)
@@ -149,6 +153,8 @@ class CallingService:
     def presence(self, tech_id, status):
         def update(db):
             tech = db["technicians"][tech_id]
+            if tech['role'] not in {'admin', 'technician'}:
+                raise HTTPException(403, 'Only support staff can receive calls.')
             if tech["current_call_id"]:
                 raise HTTPException(409, "Finish or decline the current call before changing availability.")
             tech.update(status=status, last_seen=self.now())
@@ -174,7 +180,7 @@ class CallingService:
                                 "queued": sum(c["status"] == "Queued" for c in calls),
                                 "ai": sum(c["status"] == "AI" for c in calls),
                                 "connected": sum(c["status"] == "Connected" for c in calls),
-                                "available": sum(t["status"] == "Available" for t in techs)}}
+                                "available": sum(t['role'] in {'admin','technician'} and t["status"] == "Available" for t in techs)}}
         return self.repository.mutate(read)
 
     def get(self, call_id):
@@ -216,6 +222,32 @@ class CallingService:
                 case.transcript = [TranscriptTurn(**turn) for turn in call["transcript"]]
                 self.case_store.save_case(case)
         return call
+
+    @staticmethod
+    def knowledge_query(call):
+        return '\n'.join(turn['text'] for turn in call['transcript'] if turn['speaker'] == 'Customer')[-4000:]
+
+    def refresh_knowledge(self, call_id):
+        """Retrieve off the audio thread; only update call guidance, never ticket edits."""
+        call = self.get(call_id)
+        query = self.knowledge_query(call)
+        if not query or call['status'] in TERMINAL:
+            return
+        def status(db):
+            db['calls'][call_id]['knowledge_status'] = 'searching'
+        self.repository.mutate(status)
+        try:
+            matches = self.knowledge_engine.retrieve(query, limit=5)
+            result, error = [m.model_dump() for m in matches], ''
+        except Exception:
+            result, error = [], 'Knowledge suggestions are unavailable. Check Google credentials and model access.'
+        def save(db):
+            current = db['calls'][call_id]
+            if current['status'] in TERMINAL or self.knowledge_query(current) != query:
+                return  # A later customer utterance supersedes this search.
+            current.update(knowledge_matches=result, knowledge_status='error' if error else 'ready',
+                           knowledge_error=error, knowledge_updated_at=stamp())
+        self.repository.mutate(save)
 
     def triage(self, call_id):
         call = self.get(call_id)

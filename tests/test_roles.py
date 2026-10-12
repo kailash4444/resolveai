@@ -62,7 +62,7 @@ def test_slow_audit_does_not_restore_old_assignment_or_comments(accounts, tmp_pa
     assert current.ticket.assigned_user_id == accounts.tech_b_id
 
 
-def test_manual_audit_rechecks_access_after_reassignment(accounts, monkeypatch):
+def test_manual_audit_allows_staff_after_reassignment(accounts, monkeypatch):
     f = accounts
     item = create_incident(f.customer_a)
     case = f.store.get_case(item['id'])
@@ -77,7 +77,7 @@ def test_manual_audit_rechecks_access_after_reassignment(accounts, monkeypatch):
         return QAAuditPayload(checks=[], quality_score=100)
 
     monkeypatch.setattr(f.engine, 'audit', slow_audit)
-    assert f.tech_a.post('/api/cases/' + case.id + '/qa').status_code == 404
+    assert f.tech_a.post('/api/cases/' + case.id + '/qa').status_code == 200
     assert f.store.get_case(case.id).ticket.assigned_user_id == f.tech_b_id
 
 
@@ -112,11 +112,11 @@ def test_customer_portal_scope_and_no_qa_or_analytics(accounts):
 
 def test_assignment_and_comments_derive_identity_and_scope(accounts):
     f=accounts;item=create_incident(f.customer_a);path='/api/cases/'+item['id']
-    assert f.tech_a.get('/api/cases').json()==[]
-    assert f.tech_a.get(path).status_code==404
+    assert len(f.tech_a.get('/api/cases').json())==1
+    assert f.tech_a.get(path).status_code==200
     assert f.admin.patch(path+'/ticket',json={'assigned_user_id':f.tech_a_id,'state':'In Progress'}).status_code==200
     assert f.tech_a.get(path).json()['ticket']['assigned_to']=='tech_a'
-    assert f.tech_b.patch(path+'/ticket',json={'description':'other user data'}).status_code==404
+    assert f.tech_b.patch(path+'/ticket',json={'description':'Other staff can help with this incident.'}).status_code==200
     assert f.tech_a.patch(path+'/ticket',json={'assigned_user_id':f.tech_b_id}).status_code==403
     for client,expected_name,expected_type in [(f.tech_a,'tech_a','Technician'),(f.customer_a,'customer_a','Customer')]:
         response=client.post(path+'/work-notes',json={'text':'A real written comment.','author':'Spoof Admin','author_type':'Customer'})
@@ -124,12 +124,12 @@ def test_assignment_and_comments_derive_identity_and_scope(accounts):
         note=response.json()['ticket']['work_notes'][-1]
         assert note['author']==expected_name and note['author_type']==expected_type
     assert f.customer_b.post(path+'/work-notes',json={'text':'foreign'}).status_code==404
-    assert f.tech_b.post(path+'/work-notes',json={'text':'foreign'}).status_code==404
-    assert f.tech_b.post('/api/knowledge/from-incidents',json={'ticket_numbers':[item['ticket']['id']]}).status_code==404
+    assert f.tech_b.post(path+'/work-notes',json={'text':'Helping another technician.'}).status_code==200
+    assert f.tech_b.get(path).status_code==200
     assert f.tech_a.get('/api/overview').json()['total_cases']==1
-    assert f.tech_b.get('/api/overview').json()['total_cases']==0
+    assert f.tech_b.get('/api/overview').json()['total_cases']==1
     assert f.admin.patch(path+'/ticket',json={'assigned_user_id':f.tech_b_id}).status_code==200
-    assert f.tech_a.get(path).status_code==404
+    assert f.tech_a.get(path).status_code==200
     assert f.tech_b.get(path).status_code==200
 
 
@@ -164,7 +164,7 @@ def test_any_available_technician_can_pick_up_and_only_one_wins(accounts):
     assert f.tech_b.post('/api/calling/'+call['id']+'/accept').status_code==200
     assert f.tech_a.post('/api/calling/'+call['id']+'/accept').status_code==409
     assert f.tech_a.get('/api/calling').json()['calls']==[]
-    assert f.tech_a.get('/api/cases/'+call['case_id']).status_code==404
+    assert f.tech_a.get('/api/cases/'+call['case_id']).status_code==200
     assert f.tech_b.get('/api/cases/'+call['case_id']).json()['ticket']['assigned_user_id']==f.tech_b_id
     assert f.customer_a.get('/api/customer/calls').json()[0]['id']==call['id']
     assert f.customer_b.get('/api/customer/calls').json()==[]

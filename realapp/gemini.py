@@ -3,6 +3,8 @@ import re
 import io
 import wave
 import audioop
+import hashlib
+import threading
 from pathlib import Path
 from collections.abc import Callable
 from uuid import uuid4
@@ -51,6 +53,7 @@ class GeminiEngine:
         self.knowledge_provider = knowledge_provider
         self._document_vectors: dict[str, list[float]] = {}
         self._client = None
+        self._retrieval_lock = threading.RLock()
 
     @property
     def configured(self):
@@ -149,9 +152,13 @@ class GeminiEngine:
             raise RuntimeError('Gemini returned incomplete audio.')
         return audioop.ratecv(raw, 2, 1, rate, 24000, None)[0] if rate != 24000 else raw
 
-    def retrieve(self, transcript: str, limit: int = 3) -> list[KnowledgeMatch]:
+    def retrieve(self, transcript: str, limit: int = 5) -> list[KnowledgeMatch]:
+        with self._retrieval_lock:
+            return self._retrieve(transcript, limit)
+
+    def _retrieve(self, transcript: str, limit: int) -> list[KnowledgeMatch]:
         articles = self.knowledge_provider()
-        if not articles:
+        if not articles or not transcript.strip():
             return []
         if self.settings.gemini_provider == "mock":
             words = set(re.findall(r"[a-z0-9]+", transcript.lower()))
@@ -161,14 +168,27 @@ class GeminiEngine:
                 score = len(words & article_words) / max(1, len(words | article_words))
                 ranked.append((score, article))
         else:
-            missing = [article for article in articles if article.id not in self._document_vectors]
-            if missing:
-                vectors = self._embed([article_document(article) for article in missing], "RETRIEVAL_DOCUMENT")
-                self._document_vectors.update({article.id: vector for article, vector in zip(missing, vectors)})
-            query_vector = self._embed([transcript], "RETRIEVAL_QUERY")[0]
-            ranked = [(cosine(query_vector, self._document_vectors[article.id]), article) for article in articles]
+            if not self.settings.embedding_model.startswith(('gemini-embedding-', 'text-embedding-', 'text-multilingual-embedding-')):
+                raise ValueError('Knowledge retrieval requires a Google embedding model.')
+            documents, article_keys = {}, {}
+            for article in articles:
+                body = article_document(article)
+                keys = []
+                # Small overlapping passages keep long KB articles within embedding input limits.
+                for start in range(0, len(body), 1000):
+                    chunk = f'{article.title}\n{body[start:start + 1200]}'
+                    key = hashlib.sha256((self.settings.embedding_model + '\n' + chunk).encode()).hexdigest()
+                    documents[key] = chunk
+                    keys.append(key)
+                article_keys[article.id] = keys
+            self._document_vectors = {key: vector for key, vector in self._document_vectors.items() if key in documents}
+            for key, text in documents.items():
+                if key not in self._document_vectors:
+                    self._document_vectors[key] = self._embed([text], 'RETRIEVAL_DOCUMENT')[0]
+            query_vector = self._embed([transcript[-4000:]], 'RETRIEVAL_QUERY')[0]
+            ranked = [(max(cosine(query_vector, self._document_vectors[key]) for key in article_keys[article.id]), article) for article in articles]
         ranked.sort(key=lambda row: row[0], reverse=True)
-        return [KnowledgeMatch(id=article.id, title=article.title, score=max(0.0, min(1.0, round(score, 3))), excerpt=article.symptoms, steps=article.steps) for score, article in ranked[:limit]]
+        return [KnowledgeMatch(id=article.id, title=article.title, score=max(0.0, min(1.0, round(score, 3))), excerpt=article.symptoms, steps=article.steps) for score, article in ranked if score > 0][:limit]
 
     def _generate(self, prompt: str, schema):
         from google.genai import types

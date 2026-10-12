@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css">
-  <link rel="stylesheet" href="/static/overrides.css?v=5">
+  <link rel="stylesheet" href="/static/overrides.css?v=6">
 <link rel="stylesheet" href="/static/microphone.css?v=1"></head>
 <body>
   <aside class="sidebar">
@@ -78,7 +78,8 @@
 
     <section class="view" id="view-tickets">
       <div class="panel-head page-section-head"><div><p class="eyebrow">CASE MANAGEMENT</p><h2>Tickets</h2></div><button class="primary small" data-open-case>New case</button></div>
-      <div class="panel table-wrap"><table><thead><tr><th>Ticket</th><th>Issue</th><th>Service</th><th>Priority</th><th>Handler</th><th>State</th></tr></thead><tbody id="ticketRows"></tbody></table><div id="ticketsEmpty" class="empty-list">No tickets yet. Analyze a conversation to create one.</div></div>
+      <div class="ticket-filters panel"><label>Ticket number<input id="ticketSearch" type="search" placeholder="Search INC number" autocomplete="off"></label><label>Assigned name<select id="ticketAssignee"><option value="">All assigned names</option></select></label><span id="ticketResultCount" class="helper" aria-live="polite"></span></div>
+      <div class="panel table-wrap"><table><thead><tr><th>Ticket</th><th>Issue</th><th>Service</th><th>Priority</th><th>Assigned to</th><th>State</th></tr></thead><tbody id="ticketRows"></tbody></table><div id="ticketsEmpty" class="empty-list">No tickets yet. Analyze a conversation to create one.</div></div>
     </section>
 
     <section class="view" id="view-ticket-detail">
@@ -148,7 +149,7 @@
   <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="primary resume-audio" hidden>Enable call audio</button>
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=3"></script>
-  <script src="/static/app.js?v=6"></script>
-  <script src="/static/calling.js?v=6"></script>
+  <script src="/static/app.js?v=7"></script>
+  <script src="/static/calling.js?v=7"></script>
 </body>
 </html>

@@ -23,3 +23,5 @@
 .qa-identifiers{display:flex;flex-wrap:wrap;gap:8px 24px;color:#d8edc4;font-size:12px;margin-bottom:12px}.qa-identifiers span{overflow-wrap:anywhere}
 
 .account-menu{display:flex;align-items:center;gap:14px;font-size:13px;color:#49655b}#view-customer-home>.panel{margin-bottom:22px}.customer-ticket{margin-bottom:24px}.customer-ticket p{white-space:pre-wrap}body[data-role="customer"] .system-card #modelLabel{display:none}@media(max-width:680px){.topbar{flex-wrap:wrap;gap:12px}.account-menu{flex-wrap:wrap}}
+
+.ticket-filters{display:flex;align-items:end;gap:20px;flex-wrap:wrap;margin-bottom:18px}.ticket-filters label{flex:1;min-width:200px}.ticket-filters input,.ticket-filters select{width:100%}body[data-role="customer"] #presenceControl,body[data-role="customer"] #enablePhoneButton,body[data-role="customer"] #incomingCallBanner{display:none!important}

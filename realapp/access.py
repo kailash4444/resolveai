@@ -10,11 +10,11 @@ def actor(request):
 
 
 def can_read(case, user):
-    if user['role'] == 'admin':
+    if user['role'] in {'admin', 'technician'}:
         return True
     if user['role'] == 'customer':
         return case.customer_id == user['id']
-    return case.ticket.assigned_user_id == user['id']
+    return False
 
 
 def require_case(case, user):

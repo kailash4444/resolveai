@@ -115,6 +115,7 @@ def install_calling(app, settings, store, engine, update_ticket):
     def workspace(request: Request):
         actor = user(request, staff=True)
         data = service.snapshot(actor)
+        data['technicians'] = [t for t in data['technicians'] if t['role'] in {'admin', 'technician'}]
         data["calls"] = [{k: v for k, v in c.items() if k != "customer_token_hash"} for c in data["calls"]]
         data.update(user=actor, voice=transport.config())
         return data
@@ -207,11 +208,12 @@ def install_calling(app, settings, store, engine, update_ticket):
         return transport.customer_status(call)
 
     @router.post("/api/calling/requests", status_code=201)
-    def support_request(value: SupportRequest, request: Request):
+    def support_request(value: SupportRequest, request: Request, background_tasks: BackgroundTasks):
         user(request)
         call = service.create_call(value.caller, language=value.language)
         service.add_turn(call["id"], "Customer", value.description)
         call = service.triage(call["id"])
+        background_tasks.add_task(service.refresh_knowledge, call['id'])
         if call["status"] == "AI":
             try:
                 reply = service.reply(call["id"])
@@ -228,6 +230,7 @@ def install_calling(app, settings, store, engine, update_ticket):
         if call["origin"] != "desk" or call["status"] != "AI":
             raise HTTPException(409, "Customer replies are available for desk requests being handled by AI.")
         service.add_turn(call_id, "Customer", value.text)
+        background_tasks.add_task(service.refresh_knowledge, call_id)
         try:
             reply = service.reply(call_id)
             service.add_turn(call_id, "AI Agent", reply.reply)

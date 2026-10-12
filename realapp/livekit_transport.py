@@ -242,6 +242,20 @@ class BrowserSession:
         self.customer_left_at = None
         self.started_at = time.time()
         self.speech_lock = asyncio.Lock()
+        self.knowledge_task = None
+        self.knowledge_pending = False
+
+    def request_knowledge(self):
+        self.knowledge_pending = True
+        if not self.knowledge_task or self.knowledge_task.done():
+            self.knowledge_task = self.task(self.refresh_knowledge())
+
+    async def refresh_knowledge(self):
+        # Coalesce speech bursts; embeddings must never delay transcription or voice replies.
+        while self.knowledge_pending and not self.closed:
+            await asyncio.sleep(0.5)
+            self.knowledge_pending = False
+            await asyncio.to_thread(self.service.refresh_knowledge, self.call_id)
 
     def task(self, coroutine):
         task = asyncio.create_task(coroutine)
@@ -393,6 +407,8 @@ class BrowserSession:
         if not text.strip():
             return
         call = await asyncio.to_thread(self.service.add_turn, self.call_id, speaker, text)
+        if speaker == 'Customer' and call['status'] not in TERMINAL:
+            self.request_knowledge()
         if speaker != 'Customer' or call['status'] in TERMINAL | {'Connected', 'Ringing', 'Queued'}:
             return
         if call['status'] == 'Triage':

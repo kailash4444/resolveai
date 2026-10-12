@@ -233,10 +233,28 @@ async function loadQA() {
 }
 
 async function loadCases() {
-  state.cases = await api("/api/cases");
-  $("#ticketsEmpty").hidden = state.cases.length > 0;
-  $("#ticketRows").innerHTML = state.cases.map(item => `<tr data-case-id="${esc(item.id)}"><td><strong>${esc(item.ticket.id)}</strong></td><td>${esc(item.ticket.short_description)}</td><td>${esc(item.ticket.service)}</td><td><span class="tag">${esc(item.ticket.priority)}</span></td><td>${esc(item.routing.handler)}</td><td>${esc(item.ticket.state)}</td></tr>`).join("");
+  const userId = state.user?.id;
+  const cases = await api('/api/cases');
+  if (state.user?.id !== userId) return;
+  state.cases = cases;
+  const select = $('#ticketAssignee'), selected = select.value;
+  const names = [...new Set(cases.map(item => item.ticket.assigned_to).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  select.innerHTML = '<option value="">All assigned names</option><option value="__unassigned__">Unassigned</option>' + names.map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('');
+  select.value = [...select.options].some(option=>option.value===selected) ? selected : '';
+  renderTickets();
 }
+
+function renderTickets() {
+  const number = $('#ticketSearch').value.trim().toLowerCase(), assignee = $('#ticketAssignee').value;
+  const cases = state.cases.filter(item => item.ticket.id.toLowerCase().includes(number) &&
+    (!assignee || (assignee === '__unassigned__' ? !item.ticket.assigned_to : item.ticket.assigned_to === assignee)));
+  $('#ticketResultCount').textContent = `${cases.length} of ${state.cases.length} tickets`;
+  $('#ticketsEmpty').hidden = cases.length > 0;
+  $('#ticketsEmpty').textContent = state.cases.length ? 'No tickets match these filters.' : 'No tickets yet.';
+  $('#ticketRows').innerHTML = cases.map(item => `<tr data-case-id="${esc(item.id)}"><td><strong>${esc(item.ticket.id)}</strong></td><td>${esc(item.ticket.short_description)}</td><td>${esc(item.ticket.service)}</td><td><span class="tag">${esc(item.ticket.priority)}</span></td><td>${esc(item.ticket.assigned_to || 'Unassigned')}</td><td>${esc(item.ticket.state)}</td></tr>`).join('');
+}
+$('#ticketSearch').addEventListener('input', renderTickets);
+$('#ticketAssignee').addEventListener('change', renderTickets);
 
 async function openTicketDetails(caseId) {
   if (state.user?.role === 'admin') state.users = await api('/api/users');
@@ -422,14 +440,23 @@ $('#incidentKnowledgeForm').addEventListener('submit', generateIncidentKnowledge
 $("#knowledgeSearch").addEventListener("input", event => renderKnowledge(event.target.value));
 
 window.applyAccountRole = user => {
+  if (state.user?.id !== user?.id) {
+    state.cases = []; state.users = []; state.current = null;
+    $('#ticketRows').innerHTML = ''; $('#ticketDetailPage').innerHTML = '';
+    $('#ticketSearch').value = ''; $('#ticketAssignee').innerHTML = '<option value="">All assigned names</option>';
+  }
   state.user = user;
   document.body.dataset.role = user?.role || 'guest';
   const customer = user?.role === 'customer', admin = user?.role === 'admin';
   $$('.nav-item').forEach(nav => {nav.hidden = !user || (customer ? !['customer-home','tickets','knowledge'].includes(nav.dataset.view) : nav.dataset.view === 'customer-home' || nav.dataset.view === 'technicians' && !admin);});
   $('#accountIdentity').textContent = user ? `${user.name} · ${user.role === 'admin' ? 'Admin' : customer ? 'Customer' : 'Technician'}` : '';
   $('#accountSignOut').hidden = !user;
+  if (!user || customer) {
+    $('#presenceControl').hidden = $('#enablePhoneButton').hidden = true;
+    $('#incomingCallBanner').hidden = true;
+  }
   $('.system-card').hidden = !user;
-  $('#openKeyPanel').hidden = !admin;
+  $('#openKeyPanel').hidden = !admin || state.config?.runtime_key_supported === false;
   $('#openKnowledgePanel').hidden = $('#openIncidentKnowledgePanel').hidden = !user || customer;
 };
 

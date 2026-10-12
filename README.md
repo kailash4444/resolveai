@@ -9,7 +9,7 @@ ResolveAI is an enterprise service desk configured for Google's Gemini services 
 | Knowledge embeddings | `gemini-embedding-001` |
 | Spoken replies | `gemini-3.8-flash-lite-tts`, voice `Kore` |
 
-Local mode defaults to `LLM_PROVIDER=google_ai`. The administrator can save one shared Gemini API key through **Configure key**. It is protected in the Windows profile and reused across restarts. No key is returned to technicians or customers. See [GOOGLE_SETUP.md](GOOGLE_SETUP.md).
+Local mode defaults to `LLM_PROVIDER=google_ai`; set `LLM_PROVIDER=vertex` and `GEMINI_PROVIDER=vertex` to use Application Default Credentials (ADC) without an API key. The administrator can save one shared Gemini API key through **Configure key**. It is protected in the Windows profile and reused across restarts. No key is returned to technicians or customers. See [GOOGLE_SETUP.md](GOOGLE_SETUP.md).
 
 Cloud deployment defaults to `LLM_PROVIDER=vertex`: Google services authenticate with the Cloud Run service account. Existing OpenAI credentials are preserved separately but are not used in Google mode. There is no automatic fallback to OpenAI.
 
@@ -20,14 +20,14 @@ Sign in before using ResolveAI. The initial setup creates the single administrat
 | Role | Access |
 | --- | --- |
 | Admin | All incidents and calls, user creation, incident assignment, and the shared Gemini/LiveKit configuration. |
-| Technician | Their assigned incidents and calls, available incoming call previews, knowledge, and their own QA/analytics. |
+| Technician | All incidents and incident QA/analytics, their assigned calls, available incoming call previews, and knowledge. |
 | Customer | My support, their own incidents and calls, self-service incident creation, comments, and knowledge browsing. No QA or analytics. |
 
-One server-side Gemini key powers all users. Only the administrator can configure it; the key is never sent to technicians or customers. Comments automatically use the signed-in account's name and role. Customers do not enter these manually.
+One server-side Google connection powers all users: Vertex AI uses ADC locally and a service identity on GCP, or Google AI can use a shared Gemini key. Only the administrator can configure it; the key is never sent to technicians or customers. Comments automatically use the signed-in account's name and role. Customers do not enter these manually.
 
 Self-service incidents enter **New** and appear for the administrator to assign through the ticket's **Assigned to** dropdown. A technician can then progress and resolve the incident. Existing name-only assignments migrate when they uniquely match a staff account; unmatched old incidents remain available to the administrator for assignment.
 
-**Calling and team routing:** Customers sign in and select **My support → Call support**. Technicians open **Calls & queue**, choose **Enable calls**, and set **Available**. Any available technician can answer an incoming call; the first successful pickup owns the call and its incident. Other technicians see only minimal incoming queue previews, not that call's transcript or incident. See [CALLING_SETUP.md](CALLING_SETUP.md) for activation and GCP deployment instructions.
+**Calling and team routing:** Customers sign in and select **My support → Call support**. Technicians open **Calls & queue**, choose **Enable calls**, and set **Available**. Any available technician can answer an incoming call; the first successful pickup owns the call and its incident. Other technicians see minimal incoming queue previews until answering. All staff can open the linked incident and its saved transcript. Customers never appear as available call takers. See [CALLING_SETUP.md](CALLING_SETUP.md) for activation and GCP deployment instructions.
 
 ## Included product flows
 
