@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css">
-  <link rel="stylesheet" href="/static/overrides.css?v=15">
+  <link rel="stylesheet" href="/static/overrides.css?v=16">
 <link rel="stylesheet" href="/static/microphone.css?v=1"></head>
 <body>
   <aside class="sidebar">
@@ -119,7 +119,7 @@
 
     <section class="view" id="view-transcripts">
       <div class="panel-head page-section-head"><div><p class="eyebrow">CONVERSATIONS</p><h2>Transcripts</h2><p class="helper" id="transcriptScope">View your recorded conversations.</p></div></div>
-      <article class="panel"><div class="transcript-filters"><label>Search transcripts<input id="transcriptSearch" type="search" placeholder="Call ID, incident number or participant"></label><label id="transcriptTechnicianLabel" hidden>Technician<select id="transcriptTechnicianFilter"><option value="">All technicians</option></select></label><label>Service<select id="transcriptServiceFilter"><option value="">All services</option></select></label></div><fieldset class="transcript-duration"><legend>Call length</legend><div class="duration-sliders"><label>Minimum<input id="transcriptDurationMin" type="range" min="0" max="1" value="0" step="1"></label><label>Maximum<input id="transcriptDurationMax" type="range" min="0" max="1" value="1" step="1"></label></div><output id="transcriptDurationLabel" for="transcriptDurationMin transcriptDurationMax">All lengths</output><p class="helper">Call length is measured from call start to end. Conversations without a recorded length appear when all lengths are selected.</p></fieldset><div class="panel-head"><p class="helper" id="transcriptCount" role="status"></p><button class="secondary small" id="clearTranscriptFilters">Clear filters</button></div><div id="transcriptList" class="table-wrap empty-list">Loading transcripts…</div></article>
+      <article class="panel"><div class="transcript-filters"><label>Search transcripts<input id="transcriptSearch" type="search" placeholder="Call ID, incident number or participant"></label><label id="transcriptTechnicianLabel" hidden>Technician<select id="transcriptTechnicianFilter"><option value="">All technicians</option></select></label><label>Service<select id="transcriptServiceFilter"><option value="">All services</option></select></label></div><fieldset class="transcript-duration"><legend>Call length</legend><div class="duration-inputs"><label>Min (minutes)<input id="transcriptDurationMin" type="number" min="0" step="any" inputmode="decimal" placeholder="No minimum" aria-describedby="transcriptDurationLabel"></label><label>Max (minutes)<input id="transcriptDurationMax" type="number" min="0" step="any" inputmode="decimal" placeholder="No maximum" aria-describedby="transcriptDurationLabel"></label></div><output id="transcriptDurationLabel" for="transcriptDurationMin transcriptDurationMax">All lengths</output><p class="helper">Enter minutes, such as 2.5 for 2 minutes 30 seconds. Leave either box blank for no limit. Conversations without a recorded length appear when both boxes are blank.</p></fieldset><div class="panel-head"><p class="helper" id="transcriptCount" role="status"></p><button class="secondary small" id="clearTranscriptFilters">Clear filters</button></div><div id="transcriptList" class="table-wrap empty-list">Loading transcripts…</div></article>
       <article class="panel transcript-detail" id="transcriptDetail" hidden></article>
     </section>
 
@@ -165,6 +165,6 @@
   <script src="/static/voice-browser.js?v=3"></script>
   <script src="/static/app.js?v=14"></script>
   <script src="/static/calling.js?v=11"></script>
-  <script src="/static/transcripts.js?v=4"></script>
+  <script src="/static/transcripts.js?v=5"></script>
 </body>
 </html>

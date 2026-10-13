@@ -75,9 +75,9 @@ body[data-role="customer"] #callPreferenceControl{display:none!important}
 #ticketResultCount{flex-basis:100%}
 .transcript-filters{display:flex;flex-wrap:wrap;gap:16px}.transcript-filters label{flex:1;min-width:180px}.transcript-filters label[hidden]{display:none!important}
 .transcript-duration{border:1px solid #dce7e1;border-radius:12px;margin:20px 0;padding:16px;min-width:0}.transcript-duration legend{font-weight:700;padding:0 8px}
-.duration-sliders{display:grid;grid-template-columns:1fr 1fr;gap:24px}.duration-sliders input{width:100%;padding:0;accent-color:#16745b;cursor:pointer}
+.duration-inputs{display:grid;grid-template-columns:1fr 1fr;gap:24px}.duration-inputs input{width:100%;box-sizing:border-box}
 .transcript-duration output{display:block;font-weight:700;color:#147054;margin-top:10px}.transcript-duration .helper{margin-bottom:0}
-@media(max-width:600px){.duration-sliders{grid-template-columns:1fr;gap:12px}}
+@media(max-width:600px){.duration-inputs{grid-template-columns:1fr;gap:12px}}
 body[data-role="technician"] .analytics-filters{grid-template-columns:repeat(2,minmax(0,1fr)) auto}
 @media(max-width:800px){body[data-role="technician"] .analytics-filters{grid-template-columns:1fr 1fr}}
 @media(max-width:480px){body[data-role="technician"] .analytics-filters{grid-template-columns:1fr}}

@@ -1,25 +1,19 @@
 let transcriptSources=[], transcriptSelected=null, callAnalyticsTimer;
-let transcriptOwner=null,transcriptDurationLimit=1;
+let transcriptOwner=null;
 function durationLabel(seconds) {
   if(seconds==null) return 'Not recorded';
   return `${Math.floor(seconds/60)}m ${Math.round(seconds%60)}s`;
 }
 function resetTranscriptFilters() {
   ['transcriptSearch','transcriptTechnicianFilter','transcriptServiceFilter'].forEach(id=>$('#'+id).value='');
-  $('#transcriptDurationMin').value=0;$('#transcriptDurationMax').value=transcriptDurationLimit;
+  $('#transcriptDurationMin').value='';$('#transcriptDurationMax').value='';
 }
 
 window.loadTranscripts = async () => {
   try {
     const userId=state.user?.id,sources=await api('/api/transcripts');
     if(state.user?.id!==userId) return;
-    const previousLimit=transcriptDurationLimit,previousMax=Number($('#transcriptDurationMax').value);
     transcriptSources=sources;
-    transcriptDurationLimit=Math.max(1,...sources.map(source=>source.duration_seconds ?? 0));
-    ['transcriptDurationMin','transcriptDurationMax'].forEach(id=>{
-      $('#'+id).max=transcriptDurationLimit;$('#'+id).disabled=!sources.some(source=>source.duration_seconds!=null);
-    });
-    if(previousMax===previousLimit) $('#transcriptDurationMax').value=transcriptDurationLimit;
     analyticsOptions('#transcriptTechnicianFilter',sources.map(source=>source.technician),'All technicians');
     analyticsOptions('#transcriptServiceFilter',sources.map(source=>source.service || 'General'),'All services');
     $('#transcriptTechnicianLabel').hidden=state.user.role!=='admin';
@@ -34,16 +28,20 @@ window.loadTranscripts = async () => {
 function renderTranscripts() {
   const query=$('#transcriptSearch').value.trim().toLowerCase();
   const technician=$('#transcriptTechnicianFilter').value,service=$('#transcriptServiceFilter').value;
-  const min=Number($('#transcriptDurationMin').value),max=Number($('#transcriptDurationMax').value),allLengths=min===0 && max===transcriptDurationLimit;
-  $('#transcriptDurationLabel').textContent=allLengths?'All lengths':`${durationLabel(min)} – ${durationLabel(max)}`;
-  $('#transcriptDurationMin').setAttribute('aria-valuetext',durationLabel(min));$('#transcriptDurationMax').setAttribute('aria-valuetext',durationLabel(max));
-  const sources=transcriptSources.filter(source=>(!query || [source.source_id,source.ticket_number,source.customer,source.technician,source.service].join(' ').toLowerCase().includes(query)) &&
+  const minInput=$('#transcriptDurationMin'),maxInput=$('#transcriptDurationMax');
+  const min=minInput.value===''?0:Number(minInput.value),max=maxInput.value===''?Infinity:Number(maxInput.value);
+  const allLengths=minInput.value==='' && maxInput.value==='';
+  const invalid=!minInput.validity.valid || !maxInput.validity.valid || min>max;
+  [minInput,maxInput].forEach(input=>input.setAttribute('aria-invalid',String(invalid)));
+  $('#transcriptDurationLabel').textContent=invalid?'Enter non-negative lengths with minimum no greater than maximum.':allLengths?'All lengths':max===Infinity?`At least ${minInput.value} min`:minInput.value===''?`Up to ${maxInput.value} min`:`${minInput.value} – ${maxInput.value} min`;
+  const sources=invalid?[]:transcriptSources.filter(source=>(!query || [source.source_id,source.ticket_number,source.customer,source.technician,source.service].join(' ').toLowerCase().includes(query)) &&
     (!technician || source.technician===technician) && (!service || (source.service || 'General')===service) &&
-    (allLengths || source.duration_seconds!=null && source.duration_seconds>=min && source.duration_seconds<=max));
+    (allLengths || source.duration_seconds!=null && source.duration_seconds/60>=min && source.duration_seconds/60<=max));
   if(!sources.some(source=>source.source_id===transcriptSelected)) {transcriptSelected=null;$('#transcriptDetail').hidden=true;}
   $('#transcriptCount').textContent=`${sources.length} of ${transcriptSources.length} conversations`;
   $('#transcriptList').className=sources.length?'table-wrap':'empty-list';
   $('#transcriptList').innerHTML=sources.length?`<table><thead><tr><th>Call / Source ID</th><th>Incident</th><th>Customer</th><th>Technician</th><th>Service</th><th>Call length</th><th></th></tr></thead><tbody>${sources.map(source=>`<tr class="transcript-list-row" data-transcript="${esc(source.source_id)}"><td>${esc(source.call_id || source.source_id)}</td><td>${esc(source.ticket_number || 'Pending')}</td><td>${esc(source.customer)}</td><td>${esc(source.technician)}</td><td>${esc(source.service)}</td><td>${durationLabel(source.duration_seconds)}</td><td><button class="text-button" data-transcript="${esc(source.source_id)}">View transcript</button></td></tr>`).join('')}</tbody></table>`:'No conversations match these filters.';
+  if(invalid) {$('#transcriptCount').textContent='Check the call length range.';$('#transcriptList').textContent='Enter a valid call length range to view matching transcripts.';}
 }
 
 async function openTranscript(id) {
@@ -122,11 +120,7 @@ async function refreshCallAudit() {
 
 $('#transcriptSearch').addEventListener('input',renderTranscripts);
 ['transcriptTechnicianFilter','transcriptServiceFilter'].forEach(id=>$('#'+id).addEventListener('change',renderTranscripts));
-['Min','Max'].forEach(bound=>$('#transcriptDuration'+bound).addEventListener('input',()=>{
-  const min=$('#transcriptDurationMin'),max=$('#transcriptDurationMax');
-  if(Number(min.value)>Number(max.value)) (bound==='Min'?max:min).value=(bound==='Min'?min:max).value;
-  renderTranscripts();
-}));
+['Min','Max'].forEach(bound=>$('#transcriptDuration'+bound).addEventListener('input',renderTranscripts));
 $('#clearTranscriptFilters').addEventListener('click',()=>{resetTranscriptFilters();renderTranscripts();});
 $('#callQaSearch').addEventListener('input',renderCallQA);
 document.addEventListener('click',async event=>{
