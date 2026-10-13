@@ -67,6 +67,8 @@ function startNewCase() {
   $("#callerInput").value = "Customer";
   $("#channelInput").value = "Voice";
   $("#audioFile").value = "";
+  $("#caseMediaFiles").value = "";
+  $("#caseMediaSelection").textContent = "";
   $("#caseResult").hidden = true;
   $("#caseResult").innerHTML = "";
   $("#analysisMessage").className = "form-message";
@@ -112,10 +114,28 @@ async function analyzeConversation() {
   const transcript = $("#transcriptInput").value.trim();
   const message = $("#analysisMessage");
   if (transcript.length < 20) { message.className = "form-message error"; message.textContent = "Add at least a few lines of the customer conversation."; return; }
+  const mediaFiles = [...$("#caseMediaFiles").files];
+  if (mediaFiles.length > 10 || mediaFiles.reduce((total, file) => total + file.size, 0) > 20 * 1024 * 1024) {
+    message.className = "form-message error"; message.textContent = "Choose up to 10 files with 20 MB total size or less."; return;
+  }
   const button = $("#analyzeButton"); button.disabled = true; button.textContent = "Analyzing the conversation…";
   message.className = "form-message"; message.textContent = "Retrieving knowledge and drafting a new incident. QA will run after it is resolved.";
   try {
     state.current = await api("/api/analyze", { method: "POST", body: JSON.stringify({ transcript, caller: $("#callerInput").value || "Customer", channel: $("#channelInput").value }) });
+    if (mediaFiles.length) {
+      const media = new FormData();
+      for (const file of mediaFiles) media.append("attachments", file);
+      try {
+        state.current = await api(`/api/cases/${encodeURIComponent(state.current.id)}/attachments`, { method: "POST", body: media });
+      } catch (error) {
+        renderCase(state.current);
+        message.className = "form-message error";
+        message.textContent = `Incident ${state.current.ticket.id} was created, but the media upload failed: ${error.message}`;
+        await loadOverview();
+        return;
+      }
+      $("#caseMediaFiles").value = ""; $("#caseMediaSelection").textContent = "";
+    }
     renderCase(state.current); message.textContent = "Analysis complete. Review and edit the ticket before using it operationally.";
     await loadOverview();
   } catch (error) { message.className = "form-message error"; message.textContent = error.message; }
@@ -130,7 +150,7 @@ function renderCase(item) {
     <article class="result-card"><p class="eyebrow">ROUTING DECISION</p><div class="route">${esc(item.routing.handler)} handling</div><p>${Math.round(item.routing.confidence * 100)}% confidence · ${esc(item.routing.risk)} risk</p><p class="helper">${esc(item.routing.rationale)}</p><hr><small>Recommended next question</small><p><strong>${esc(item.next_question)}</strong></p></article>
     <article class="result-card"><p class="eyebrow">RETRIEVED KNOWLEDGE</p><h3>Relevant guidance</h3>${matches}</article>
     <article class="result-card"><p class="eyebrow">TICKET QUALITY</p><h3><span class="route">${item.quality_score == null ? "Pending" : `${item.quality_score}%`}</span></h3><p class="helper">AI QA becomes available after the incident is resolved and checks the final ticket against the conversation.</p>${item.ticket.state === "Resolved" ? '<button class="secondary" data-open-qa>Review audit</button>' : ""}</article>
-    <article class="result-card full"><div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h3>${esc(item.ticket.id)}</h3></div><span class="tag">${esc(item.ticket.state)}</span></div>${ticketForm(item)}${followupPanels(item)}</article>
+    <article class="result-card full"><div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h3>${esc(item.ticket.id)}</h3></div><span class="tag">${esc(item.ticket.state)}</span></div>${renderAttachments(item.ticket.attachments)}${ticketForm(item)}${followupPanels(item)}</article>
   </div>`;
   $("#caseResult").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -342,7 +362,7 @@ async function openTicketDetails(caseId) {
   state.current = await api(`/api/cases/${caseId}`);
   showView("ticket-detail");
   const detail = $("#ticketDetailPage"); detail.className = "panel ticket-detail-panel";
-  detail.innerHTML = `<div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h2>${esc(state.current.ticket.id)}</h2><p class="helper">${state.user?.role === "customer" ? "Track progress and add comments." : "Edit the incident fields and save your changes."}</p></div><span class="tag">${esc(state.current.ticket.state)}</span></div>${state.user?.role === "customer" ? customerTicketDetails(state.current) : ticketForm(state.current) + followupPanels(state.current)}${transcriptPanel(state.current)}`;
+  detail.innerHTML = `<div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h2>${esc(state.current.ticket.id)}</h2><p class="helper">${state.user?.role === "customer" ? "Track progress and add comments." : "Edit the incident fields and save your changes."}</p></div><span class="tag">${esc(state.current.ticket.state)}</span></div>${state.user?.role === "customer" ? customerTicketDetails(state.current) : renderAttachments(state.current.ticket.attachments) + ticketForm(state.current) + followupPanels(state.current)}${transcriptPanel(state.current)}`;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -536,6 +556,10 @@ $("#keyForm").addEventListener("submit", saveAIKey);
 $("#analyzeButton").addEventListener("click", analyzeConversation);
 $("#captureButton").addEventListener("click", toggleRecording);
 $("#transcribeFileButton").addEventListener("click", () => transcribeAudio($("#audioFile").files[0]));
+$("#caseMediaFiles").addEventListener("change", event => {
+  const files = [...event.target.files];
+  $("#caseMediaSelection").textContent = files.length ? files.map(file => `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`).join(" · ") : "";
+});
 $("#knowledgeForm").addEventListener("submit", addKnowledge);
 $('#incidentKnowledgeForm').addEventListener('submit', generateIncidentKnowledge);
 $("#knowledgeSearch").addEventListener("input", event => renderKnowledge(event.target.value));
@@ -572,7 +596,20 @@ window.applyAccountRole = user => {
 };
 
 function customerTicketDetails(item) {
-  return `<div class="customer-ticket"><h3>${esc(item.ticket.short_description)}</h3><p style="white-space:pre-wrap">${esc(item.ticket.description)}</p><p><b>State:</b> ${esc(item.ticket.state)} · <b>Service:</b> ${esc(item.ticket.service)} · <b>Assigned to:</b> ${esc(item.ticket.assigned_to || 'Awaiting assignment')}</p>${item.ticket.resolution ? `<h4>Resolution</h4><p>${esc(item.ticket.resolution)}</p>` : ''}</div>${activityPanel(item)}`;
+  return `<div class="customer-ticket"><h3>${esc(item.ticket.short_description)}</h3><p style="white-space:pre-wrap">${esc(item.ticket.description)}</p><p><b>State:</b> ${esc(item.ticket.state)} · <b>Service:</b> ${esc(item.ticket.service)} · <b>Assigned to:</b> ${esc(item.ticket.assigned_to || 'Awaiting assignment')}</p>${renderAttachments(item.ticket.attachments)}${item.ticket.resolution ? `<h4>Resolution</h4><p>${esc(item.ticket.resolution)}</p>` : ''}</div>${activityPanel(item)}`;
+}
+
+function renderAttachments(attachments = []) {
+  if (!attachments.length) return '';
+  return `<section class="incident-attachments"><h4>Attachments</h4><div class="attachment-grid">${attachments.map(att => {
+    const url = `/api/attachments/${encodeURIComponent(att.id)}`;
+    const preview = att.content_type.startsWith('image/')
+      ? `<img class="attachment-preview" src="${url}" alt="${esc(att.filename)}" loading="lazy">`
+      : att.content_type.startsWith('video/')
+        ? `<video class="attachment-preview" controls preload="metadata"><source src="${url}" type="${esc(att.content_type)}">Your browser cannot play this video.</video>`
+        : '';
+    return `<article class="attachment-card">${preview}<a href="${url}" target="_blank" rel="noopener">${esc(att.filename)}</a><small>${(att.size_bytes / 1024 / 1024).toFixed(1)} MB</small></article>`;
+  }).join('')}</div></section>`;
 }
 
 async function loadCustomerCalls() {
@@ -583,8 +620,12 @@ async function loadCustomerCalls() {
 $('#customerIncidentForm').addEventListener('submit', async event => {
   event.preventDefault(); const form=event.target,button=form.querySelector('button'),message=$('#customerIncidentMessage');
   button.disabled=true;message.textContent='Creating your incident…';
-  try {const item=await api('/api/customer/incidents',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(form)))});form.reset();message.textContent='';await openTicketDetails(item.id);}
+  try {const item=await api('/api/customer/incidents',{method:'POST',body:new FormData(form)});form.reset();$('#attachmentSelection').textContent='';message.textContent='';await openTicketDetails(item.id);}
   catch(error){message.textContent=error.message;}finally{button.disabled=false;}
+});
+$('#customerIncidentForm [name="attachments"]').addEventListener('change', event => {
+  const files = [...event.target.files];
+  $('#attachmentSelection').textContent = files.length ? files.map(file => `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`).join(' · ') : '';
 });
 document.addEventListener('click',event=>{const source=event.target.closest('[data-customer-ticket]');if(source)openTicketDetails(source.dataset.customerTicket);});
 $('#accountSignIn').addEventListener('click',()=>window.openTechnicianAuth?.());

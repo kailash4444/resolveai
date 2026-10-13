@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     google_cloud_location: str = "global"
     data_backend: str = "sqlite"
     local_data_path: str = "data/resolveai.sqlite3"
+    attachment_bucket: str = ""
     calling_backend: str = "sqlite"
     calling_data_path: str = "data/calling.sqlite3"
     public_base_url: str = ""

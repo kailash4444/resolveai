@@ -11,6 +11,7 @@ from realapp.incident_context import audit_ticket_json, KNOWLEDGE_PROMPT, AUDIT_
 from realapp.models import (
     AnalysisPayload,
     AnalysisRequest,
+    Attachment,
     CaseRecord,
     KnowledgeArticle,
     KnowledgeContent,
@@ -23,6 +24,7 @@ from realapp.models import (
     TicketDraft,
     TranscriptTurn,
     Understanding,
+    VisualAnalysisPayload,
 )
 
 
@@ -215,6 +217,66 @@ class OpenAIEngine:
             recommended_action="Follow the retrieved knowledge steps and verify the outcome.",
             ticket=TicketDraft(short_description=title, description=transcript[:500], category="Access" if routine else "Incident", subcategory="Account" if routine else "Investigation", service="Identity" if routine else "Enterprise IT", priority="P3", assignment_group="Service Desk", state="New"),
         )
+
+    def analyze_visual(self, description: str, attachments: list[tuple[Attachment, bytes]]) -> VisualAnalysisPayload:
+        if not attachments:
+            return VisualAnalysisPayload(
+                visual_observations="No visual media attached.",
+                technical_diagnosis="Incident reported via text description only.",
+                recommended_action="Review incident details with customer.",
+            )
+
+        if self.settings.llm_provider == "mock" or not self.configured():
+            return self._mock_visual_analysis(description, attachments)
+
+        if any(not att.content_type.startswith("image/") for att, _ in attachments):
+            raise RuntimeError("Video AI analysis currently requires the Gemini provider. The video is saved, but OpenAI mode cannot interpret video files.")
+
+        import base64
+
+        media_messages = []
+        for att, content in attachments:
+            if att.content_type.startswith("image/"):
+                b64 = base64.b64encode(content).decode("ascii")
+                media_messages.append({"type": "image_url", "image_url": {"url": f"data:{att.content_type};base64,{b64}"}})
+            else:
+                media_messages.append({"type": "text", "text": f"[Attached video file: {att.filename} ({att.size_bytes} bytes)]"})
+
+        prompt = (
+            "You are the multimodal vision diagnostic engine for ResolveAI enterprise IT service desk.\n"
+            "A customer reported an incident and attached photos and/or video recordings of the issue.\n"
+            "Carefully examine all attached media along with the customer's text description.\n\n"
+            f"CUSTOMER DESCRIPTION:\n{description}"
+        )
+
+        try:
+            client = self._client_or_raise()
+            response = client.beta.chat.completions.parse(
+                model=self.settings.openai_model,
+                messages=[
+                    {"role": "system", "content": "Analyze the customer's visual incident attachments and return structured diagnostic JSON."},
+                    {"role": "user", "content": [{"type": "text", "text": prompt}, *media_messages]},
+                ],
+                response_format=VisualAnalysisPayload,
+                temperature=0.2,
+            )
+            parsed = response.choices[0].message.parsed
+            if parsed is None:
+                raise ValueError("OpenAI returned no structured media analysis.")
+            result = VisualAnalysisPayload.model_validate(parsed)
+            result.analysis_source = "OpenAI"
+            return result
+        except Exception as exc:
+            raise RuntimeError("OpenAI could not analyze the attached image. Check the provider configuration and model access.") from exc
+
+    def _mock_visual_analysis(self, description: str, attachments: list[tuple[Attachment, bytes]]) -> VisualAnalysisPayload:
+        return VisualAnalysisPayload(
+            analysis_source="Demo mode (media not analyzed)",
+            visual_observations="This demo configuration does not inspect attachment content.",
+            technical_diagnosis=f"No visual diagnosis was generated. Customer description: {description[:500]}",
+            recommended_action="Review the attachment and incident description manually.",
+        )
+
 
 
 def create_engine(settings: Settings, knowledge_provider: Callable[[], list[KnowledgeArticle]]):

@@ -6,6 +6,7 @@ PROJECT_ID="${GOOGLE_CLOUD_PROJECT:-project-3b78e0f3-2562-4233-a7f}"
 REGION="${DEPLOY_REGION:-asia-south1}"
 SERVICE="resolveai"
 LIVEKIT_URL="${LIVEKIT_URL:-wss://reolveai-lfu9ponl.livekit.cloud}"
+ATTACHMENT_BUCKET="${ATTACHMENT_BUCKET:-}"
 RUNTIME_ACCOUNT="resolveai-runtime@${PROJECT_ID}.iam.gserviceaccount.com"
 BUILD_ACCOUNT="resolveai-builder@${PROJECT_ID}.iam.gserviceaccount.com"
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,6 +17,7 @@ if [[ "${1:-}" == '--plan' ]]; then
   printf '%s\n' 'Creates/reuses Firestore, dedicated service accounts, and protected secrets.'
   printf '%s\n' 'Deploys Gemini through Vertex AI, LiveKit Cloud, and one always-on Cloud Run instance.'
   printf '%s\n' 'Existing local records and credentials are not uploaded. Cloud records are preserved on reruns.'
+  printf 'Attachment bucket: %s\n' "${ATTACHMENT_BUCKET:-not configured}"
   exit 0
 fi
 
@@ -28,7 +30,7 @@ test -n "$(gcloud auth list --filter=status:ACTIVE --format='value(account)')" |
 printf 'Preparing %s in %s. This deployment runs one continuously billed instance.\n' "$SERVICE" "$REGION"
 gcloud config set project "$PROJECT_ID"
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
-  firestore.googleapis.com secretmanager.googleapis.com aiplatform.googleapis.com iam.googleapis.com \
+  firestore.googleapis.com secretmanager.googleapis.com aiplatform.googleapis.com storage.googleapis.com iam.googleapis.com \
   cloudresourcemanager.googleapis.com --project="$PROJECT_ID" --quiet
 
 DATABASE_TYPE="$(gcloud firestore databases list --project="$PROJECT_ID" --format=json | python3 -c \
@@ -87,11 +89,18 @@ LIVEKIT_SECRET_VERSION="$SECRET_VERSION"
 ensure_secret resolveai-admin-setup 'administrator setup token'
 ADMIN_VERSION="$SECRET_VERSION"
 
+DEPLOY_ENV="ENVIRONMENT=production,LLM_PROVIDER=vertex,GEMINI_PROVIDER=vertex,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.8-flash,GEMINI_TRANSCRIPTION_MODEL=gemini-3.8-flash,GEMINI_TTS_MODEL=gemini-3.8-flash-lite-tts,EMBEDDING_MODEL=gemini-embedding-001,DATA_BACKEND=firestore,CALLING_BACKEND=firestore,FIRESTORE_COLLECTION=resolveai_cases,LIVEKIT_URL=$LIVEKIT_URL"
+if [[ -n "$ATTACHMENT_BUCKET" ]]; then
+  gcloud storage buckets add-iam-policy-binding "gs://$ATTACHMENT_BUCKET" \
+    --member="serviceAccount:$RUNTIME_ACCOUNT" --role=roles/storage.objectUser --project="$PROJECT_ID" --quiet
+  DEPLOY_ENV="$DEPLOY_ENV,ATTACHMENT_BUCKET=$ATTACHMENT_BUCKET"
+fi
+
 gcloud run deploy "$SERVICE" --source . --project="$PROJECT_ID" --region="$REGION" \
   --build-service-account="projects/$PROJECT_ID/serviceAccounts/$BUILD_ACCOUNT" \
   --service-account="$RUNTIME_ACCOUNT" --allow-unauthenticated --port=8080 \
   --cpu=1 --memory=1Gi --min=1 --max=1 --no-cpu-throttling --timeout=3600 \
-  --update-env-vars="ENVIRONMENT=production,LLM_PROVIDER=vertex,GEMINI_PROVIDER=vertex,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.8-flash,GEMINI_TRANSCRIPTION_MODEL=gemini-3.8-flash,GEMINI_TTS_MODEL=gemini-3.8-flash-lite-tts,EMBEDDING_MODEL=gemini-embedding-001,DATA_BACKEND=firestore,CALLING_BACKEND=firestore,FIRESTORE_COLLECTION=resolveai_cases,LIVEKIT_URL=$LIVEKIT_URL" \
+  --update-env-vars="$DEPLOY_ENV" \
   --update-secrets="LIVEKIT_API_KEY=resolveai-livekit-key:$KEY_VERSION,LIVEKIT_API_SECRET=resolveai-livekit-secret:$LIVEKIT_SECRET_VERSION,ADMIN_SETUP_TOKEN=resolveai-admin-setup:$ADMIN_VERSION" \
   --quiet
 

@@ -89,6 +89,26 @@ class WorkNoteCreate(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
 
 
+class Attachment(BaseModel):
+    id: str
+    filename: str
+    content_type: str
+    size_bytes: int
+    url: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class VisualAnalysisPayload(BaseModel):
+    analysis_source: str = "AI"
+    visual_observations: str
+    technical_diagnosis: str
+    suggested_category: str = "Incident"
+    suggested_subcategory: str = "Investigation"
+    suggested_service: str = "General"
+    suggested_priority: Literal["P1", "P2", "P3", "P4"] = "P3"
+    recommended_action: str
+
+
 class Ticket(TicketDraft):
     id: str
     assigned_to: str = ""
@@ -96,6 +116,7 @@ class Ticket(TicketDraft):
     call_id: str = ""
     resolution: str = ""
     work_notes: list[WorkNote] = Field(default_factory=list)
+    attachments: list[Attachment] = Field(default_factory=list)
 
 
 class QACheck(BaseModel):
