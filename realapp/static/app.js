@@ -239,6 +239,9 @@ function visibleAuditChecks(checks) {
 }
 
 function renderQA(item) {
+  if (state.user?.role !== 'admin' && item.ticket.assigned_user_id !== state.user?.id) {
+    toast('You can review audits for tickets assigned to you.'); showView('qa'); return;
+  }
   selectReportTab("qa", "tickets", false);
   refreshBulkQA();
   state.current = item;
@@ -264,7 +267,8 @@ function renderQA(item) {
 }
 
 async function loadQA() {
-  const cases = await api("/api/cases");
+  const userId = state.user?.id, cases = await api('/api/reporting/tickets');
+  if (state.user?.id !== userId) return;
   const resolved = cases.filter(item => item.ticket.state === "Resolved");
   state.qaResolvedCount = resolved.length;
   refreshBulkQA();
@@ -315,7 +319,9 @@ async function loadCases() {
 
 function renderTickets() {
   const number = $('#ticketSearch').value.trim().toLowerCase(), assignee = $('#ticketAssignee').value;
+  const status = $('#ticketStateFilter').value, priority = $('#ticketPriorityFilter').value;
   const cases = state.cases.filter(item => item.ticket.id.toLowerCase().includes(number) &&
+    (!status || item.ticket.state === status) && (!priority || item.ticket.priority === priority) &&
     (!assignee || (assignee === '__unassigned__' ? !item.ticket.assigned_to : item.ticket.assigned_to === assignee)));
   $('#ticketResultCount').textContent = `${cases.length} of ${state.cases.length} tickets`;
   $('#ticketsEmpty').hidden = cases.length > 0;
@@ -324,6 +330,12 @@ function renderTickets() {
 }
 $('#ticketSearch').addEventListener('input', renderTickets);
 $('#ticketAssignee').addEventListener('change', renderTickets);
+$('#ticketStateFilter').addEventListener('change', renderTickets);
+$('#ticketPriorityFilter').addEventListener('change', renderTickets);
+$('#clearTicketFilters').addEventListener('click', () => {
+  ['ticketSearch','ticketAssignee','ticketStateFilter','ticketPriorityFilter'].forEach(id => $('#'+id).value='');
+  renderTickets();
+});
 
 async function openTicketDetails(caseId) {
   if (state.user?.role === 'admin') state.users = await api('/api/users');
@@ -361,7 +373,7 @@ function analyticsOptions(selector, values, label) {
 }
 let analyticsCases=[];
 async function loadAnalytics() {
-  const userId=state.user?.id, cases=await api('/api/cases');
+  const userId=state.user?.id, cases=await api('/api/reporting/tickets');
   if(state.user?.id!==userId) return;
   analyticsCases=cases;
   analyticsOptions('#ticketAnalyticsTechnicianFilter',cases.map(item=>item.ticket.assigned_to || 'Unassigned'),'All technicians');
@@ -533,10 +545,19 @@ window.applyAccountRole = user => {
     state.cases = []; state.users = []; state.current = null;
     $('#ticketRows').innerHTML = ''; $('#ticketDetailPage').innerHTML = '';
     $('#ticketSearch').value = ''; $('#ticketAssignee').innerHTML = '<option value="">All assigned names</option>';
+    $('#ticketStateFilter').value = ''; $('#ticketPriorityFilter').value = '';
+    analyticsCases = []; lastBulkQaStatus = null; clearTimeout(bulkQaTimer);
+    ['ticketAnalytics','callAnalytics'].forEach(prefix => ['Id','Technician','Service'].forEach(field => $('#'+prefix+field+'Filter').value=''));
+    $('#qaWorkspace').innerHTML = ''; $('#callQaList').innerHTML = ''; $('#callQaDetail').hidden = true;
   }
   state.user = user;
   document.body.dataset.role = user?.role || 'guest';
   const customer = user?.role === 'customer', admin = user?.role === 'admin';
+  ['ticketAnalytics','callAnalytics'].forEach(prefix => {
+    const select = $('#'+prefix+'TechnicianFilter');
+    select.closest('label').hidden = !admin;
+    if (!admin) select.value = '';
+  });
   $$('.nav-item').forEach(nav => {nav.hidden = !user || (customer ? !['customer-home','tickets','knowledge','transcripts'].includes(nav.dataset.view) : nav.dataset.view === 'customer-home' || nav.dataset.view === 'technicians' && !admin);});
   $('#accountIdentity').textContent = user ? `${user.name} · ${user.role === 'admin' ? 'Admin' : customer ? 'Customer' : 'Technician'}` : '';
   $('#accountSignOut').hidden = !user;

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css">
-  <link rel="stylesheet" href="/static/overrides.css?v=12">
+  <link rel="stylesheet" href="/static/overrides.css?v=14">
 <link rel="stylesheet" href="/static/microphone.css?v=1"></head>
 <body>
   <aside class="sidebar">
@@ -16,7 +16,6 @@
     <p class="workspace-label">SERVICE OPERATIONS</p>
     <nav><button class="nav-item" data-view="customer-home" hidden><span>⌂</span>My support</button>
       <button class="nav-item active" data-view="overview"><span>⌂</span>Overview</button>
-      <button class="nav-item" data-view="case"><span>＋</span>New case</button>
       <button class="nav-item" data-view="tickets"><span>▤</span>Tickets</button>
       <button class="nav-item" data-view="calls"><span>◉</span>Calls & queue</button>
       <button class="nav-item" data-view="transcripts"><span>≡</span>Transcripts</button>
@@ -80,7 +79,7 @@
 
     <section class="view" id="view-tickets">
       <div class="panel-head page-section-head"><div><p class="eyebrow">CASE MANAGEMENT</p><h2>Tickets</h2></div><button class="primary small" data-open-case>New case</button></div>
-      <div class="ticket-filters panel"><label>Ticket number<input id="ticketSearch" type="search" placeholder="Search INC number" autocomplete="off"></label><label>Assigned name<select id="ticketAssignee"><option value="">All assigned names</option></select></label><span id="ticketResultCount" class="helper" aria-live="polite"></span></div>
+      <div class="ticket-filters panel"><label>Ticket number<input id="ticketSearch" type="search" placeholder="Search INC number" autocomplete="off"></label><label>Assigned name<select id="ticketAssignee"><option value="">All assigned names</option></select></label><label>State<select id="ticketStateFilter"><option value="">All states</option><option>New</option><option>In Progress</option><option>On Hold</option><option>Resolved</option></select></label><label>Priority<select id="ticketPriorityFilter"><option value="">All priorities</option><option>P1</option><option>P2</option><option>P3</option><option>P4</option></select></label><button type="button" class="secondary" id="clearTicketFilters">Clear filters</button><span id="ticketResultCount" class="helper" aria-live="polite"></span></div>
       <div class="panel table-wrap"><table><thead><tr><th>Ticket</th><th>Issue</th><th>Service</th><th>Priority</th><th>Assigned to</th><th>State</th></tr></thead><tbody id="ticketRows"></tbody></table><div id="ticketsEmpty" class="empty-list">No tickets yet. Analyze a conversation to create one.</div></div>
     </section>
 
@@ -164,7 +163,7 @@
   <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="primary resume-audio" hidden>Enable call audio</button>
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=3"></script>
-  <script src="/static/app.js?v=12"></script>
+  <script src="/static/app.js?v=14"></script>
   <script src="/static/calling.js?v=11"></script>
   <script src="/static/transcripts.js?v=3"></script>
 </body>

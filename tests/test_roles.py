@@ -127,7 +127,7 @@ def test_assignment_and_comments_derive_identity_and_scope(accounts):
     assert f.tech_b.post(path+'/work-notes',json={'text':'Helping another technician.'}).status_code==200
     assert f.tech_b.get(path).status_code==200
     assert f.tech_a.get('/api/overview').json()['total_cases']==1
-    assert f.tech_b.get('/api/overview').json()['total_cases']==1
+    assert f.tech_b.get('/api/overview').json()['total_cases']==0
     assert f.admin.patch(path+'/ticket',json={'assigned_user_id':f.tech_b_id}).status_code==200
     assert f.tech_a.get(path).status_code==200
     assert f.tech_b.get(path).status_code==200

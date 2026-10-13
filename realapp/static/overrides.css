@@ -71,6 +71,11 @@ body[data-role="customer"] #callPreferenceControl{display:none!important}
 
 .analytics-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:16px;align-items:end;margin-bottom:24px}
 .analytics-filters label{min-width:0}.analytics-filters .filter-count{grid-column:1/-1;margin:0}
+.analytics-filters label[hidden]{display:none!important}
+#ticketResultCount{flex-basis:100%}
+body[data-role="technician"] .analytics-filters{grid-template-columns:repeat(2,minmax(0,1fr)) auto}
+@media(max-width:800px){body[data-role="technician"] .analytics-filters{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){body[data-role="technician"] .analytics-filters{grid-template-columns:1fr}}
 .call-overall{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:24px}
 .call-overall strong,.overall-score{font-size:24px;font-weight:800;color:#147054}
 @media(max-width:800px){.analytics-filters{grid-template-columns:1fr 1fr}.call-overall{align-items:flex-start;flex-direction:column}}

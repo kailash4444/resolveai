@@ -17,7 +17,7 @@ from realapp.store import create_store
 from realapp.livekit_setup import restore_livekit_settings
 from realapp.incident_context import knowledge_context
 from realapp.models import KnowledgeFromIncidentsRequest, CustomerIncidentCreate, Ticket, TranscriptTurn, Understanding, RoutingDecision
-from realapp.access import actor, can_read, require_case, visible_case
+from realapp.access import actor, can_read, can_report, require_case, visible_case
 from realapp.resolved_knowledge import ResolvedKnowledgePublisher
 from realapp.bulk_qa import BulkAudit
 
@@ -295,7 +295,15 @@ def add_work_note(case_id: str, note: WorkNoteCreate, http: Request):
 def bulk_qa_status(http: Request):
     if actor(http)['role'] not in {'admin', 'technician'}:
         raise HTTPException(403, 'Technician access is required.')
-    return app.state.bulk_audit.status()
+    return app.state.bulk_audit.status(actor(http)['id'])
+
+
+@app.get('/api/reporting/tickets', response_model=list[CaseRecord])
+def reporting_tickets(http: Request):
+    user = actor(http)
+    if user['role'] not in {'admin', 'technician'}:
+        raise HTTPException(403, 'Technician access is required.')
+    return [visible_case(case, user) for case in store.list_cases() if can_report(case, user)]
 
 
 @app.post('/api/qa/rerun-all', status_code=202)
@@ -303,9 +311,9 @@ def rerun_all_qa(http: Request, background_tasks: BackgroundTasks):
     user = actor(http)
     if user['role'] not in {'admin', 'technician'}:
         raise HTTPException(403, 'Technician access is required.')
-    job, ids = app.state.bulk_audit.start([case for case in store.list_cases() if can_read(case, user)])
+    job, ids = app.state.bulk_audit.start([case for case in store.list_cases() if can_report(case, user)], user['id'])
     if ids:
-        background_tasks.add_task(app.state.bulk_audit.run, ids, store, engine)
+        background_tasks.add_task(app.state.bulk_audit.run, ids, store, engine, user['id'], lambda case: can_report(case, user))
     return job
 
 
@@ -314,7 +322,8 @@ def rerun_qa(case_id: str, http: Request):
     case = store.get_case(case_id)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
-    require_case(case, actor(http))
+    if not can_report(case, actor(http)):
+        raise HTTPException(404, 'Audit not found.')
     if case.ticket.state != "Resolved":
         raise HTTPException(status_code=409, detail="AI QA runs only after the ticket is resolved.")
     try:
@@ -384,7 +393,7 @@ def draft_knowledge_from_incidents(request: KnowledgeFromIncidentsRequest, http:
 @app.get("/api/overview")
 def overview(http: Request):
     user = actor(http)
-    cases = [case for case in store.list_cases() if can_read(case, user)]
+    cases = [case for case in store.list_cases() if can_report(case, user)]
     handler_counts = Counter(case.routing.handler for case in cases)
     themes = Counter(case.ticket.category for case in cases)
     scored = [case.quality_score for case in cases if case.quality_score is not None]

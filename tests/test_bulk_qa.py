@@ -49,7 +49,9 @@ def test_bulk_audit_continues_after_failure_and_preserves_concurrent_edits(accou
 def test_bulk_audit_api_staff_access_and_resolved_only(accounts, monkeypatch):
     monkeypatch.setattr(main.app.state, 'bulk_audit', BulkAudit())
     f = accounts
-    resolved(f, 2)
+    for case in resolved(f, 2):
+        case.ticket.assigned_user_id = f.tech_a_id
+        f.store.save_case(case)
     create_incident(f.customer_b)
     for client in [f.customer_a, f.customer_b]:
         assert client.post('/api/qa/rerun-all').status_code == 403
@@ -66,3 +68,49 @@ def test_empty_batch_is_complete(accounts):
     job = BulkAudit()
     current, ids = job.start(accounts.store.list_cases())
     assert current['status'] == 'complete' and current['total'] == 0 and ids == []
+
+
+def test_ticket_reporting_and_audits_are_owned_not_name_based(accounts, monkeypatch):
+    f=accounts
+    monkeypatch.setattr(main.app.state, 'bulk_audit', BulkAudit())
+    own, foreign, unassigned=resolved(f,3)
+    for case, owner in [(own,f.tech_a_id),(foreign,f.tech_b_id)]:
+        case.ticket.assigned_user_id=owner
+        case.ticket.assigned_to='Same display name'
+        case.quality_score=95
+        f.store.save_case(case)
+    assert [case['id'] for case in f.tech_a.get('/api/reporting/tickets').json()]==[own.id]
+    assert len(f.admin.get('/api/reporting/tickets').json())==3
+    assert f.customer_a.get('/api/reporting/tickets').status_code==403
+    assert len(f.tech_a.get('/api/cases').json())==3  # Shared ticket workspace stays available.
+    assert f.tech_a.get('/api/cases/'+foreign.id).json()['quality_score'] is None
+    assert f.tech_a.get('/api/cases/'+foreign.id).json()['qa_checks']==[]
+    assert f.tech_a.post('/api/cases/'+foreign.id+'/qa').status_code==404
+    assert f.tech_a.post('/api/cases/'+unassigned.id+'/qa').status_code==404
+    audit=Mock(return_value=QAAuditPayload(checks=[],quality_score=99))
+    monkeypatch.setattr(f.engine,'audit',audit)
+    response=f.tech_a.post('/api/qa/rerun-all')
+    assert response.status_code==202 and response.json()['total']==1
+    assert [call.args[0].id for call in audit.call_args_list]==[own.id]
+    assert f.tech_a.get('/api/qa/rerun-all').json()['completed']==1
+    assert f.tech_b.get('/api/qa/rerun-all').json()['status']=='idle'
+    assert f.admin.get('/api/qa/rerun-all').json()['status']=='idle'
+    assert f.admin.post('/api/qa/rerun-all').json()['total']==3
+
+
+def test_bulk_rechecks_assignment_before_auditing_and_separates_jobs(accounts):
+    f=accounts
+    case=resolved(f,1)[0]
+    case.ticket.assigned_user_id=f.tech_a_id
+    f.store.save_case(case)
+    job=BulkAudit()
+    own, ids=job.start([case],f.tech_a_id)
+    other, other_ids=job.start([],f.tech_b_id)
+    assert own['id']!=other['id'] and other_ids==[]
+    case.ticket.assigned_user_id=f.tech_b_id
+    f.store.save_case(case)
+    engine=SimpleNamespace(audit=Mock())
+    job.run(ids,f.store,engine,f.tech_a_id,lambda current:current.ticket.assigned_user_id==f.tech_a_id)
+    engine.audit.assert_not_called()
+    assert job.status(f.tech_a_id)['skipped']==1
+    assert job.status(f.tech_b_id)['skipped']==0

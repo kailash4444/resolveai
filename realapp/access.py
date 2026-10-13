@@ -23,9 +23,13 @@ def require_case(case, user):
     return case
 
 
+def can_report(case, user):
+    return user['role'] == 'admin' or (user['role'] == 'technician' and case.ticket.assigned_user_id == user['id'])
+
+
 def visible_case(case, user):
     value = case.model_copy(deep=True)
-    if user['role'] == 'customer':
+    if not can_report(case, user):
         value.qa_checks = []
         value.quality_score = None
     if user['role'] == 'technician' and value.ticket.assigned_user_id != user['id']:
