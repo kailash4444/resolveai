@@ -54,9 +54,10 @@ document.addEventListener('click', event => {
 });
 document.addEventListener('keydown', event => {
   const tab = event.target.closest('[data-report]');
-  if (!tab || !['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+  // Arrow keys are handled by the component script; this adds Home / End.
+  if (!tab || !['Home','End'].includes(event.key)) return;
   event.preventDefault();
-  const target = event.key === 'Home' ? 'tickets' : event.key === 'End' ? 'calls' : tab.dataset.reportTab === 'tickets' ? 'calls' : 'tickets';
+  const target = event.key === 'Home' ? 'tickets' : 'calls';
   selectReportTab(tab.dataset.report, target); $(`#${tab.dataset.report}-${target}-tab`).focus();
 });
 const VIEW_ACCESS = {
@@ -86,7 +87,7 @@ function showView(name) {
   if (name === "analytics") selectReportTab("analytics", reportTabs.analytics);
   if (name === "transcripts") window.loadTranscripts?.();
   if (name === "overview") loadOverview();
-  if (name === "qa") selectReportTab("qa", reportTabs.qa);
+  if (name === "qa") { state.qaDetail = null; selectReportTab("qa", reportTabs.qa); }
   if (name === "calls" || name === "technicians") window.loadCalling?.();
 }
 
@@ -160,7 +161,7 @@ function barChart(counts, {caption, unit = 'incidents', id}) {
   if (!entries.length) return '<p class="sec">No data for this selection yet.</p>';
   const total = entries.reduce((sum, [, n]) => sum + n, 0), max = Math.max(...entries.map(([, n]) => n));
   const share = n => `${Math.round(n / Math.max(1, total) * 100)}%`;
-  return `<figure class="chart" aria-labelledby="${id}-cap"><figcaption class="help" id="${id}-cap">${esc(caption)} · ${total} ${unit} in total</figcaption>
+  return `<figure class="chart" aria-label="${esc(caption)}"><figcaption class="help">${total} ${unit} in total · bars are relative to the largest</figcaption>
     <div class="bars" aria-hidden="true">${entries.map(([label, n]) => `<div class="bars__row"><span class="bars__label">${esc(label)}</span><span class="bars__track"><span class="bars__fill" style="width:${Math.max(2, Math.round(n / max * 100))}%"></span></span><span class="bars__value">${n} · ${share(n)}</span></div>`).join('')}</div>
     <p class="sr">${esc(caption)}: ${entries.map(([label, n]) => `${esc(label)} ${n} ${unit} (${share(n)})`).join('; ')}.</p>
     <details class="chart__table"><summary>Show as table</summary><div class="tbl-wrap"><table class="tbl"><caption class="sr">${esc(caption)}</caption><thead><tr><th scope="col">Category</th><th scope="col">Count (${unit})</th><th scope="col">Share</th></tr></thead><tbody>${entries.map(([label, n]) => `<tr><th scope="row">${esc(label)}</th><td>${n}</td><td>${share(n)}</td></tr>`).join('')}</tbody></table></div></details></figure>`;
@@ -361,13 +362,6 @@ async function saveResolution(form) {
   } catch (error) { setFormStatus(message, `✕ Not resolved: ${error.message}`, true); button.disabled = false; button.removeAttribute('aria-busy'); }
 }
 
-async function rerunQA() {
-  if (!state.current) return;
-  const button = $("#rerunQa"); if (button) { button.disabled = true; button.textContent = "Auditing…"; }
-  try { state.current = await api(`/api/cases/${state.current.id}/qa`, { method: "POST", body: "{}" }); renderQA(state.current); toast("AI QA audit completed."); }
-  catch (error) { showFeedback(error.message, true); }
-}
-
 function visibleAuditChecks(checks) {
   const excluded = new Set(['state','status','incidentstate','ticketstate','id','if','ticketid','ticketnumber','incidentid','incidentnumber','caseid','callid','assignedto','assignee','assignedtechnician']);
   const classification = new Set(['category','subcategory','categorysubcategory','categoryandsubcategory','classification']);
@@ -390,45 +384,60 @@ function visibleAuditChecks(checks) {
   return {checks:visible, legacy};
 }
 
+const QA_RESULT = {PASS: ['badge--ok', '✓ Pass'], WARN: ['badge--high', '◆ Check'], FAIL: ['badge--err', '✕ Fail']};
+function qaBadge(item) {
+  if (item.quality_score == null) return '<span class="badge badge--low">○ Pending</span>';
+  const stale = visibleAuditChecks(item.qa_checks).legacy;
+  return `<span class="badge ${item.quality_score >= 80 ? 'badge--ok' : 'badge--high'}">${item.quality_score >= 80 ? '✓' : '◆'} ${item.quality_score}%</span>${stale ? ' <span class="badge badge--high">◆ Out of date</span>' : ''}`;
+}
+
 function renderQA(item) {
   if (state.user?.role !== 'admin' && item.ticket.assigned_user_id !== state.user?.id) {
-    showFeedback('You can review audits for tickets assigned to you.'); showView('qa'); return;
+    showView('qa'); showFeedback('You can review audits only for tickets assigned to you.'); return;
   }
-  selectReportTab("qa", "tickets", false);
-  refreshBulkQA();
-  state.current = item;
-  $$(".view").forEach(el => el.classList.toggle("active", el.id === "view-qa"));
-  $$(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.view === "qa"));
-  document.title = "Quality audit";
-  const heading = `<div class="qa-head"><div><div class="qa-identifiers"><span>Ticket number: <b>${esc(item.ticket.id)}</b></span><span>Call ID: <b>${esc(item.ticket.call_id || 'Not linked')}</b></span></div><h3>${esc(item.issue_title)}</h3></div><strong>${item.quality_score == null ? 'Pending' : `${item.quality_score}%`}</strong></div>`;
-  if (item.ticket.state !== "Resolved") {
-    $("#qaWorkspace").className = "panel card empty-list";
-    $("#qaWorkspace").innerHTML = `${heading}<h3>QA pending</h3><p>Resolve ${esc(item.ticket.id)} before running AI QA. This keeps the audit focused on the completed incident record.</p>`;
-    return;
+  if (!$('#view-qa').classList.contains('active')) showView('qa');
+  state.current = item; state.qaDetail = item.id;
+  selectReportTab("qa", "tickets", false); refreshBulkQA();
+  const head = `<div class="row row--between"><button type="button" class="pop pop--quiet pop--sm" data-qa-back><span aria-hidden="true">←</span> All ticket audits</button></div>
+    <div class="section-head section-head--tight"><div><p class="kicker"><span class="mono">${esc(item.ticket.id)}</span>${item.ticket.call_id ? ` · call <span class="mono">${esc(item.ticket.call_id)}</span>` : ''}</p><h2 id="qaDetailTitle" tabindex="-1">${esc(item.issue_title)}</h2></div>${qaBadge(item)}</div>`;
+  let body;
+  if (item.ticket.state !== "Resolved") body = `<p class="sec">Resolve ${esc(item.ticket.id)} first. QA audits the completed incident record.</p>`;
+  else if (item.quality_score == null) body = `<p class="sec">● AI QA is running in the background for ${esc(item.ticket.id)}. Check back shortly.</p><div><button type="button" class="pop pop--quiet" id="rerunQa">Run QA now</button></div><p class="form-status" id="rerunQaMessage" role="status"></p>`;
+  else {
+    const audit = visibleAuditChecks(item.qa_checks);
+    const lines = value => esc(value).replace(/\n/g, '<br>');
+    body = `${audit.legacy ? '<div class="alert alert--info" role="status"><strong>◆ Out of date.</strong><span class="sec">This score uses an earlier audit format. Rerun QA to refresh it.</span></div>' : ''}
+      <ul class="checks">${audit.checks.map(check => { const [tone, label] = QA_RESULT[check.result] || ['badge--low', `○ ${check.result}`]; return `<li class="panel-block stack stack--sm"><div class="row row--between"><h3 class="h4">${esc(check.field)}</h3><span class="badge ${tone}">${label}</span></div><dl class="kv"><div><dt>Observed</dt><dd>${lines(check.observed)}</dd></div><div><dt>Recommended</dt><dd>${lines(check.recommended)}</dd></div></dl><p class="help" data-detail>Evidence: ${lines(check.evidence)}</p></li>`; }).join('') || '<li class="sec">No checks returned.</li>'}</ul>
+      <div class="row"><button type="button" class="pop" id="rerunQa">Rerun AI QA</button><p class="form-status" id="rerunQaMessage" role="status"></p></div>`;
   }
-  if (item.quality_score == null) {
-    $("#qaWorkspace").className = "panel card empty-list";
-    $("#qaWorkspace").innerHTML = `${heading}<h3>QA pending</h3><p>AI QA is running in the background for ${esc(item.ticket.id)}. Return to the audit list shortly to see the completed score.</p><button class="ghost" data-view="qa">← Back to audits</button>`;
-    return;
-  }
-  const audit = visibleAuditChecks(item.qa_checks);
-  const lines = value => esc(value).replace(/\n/g, '<br>');
-  const checks = audit.checks.map(check => `<div class="qa-check"><b class="${esc(check.result)}">${esc(check.result)}</b><strong>${esc(check.field)}</strong><span><b>Observed:</b> ${lines(check.observed)}<br><b>Recommended:</b> ${lines(check.recommended)}<br><small>Evidence: ${lines(check.evidence)}</small></span></div>`).join("");
-  $("#qaWorkspace").className = "panel card";
-  $("#qaWorkspace").innerHTML = `<button class="ghost pop--sm qa-back" data-view="qa">← Back to audits</button>${heading}${audit.legacy ? '<p class="helper">This saved score used the earlier audit format. Rerun QA to update it.</p>' : ''}<div>${checks || "No checks returned."}</div><div class="action-row"><span class="helper">The audit compares the resolved ticket with the source conversation.</span><button class="pop" id="rerunQa">Rerun AI QA</button></div>`;
+  $("#qaWorkspace").innerHTML = `<section class="card stack" aria-labelledby="qaDetailTitle">${head}<p class="help">AI compares the resolved ticket with its source conversation. A reviewer decides what to change.</p>${body}</section>`;
+  $('#qaDetailTitle').focus();
+}
+
+async function rerunQA() {
+  if (!state.current) return;
+  const button = $("#rerunQa"), message = $('#rerunQaMessage');
+  button.disabled = true; button.setAttribute('aria-busy', 'true'); setFormStatus(message, 'Auditing…');
+  try { state.current = await api(`/api/cases/${state.current.id}/qa`, { method: "POST", body: "{}" }); renderQA(state.current); toast(`AI QA updated for ${state.current.ticket.id}.`); }
+  catch (error) { setFormStatus(message, `✕ Audit failed: ${error.message}`, true); button.disabled = false; button.removeAttribute('aria-busy'); }
 }
 
 async function loadQA() {
-  const userId = state.user?.id, cases = await api('/api/reporting/tickets');
+  if (state.qaDetail) return;
+  const box = $('#qaWorkspace'), userId = state.user?.id;
+  if (!box.querySelector('table')) box.innerHTML = '<div class="stack" role="status" aria-label="Loading audits"><div class="skeleton"></div><div class="skeleton" style="width:80%"></div></div>';
+  let cases;
+  try { cases = await api('/api/reporting/tickets'); if (state.qaDetail) return; }
+  catch (error) { if (state.qaDetail) return; box.innerHTML = `<div class="alert" role="alert"><strong>✕ Couldn’t load ticket audits.</strong><span class="sec">${esc(error.message)}</span><button type="button" class="pop pop--quiet pop--sm" data-retry-qa>Retry</button></div>`; return; }
   if (state.user?.id !== userId) return;
   const resolved = cases.filter(item => item.ticket.state === "Resolved");
   state.qaResolvedCount = resolved.length;
   refreshBulkQA();
-  $("#qaWorkspace").className = resolved.length ? "panel card table-wrap" : "panel card empty-list";
-  $("#qaWorkspace").innerHTML = resolved.length ? `<table><thead><tr><th>Ticket</th><th>Issue</th><th>Service</th><th>Priority</th><th>QA status</th></tr></thead><tbody>${resolved.map(item => `<tr data-qa-case-id="${esc(item.id)}"><td><strong>${esc(item.ticket.id)}</strong></td><td>${esc(item.ticket.short_description)}</td><td>${esc(item.ticket.service)}</td><td>${priorityBadge(item.ticket.priority)}</td><td><span class="badge ${item.quality_score == null ? 'badge--low' : item.quality_score >= 80 ? 'badge--ok' : 'badge--high'}">${item.quality_score == null ? "○ Pending" : `${item.quality_score >= 80 ? '✓' : '◆'} ${item.quality_score}%`}</span></td></tr>`).join("")}</tbody></table>` : "No resolved tickets yet. Resolved tickets appear here immediately while AI QA runs in the background.";
+  box.innerHTML = resolved.length ? `<div class="tbl-wrap" role="region" aria-label="Ticket audits" tabindex="0"><table class="tbl"><caption class="sr">Resolved tickets and their QA status</caption><thead><tr><th scope="col">Ticket</th><th scope="col">Issue</th><th scope="col" class="col-opt">Service</th><th scope="col">QA</th><th scope="col"><span class="sr">Action</span></th></tr></thead><tbody>${resolved.map(item => `<tr><td><span class="mono">${esc(item.ticket.id)}</span></td><td>${esc(item.ticket.short_description)}${exampleTag(item)}</td><td class="col-opt">${esc(item.ticket.service)}</td><td>${qaBadge(item)}</td><td><button type="button" class="pop pop--quiet pop--sm" data-qa-case-id="${esc(item.id)}"><span>Review<span class="sr"> audit for ${esc(item.ticket.id)}</span></span></button></td></tr>`).join("")}</tbody></table></div>`
+    : '<div class="empty"><h2 class="h3">No resolved tickets yet</h2><p class="sec">Resolved tickets appear here straight away while AI QA runs in the background.</p></div>';
 }
 
-
+function jobProgress(bar, job) { bar.hidden = job.status !== 'running'; bar.max = Math.max(1, job.total); bar.value = job.completed + job.failed + job.skipped; }
 let bulkQaTimer, lastBulkQaStatus;
 async function refreshBulkQA() {
   clearTimeout(bulkQaTimer);
@@ -439,14 +448,16 @@ async function refreshBulkQA() {
     if (state.user?.id !== userId) return;
     const running = job.status === 'running';
     $('#rerunAllQa').disabled = running || state.qaResolvedCount === 0;
+    $('#rerunAllQa').toggleAttribute('aria-busy', running);
     $('#rerunAllQa').textContent = running ? 'Audits running…' : 'Rerun all audits';
-    $('#bulkQaStatus').textContent = job.status === 'idle' ? 'Rerun AI QA for all resolved tickets.' :
-      `${running ? 'Auditing' : 'Finished'}: ${job.completed} completed, ${job.failed} failed, ${job.skipped} skipped · ${job.total} resolved tickets.${job.skipped ? ' Skipped tickets changed during the audit or are no longer resolved.' : ''}${job.failed ? ' Check the AI connection and rerun to retry.' : ''}`;
+    jobProgress($('#bulkQaProgress'), job);
+    $('#bulkQaStatus').textContent = job.status === 'idle' ? 'Reruns AI QA for every resolved ticket you can see.' :
+      `${running ? '● Auditing' : job.failed ? '◆ Finished with problems' : '✓ Finished'}: ${job.completed} done, ${job.failed} failed, ${job.skipped} skipped of ${job.total}.${job.skipped ? ' Skipped tickets changed during the audit or are no longer resolved.' : ''}${job.failed ? ' Check the AI connection, then rerun to retry the failed ones.' : ''}`;
     const finished = lastBulkQaStatus === 'running' && !running;
     lastBulkQaStatus = job.status;
     if (running && $('#view-qa').classList.contains('active')) bulkQaTimer = setTimeout(refreshBulkQA, 2000);
-    if (finished && $('#view-qa').classList.contains('active')) await loadQA();
-  } catch (error) { $('#bulkQaStatus').textContent = error.message; $('#rerunAllQa').disabled = false; }
+    if (finished && $('#view-qa').classList.contains('active') && !$('#qaDetailTitle')) await loadQA();
+  } catch (error) { $('#bulkQaStatus').textContent = `✕ ${error.message}`; $('#rerunAllQa').disabled = false; }
 }
 $('#rerunAllQa').addEventListener('click', async () => {
   const button = $('#rerunAllQa'); button.disabled = true;
@@ -454,7 +465,11 @@ $('#rerunAllQa').addEventListener('click', async () => {
     await api('/api/qa/rerun-all', {method:'POST', body:'{}'});
     lastBulkQaStatus = 'running';
     await refreshBulkQA();
-  } catch(error) { $('#bulkQaStatus').textContent = error.message; button.disabled = false; }
+  } catch(error) { $('#bulkQaStatus').textContent = `✕ ${error.message}`; button.disabled = false; }
+});
+document.addEventListener('click', event => {
+  if (event.target.closest('[data-qa-back]')) { state.current = null; state.qaDetail = null; loadQA(); }
+  if (event.target.closest('[data-retry-qa]')) loadQA();
 });
 
 async function loadCases() {
@@ -557,19 +572,13 @@ async function openCase(caseId, target = "case") {
   if (target === "qa") renderQA(state.current); else { showView("case"); renderCase(state.current); }
 }
 
-async function loadKnowledge() {
-  state.knowledge = await api("/api/knowledge"); $("#knowledgeCount").textContent = state.knowledge.length;
-  renderKnowledge($("#knowledgeSearch")?.value || "");
-}
-
 function groupedCounts(values) {
   return values.reduce((counts, value) => { const key = value || "Unspecified"; counts[key] = (counts[key] || 0) + 1; return counts; }, {});
 }
 
-function renderAnalyticsBars(target, counts, total) {
-  const entries = Object.entries(counts).sort((left, right) => right[1] - left[1]);
-  $(target).className = entries.length ? "analytics-bars" : "empty-list";
-  $(target).innerHTML = entries.length ? entries.map(([label, count]) => `<div class="analytics-bar"><div><span>${esc(label)}</span><b>${count}</b></div><div class="bar"><i style="width:${Math.round(count / Math.max(1, total) * 100)}%"></i></div></div>`).join("") : "No incident data yet.";
+function renderAnalyticsBars(target, counts, total, unit = 'incidents') {
+  const caption = $(target).closest('article')?.querySelector('h2')?.textContent || 'Distribution';
+  $(target).innerHTML = barChart(counts, {caption, unit, id: target.slice(1)});
 }
 
 function analyticsOptions(selector, values, label) {
@@ -579,13 +588,19 @@ function analyticsOptions(selector, values, label) {
 }
 let analyticsCases=[];
 async function loadAnalytics() {
-  const userId=state.user?.id, cases=await api('/api/reporting/tickets');
-  if(state.user?.id!==userId) return;
-  analyticsCases=cases;
-  analyticsOptions('#ticketAnalyticsTechnicianFilter',cases.map(item=>item.ticket.assigned_to || 'Unassigned'),'All technicians');
-  analyticsOptions('#ticketAnalyticsServiceFilter',cases.map(item=>item.ticket.service || 'Unspecified'),'All services');
-  renderTicketAnalytics();
+  const userId = state.user?.id;
+  $('#analyticsScope').textContent = state.user?.role === 'admin' ? 'Ticket and call performance across the whole workspace, all time.' : 'Ticket and call performance for records assigned to you, all time.';
+  $('#ticketAnalyticsError').hidden = true;
+  try {
+    const cases = await api('/api/reporting/tickets');
+    if (state.user?.id !== userId) return;
+    analyticsCases = cases;
+    analyticsOptions('#ticketAnalyticsTechnicianFilter', cases.map(item => item.ticket.assigned_to || 'Unassigned'), 'All technicians');
+    analyticsOptions('#ticketAnalyticsServiceFilter', cases.map(item => item.ticket.service || 'Unspecified'), 'All services');
+    renderTicketAnalytics();
+  } catch (error) { $('#ticketAnalyticsErrorMessage').textContent = error.message; $('#ticketAnalyticsError').hidden = false; }
 }
+document.addEventListener('click', event => { const retry = event.target.closest('[data-retry-analytics]'); if (retry) loadAnalytics(); });
 function renderTicketAnalytics() {
   const number=$('#ticketAnalyticsIdFilter').value.trim().toLowerCase(), technician=$('#ticketAnalyticsTechnicianFilter').value, service=$('#ticketAnalyticsServiceFilter').value;
   const cases=analyticsCases.filter(item=>(!number || item.ticket.id.toLowerCase().includes(number)) && (!technician || (item.ticket.assigned_to || 'Unassigned')===technician) && (!service || (item.ticket.service || 'Unspecified')===service));
@@ -597,70 +612,104 @@ function renderTicketAnalytics() {
   $("#analyticsServices").textContent = Object.keys(serviceCounts).length;
   $("#analyticsResolved").textContent = cases.length ? `${Math.round(resolved.length / cases.length * 100)}%` : "0%";
   $("#analyticsQA").textContent = scored.length ? `${Math.round(scored.reduce((sum, value) => sum + value, 0) / scored.length)}%` : "—";
+  $("#analyticsQAHelp").textContent = scored.length ? `Percent · mean of ${scored.length} audited, resolved incident${scored.length === 1 ? '' : 's'}` : 'No audited incidents in this selection';
   renderAnalyticsBars("#serviceVolume", serviceCounts, cases.length);
   renderAnalyticsBars("#stateDistribution", groupedCounts(cases.map(item => item.ticket.state)), cases.length);
   renderAnalyticsBars("#priorityDistribution", groupedCounts(cases.map(item => item.ticket.priority)), cases.length);
   renderAnalyticsBars("#routingDistribution", groupedCounts(cases.map(item => `${item.routing.handler} handled`)), cases.length);
   const services = Object.keys(serviceCounts).sort((left, right) => serviceCounts[right] - serviceCounts[left]);
   $("#serviceAnalyticsEmpty").hidden = services.length > 0;
-  $("#serviceAnalyticsEmpty").textContent = "No tickets match these filters.";
+  $("#serviceAnalyticsEmpty").textContent = analyticsCases.length ? "No tickets match these filters." : "No incidents yet.";
+  $("#serviceAnalyticsRows").closest('.tbl-wrap').hidden = !services.length;
   $("#serviceAnalyticsRows").innerHTML = services.map(service => {
     const items = cases.filter(item => (item.ticket.service || "Unspecified") === service); const serviceResolved = items.filter(item => item.ticket.state === "Resolved"); const serviceScores = serviceResolved.map(item => item.quality_score).filter(value => value != null);
-    return `<tr><td><strong>${esc(service)}</strong></td><td>${items.length}</td><td>${items.length - serviceResolved.length}</td><td>${serviceResolved.length}</td><td>${items.filter(item => item.routing.handler === "AI").length}</td><td>${serviceScores.length ? `${Math.round(serviceScores.reduce((sum, value) => sum + value, 0) / serviceScores.length)}%` : "—"}</td></tr>`;
+    return `<tr><th scope="row">${esc(service)}</th><td>${items.length}</td><td>${items.length - serviceResolved.length}</td><td>${serviceResolved.length}</td><td class="col-opt">${items.filter(item => item.routing.handler === "AI").length}</td><td>${serviceScores.length ? `${Math.round(serviceScores.reduce((sum, value) => sum + value, 0) / serviceScores.length)}%` : "—"}</td></tr>`;
   }).join("");
 }
 
 ['Id','Technician','Service'].forEach(field=>$('#ticketAnalytics'+field+'Filter').addEventListener(field==='Id'?'input':'change',renderTicketAnalytics));
 $('#ticketAnalyticsResetFilters').addEventListener('click',()=>{['Id','Technician','Service'].forEach(field=>$('#ticketAnalytics'+field+'Filter').value='');renderTicketAnalytics();});
 
+async function loadKnowledge() {
+  const customer = state.user?.role === 'customer';
+  $('#knowledgeKicker').textContent = customer ? 'Help' : 'Knowledge';
+  $('#knowledgeTitle').textContent = customer ? 'Help articles' : 'Knowledge articles';
+  $('#knowledgeIntro').textContent = customer ? 'Step-by-step fixes for common problems. Still stuck? Report an issue from My support.' : 'Guidance AI retrieves during analysis and calls. Technicians check it before use.';
+  $('#knowledgeActions').hidden = customer;
+  $('#knowledgeError').hidden = true; $('#knowledgeLoading').hidden = state.knowledge.length > 0;
+  try { state.knowledge = await api("/api/knowledge"); renderKnowledge($("#knowledgeSearch").value); }
+  catch (error) { $('#knowledgeErrorMessage').textContent = error.message; $('#knowledgeError').hidden = false; }
+  finally { $('#knowledgeLoading').hidden = true; }
+}
+$('#retryKnowledge').addEventListener('click', loadKnowledge);
+
 function renderKnowledge(query = "") {
   const term = query.trim().toLowerCase();
   const articles = state.knowledge.filter(article => !term || [article.id, article.title, article.product, article.symptoms, article.tags.join(" "), article.steps.join(" ")].join(" ").toLowerCase().includes(term));
-  $("#knowledgeList").innerHTML = articles.length ? articles.map(article => `<article class="article-card"><h4>${esc(article.id)} · ${esc(article.title)}</h4><p><b>${esc(article.product)}</b> · ${esc(article.tags.join(", "))}</p><p>${esc(article.symptoms)}</p><details><summary>Resolution steps</summary><ol>${article.steps.map(step => `<li>${esc(step)}</li>`).join("")}</ol><p><b>Expected outcome:</b> ${esc(article.resolution)}</p>${article.source_ticket_ids?.length ? `<p class="helper">Source incidents: ${article.source_ticket_ids.map(number => `<button type="button" class="ghost pop--sm" data-source-ticket="${esc(number)}">${esc(number)}</button>`).join(", ")}</p>` : ""}</details></article>`).join("") : `<div class="empty-list">No knowledge articles match “${esc(query)}”.</div>`;
+  $('#knowledgeCount').textContent = term ? `${articles.length} of ${state.knowledge.length} articles match` : `${state.knowledge.length} published articles`;
+  const staff = state.user?.role !== 'customer';
+  $("#knowledgeList").innerHTML = articles.length ? articles.map(article => `<article class="card stack stack--sm" aria-labelledby="kb-${esc(article.id)}"><div class="row row--between"><h2 class="h3" id="kb-${esc(article.id)}">${esc(article.title)}</h2><span class="badge badge--ok">✓ Published</span></div>
+      <p class="help"><span class="mono">${esc(article.id)}</span> · ${esc(article.product)}${article.tags.length ? ` · ${esc(article.tags.join(', '))}` : ''}</p><p class="sec">${esc(article.symptoms)}</p>
+      <details><summary>Steps (${article.steps.length})</summary><ol class="plain-steps">${article.steps.map(step => `<li>${esc(step)}</li>`).join("")}</ol><p class="small"><strong>Expected result:</strong> ${esc(article.resolution)}</p>${staff && article.source_ticket_ids?.length ? `<p class="help">Drafted from: ${article.source_ticket_ids.map(number => `<button type="button" class="pop pop--quiet pop--sm" data-source-ticket="${esc(number)}">${esc(number)}</button>`).join(" ")}</p>` : ""}</details></article>`).join("")
+    : state.knowledge.length ? `<div class="empty"><h2 class="h3">No articles match “${esc(query)}”</h2><p class="sec">Try other words, or clear the search.</p></div>`
+      : `<div class="empty"><h2 class="h3">No articles yet</h2><p class="sec">${staff ? 'Add an article, or draft one from resolved incidents.' : 'Help articles will appear here.'}</p></div>`;
 }
 
+function kbError(text, field) { const box = $('#knowledgeMessage'); setFormStatus(box, `✕ ${text}`, true); if (field) { field.setAttribute('aria-invalid', 'true'); field.focus(); } }
 async function addKnowledge(event) {
-  event.preventDefault(); const form = event.target; const values = Object.fromEntries(new FormData(form).entries());
+  event.preventDefault(); const form = event.target;
+  form.querySelectorAll('[aria-invalid]').forEach(el => el.removeAttribute('aria-invalid'));
+  const missing = ['title', 'product', 'symptoms', 'steps', 'resolution'].map(name => form.elements[name]).find(el => !el.value.trim());
+  if (missing) return kbError(`Fill in ${form.querySelector(`label[for="${missing.id}"]`).textContent.toLowerCase()}.`, missing);
+  const values = Object.fromEntries(new FormData(form).entries());
   values.steps = values.steps.split("\n").map(value => value.trim()).filter(Boolean); values.tags = values.tags.split(",").map(value => value.trim()).filter(Boolean);
   values.source_ticket_ids = knowledgeDraftSources.slice();
-  const message = $("#knowledgeMessage");
-  try { const article = await api("/api/knowledge", { method: "POST", body: JSON.stringify(values) }); form.reset(); message.className = "form-message"; message.textContent = `${article.id} added. It will be embedded during the next analysis.`; await loadKnowledge(); setTimeout(() => { $("#knowledgeModal").hidden = true; message.textContent = ""; }, 700); }
-  catch (error) { message.className = "form-message error"; message.textContent = error.message; }
+  const button = $('#knowledgeSubmit'); button.disabled = true; button.setAttribute('aria-busy', 'true'); setFormStatus($('#knowledgeMessage'), 'Publishing…');
+  try {
+    const article = await api("/api/knowledge", { method: "POST", body: JSON.stringify(values) });
+    form.reset(); $('#knowledgeModal').close(); await loadKnowledge();
+    toast(`${article.id} published. AI uses it from the next analysis.`);
+  } catch (error) { kbError(`Not published: ${error.message}`); }
+  finally { button.disabled = false; button.removeAttribute('aria-busy'); }
 }
 
 function openKnowledgeEditor(article, warnings = []) {
-  const form = $('#knowledgeForm'); form.reset();
+  const form = $('#knowledgeForm'); form.reset(); form.querySelectorAll('[aria-invalid]').forEach(el => el.removeAttribute('aria-invalid'));
   knowledgeDraftSources = article?.source_ticket_ids || [];
   for (const field of ['title','product','symptoms','resolution']) form.elements[field].value = article?.[field] || '';
   form.elements.steps.value = article?.steps.join('\n') || '';
   form.elements.tags.value = article?.tags.join(', ') || '';
-  $('#knowledgeModalTitle').textContent = article ? 'Review your knowledge draft' : 'Make guidance searchable';
-  $('#knowledgeSources').textContent = knowledgeDraftSources.length ? `Source incidents: ${knowledgeDraftSources.join(', ')}` : '';
+  $('#knowledgeModalTitle').textContent = article ? 'Review the AI draft' : 'Add an article';
+  $('#knowledgeDraftBadge').hidden = !article;
+  $('#knowledgeModalIntro').textContent = article ? 'AI drafted this from the incidents below. It isn’t published until you select Publish. Edit anything that’s wrong.' : 'Published articles are used by AI during analysis and live calls.';
+  $('#knowledgeSources').textContent = knowledgeDraftSources.length ? `Drafted from: ${knowledgeDraftSources.join(', ')}` : '';
   $('#knowledgeSources').hidden = !knowledgeDraftSources.length;
-  $('#knowledgeMessage').className = 'form-message';
-  $('#knowledgeMessage').textContent = warnings.join(' ');
-  $('#knowledgeModal').hidden = false;
+  $('#knowledgeWarnings').textContent = warnings.length ? `◆ ${warnings.join(' ')}` : ''; $('#knowledgeWarnings').hidden = !warnings.length;
+  $('#knowledgeSubmit').textContent = article ? 'Publish draft' : 'Publish article';
+  setFormStatus($('#knowledgeMessage'), '');
+  $('#knowledgeModal').showModal();
   form.elements.title.focus();
 }
 
 async function generateIncidentKnowledge(event) {
   event.preventDefault();
-  const numbers = [...new Set(event.target.elements.ticket_numbers.value.toUpperCase().split(/[\s,;]+/).filter(Boolean))];
+  const field = event.target.elements.ticket_numbers;
+  const numbers = [...new Set(field.value.toUpperCase().split(/[\s,;]+/).filter(Boolean))];
   const message = $('#incidentKnowledgeMessage'), button = $('#generateIncidentKnowledge');
-  message.className = 'form-message';
-  if (!numbers.length || numbers.length > 20) {message.textContent = 'Enter between 1 and 20 incident numbers.'; return;}
+  field.removeAttribute('aria-invalid');
+  if (!numbers.length || numbers.length > 20) { setFormStatus(message, '✕ Enter between 1 and 20 incident numbers.', true); field.setAttribute('aria-invalid', 'true'); field.focus(); return; }
   const controller = new AbortController(); knowledgeGeneration = controller;
-  button.disabled = true; button.textContent = 'Generating…';
-  message.textContent = 'Reading the incidents and their source conversations…';
+  button.disabled = true; button.setAttribute('aria-busy', 'true'); button.textContent = 'Generating…';
+  setFormStatus(message, `● Reading ${numbers.length} incident${numbers.length === 1 ? '' : 's'} and their conversations…`);
   try {
     const result = await api('/api/knowledge/from-incidents', {method:'POST', signal:controller.signal, body:JSON.stringify({ticket_numbers:numbers})});
     if (controller.signal.aborted) return;
-    $('#incidentKnowledgeModal').hidden = true;
+    $('#incidentKnowledgeModal').close(); event.target.reset();
     openKnowledgeEditor(result.article, result.warnings);
   } catch (error) {
-    if (error.name !== 'AbortError') {message.className = 'form-message error'; message.textContent = error.message;}
+    if (error.name !== 'AbortError') setFormStatus(message, `✕ ${error.message}`, true);
   } finally {
-    if (knowledgeGeneration === controller) {knowledgeGeneration = null; button.disabled = false; button.textContent = 'Generate draft';}
+    if (knowledgeGeneration === controller) { knowledgeGeneration = null; button.disabled = false; button.removeAttribute('aria-busy'); button.textContent = 'Generate draft'; }
   }
 }
 
@@ -753,9 +802,8 @@ document.addEventListener("click", event => {
   if (event.target.closest('#dismissGlobalFeedback')) $('#globalFeedback').hidden = true;
   if (event.target.closest("#closeKeyPanel") || event.target === $("#keyModal")) $("#keyModal").hidden = true;
   if (event.target.closest("#openKnowledgePanel")) openKnowledgeEditor();
-  if (event.target.closest("#closeKnowledgePanel") || event.target === $("#knowledgeModal")) $("#knowledgeModal").hidden = true;
-  if (event.target.closest('#openIncidentKnowledgePanel')) {$('#incidentKnowledgeModal').hidden=false; $('#incidentKnowledgeMessage').textContent=''; $('#incidentKnowledgeForm textarea').focus();}
-  if (event.target.closest('#closeIncidentKnowledgePanel') || event.target === $('#incidentKnowledgeModal')) {$('#incidentKnowledgeModal').hidden=true; knowledgeGeneration?.abort();}
+  if (event.target.closest('#openIncidentKnowledgePanel')) { setFormStatus($('#incidentKnowledgeMessage'), ''); $('#incidentKnowledgeModal').showModal(); }
+  if (event.target.closest('#closeIncidentKnowledgePanel')) $('#incidentKnowledgeModal').close();
   const source = event.target.closest('[data-source-ticket]'); if (source) openKnowledgeSource(source.dataset.sourceTicket);
 });
 document.addEventListener("submit", event => {
@@ -816,7 +864,7 @@ window.applyAccountRole = user => {
   const customer = user?.role === 'customer', admin = user?.role === 'admin';
   ['ticketAnalytics','callAnalytics'].forEach(prefix => {
     const select = $('#'+prefix+'TechnicianFilter');
-    select.closest('label').hidden = !admin;
+    select.closest('.field').hidden = !admin;
     if (!admin) select.value = '';
   });
   window.Shell?.render(user);
@@ -927,11 +975,11 @@ document.addEventListener('click', event => {
   const dialog = $('#mediaPreviewDialog');
   $('#mediaPreviewImage').src = trigger.dataset.imagePreview;
   $('#mediaPreviewImage').alt = trigger.dataset.imageAlt || 'Incident attachment';
-  $('#mediaPreviewCaption').textContent = trigger.dataset.imageAlt || '';
+  $('#mediaPreviewCaption').textContent = trigger.dataset.imageAlt || 'Attachment';
+  $('#mediaPreviewOpen').href = trigger.dataset.imagePreview;
   dialog.showModal();
-  $('#closeMediaPreview').focus();
 });
-$('#closeMediaPreview').addEventListener('click', () => $('#mediaPreviewDialog').close());
+$('#incidentKnowledgeModal').addEventListener('close', () => knowledgeGeneration?.abort());
 $('#mediaPreviewDialog').addEventListener('click', event => { if (event.target === event.currentTarget) event.currentTarget.close(); });
 
 const CALL_STATUS = {Completed:['badge--ok','✓ Completed'],Failed:['badge--err','✕ Failed'],'Callback requested':['badge--high','◆ Callback requested']};

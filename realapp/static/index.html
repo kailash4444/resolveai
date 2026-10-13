@@ -302,29 +302,90 @@
       <div class="panel card table-wrap"><table><thead><tr><th>User</th><th>Skills</th><th>Languages</th><th>Availability</th><th>Phone</th><th>Current call</th></tr></thead><tbody id="technicianRows"></tbody></table><div class="empty-list" id="techniciansEmpty">Open Calls & queue and sign in to manage your team.</div></div>
     </section>
 
-    <section class="view" id="view-knowledge">
-      <article class="panel card"><div class="panel-head"><div><p class="eyebrow">RETRIEVAL LIBRARY</p><h2>Knowledge articles</h2></div><div class="knowledge-actions"><span class="count-badge" id="knowledgeCount">0</span><button class="ghost pop--sm" id="openIncidentKnowledgePanel">Create from incidents</button><button class="pop pop--sm" id="openKnowledgePanel">Add knowledge</button></div></div><div class="knowledge-search"><input id="knowledgeSearch" type="search" placeholder="Search by title, service, symptoms, or tags" aria-label="Search knowledge articles"></div><div id="knowledgeList"></div></article>
+    <section class="view" id="view-knowledge" aria-labelledby="knowledgeTitle">
+      <div class="page-head"><div><p class="kicker" id="knowledgeKicker">Knowledge</p><h1 id="knowledgeTitle">Knowledge articles</h1><p class="sec" id="knowledgeIntro">Guidance AI retrieves during analysis and calls. Technicians check it before use.</p></div><div class="row" id="knowledgeActions"><button class="pop pop--quiet" id="openIncidentKnowledgePanel" type="button">Draft from incidents</button><button class="pop" id="openKnowledgePanel" type="button">Add article</button></div></div>
+      <div class="card stack filters" role="search" aria-label="Search knowledge">
+        <div class="field field--inline"><label for="knowledgeSearch">Search</label><input class="input" id="knowledgeSearch" type="search" placeholder="Title, service, symptoms or tags" autocomplete="off"></div>
+        <p class="help" id="knowledgeCount" aria-live="polite"></p>
+      </div>
+      <div id="knowledgeLoading" class="stack section" role="status" aria-label="Loading articles" hidden><div class="skeleton" style="height:90px"></div><div class="skeleton" style="height:90px"></div></div>
+      <div id="knowledgeError" class="alert section" role="alert" hidden><strong>✕ Couldn’t load articles.</strong><span class="sec" id="knowledgeErrorMessage"></span><button type="button" class="pop pop--quiet pop--sm" id="retryKnowledge">Retry</button></div>
+      <div id="knowledgeList" class="stack section"></div>
     </section>
 
-    <section class="view" id="view-analytics">
-      <div class="panel-head page-section-head"><div><p class="eyebrow">SERVICE INTELLIGENCE</p><h2>Analytics</h2><p class="helper">Explore ticket and call performance.</p></div></div>
-<div class="tabs report-tabs" role="tablist" aria-label="Analytics type"><button type="button" class="tab" role="tab" id="analytics-tickets-tab" aria-controls="analytics-tickets-panel" aria-selected="true" tabindex="0" data-report="analytics" data-report-tab="tickets">Tickets</button><button type="button" class="tab" role="tab" id="analytics-calls-tab" aria-controls="analytics-calls-panel" aria-selected="false" tabindex="-1" data-report="analytics" data-report-tab="calls">Calls</button></div><div id="analytics-tickets-panel" role="tabpanel" aria-labelledby="analytics-tickets-tab"><div class="panel card analytics-filters"><label>Ticket number<input type="search" id="ticketAnalyticsIdFilter" placeholder="INC0000001"></label><label>Technician<select id="ticketAnalyticsTechnicianFilter"><option value="">All technicians</option></select></label><label>Service<select id="ticketAnalyticsServiceFilter"><option value="">All services</option></select></label><button type="button" class="ghost" id="ticketAnalyticsResetFilters">Clear filters</button><p class="helper filter-count" id="ticketAnalyticsFilterCount" role="status"></p></div>
-      <div class="metrics analytics-metrics"><article><span>Total incidents</span><strong id="analyticsTotal">0</strong><small>Across all services</small></article><article><span>Active services</span><strong id="analyticsServices">0</strong><small>Services with incidents</small></article><article><span>Resolved</span><strong id="analyticsResolved">0%</strong><small>Resolution rate</small></article><article><span>Average QA</span><strong id="analyticsQA">—</strong><small>Resolved tickets</small></article></div>
-      <div class="analytics-grid"><article class="panel card"><div class="panel-head"><div><p class="eyebrow">SERVICE VOLUME</p><h3>Incidents by service</h3></div></div><div id="serviceVolume" class="empty-list">Analytics appear after an incident is created.</div></article><article class="panel card"><div class="panel-head"><div><p class="eyebrow">WORKFLOW</p><h3>State distribution</h3></div></div><div id="stateDistribution" class="empty-list">No incident data yet.</div></article><article class="panel card"><div class="panel-head"><div><p class="eyebrow">URGENCY</p><h3>Priority distribution</h3></div></div><div id="priorityDistribution" class="empty-list">No incident data yet.</div></article><article class="panel card"><div class="panel-head"><div><p class="eyebrow">ROUTING</p><h3>Handling model</h3></div></div><div id="routingDistribution" class="empty-list">No incident data yet.</div></article></div>
-      <article class="panel card analytics-table"><div class="panel-head"><div><p class="eyebrow">SERVICE PERFORMANCE</p><h3>Service-level incident summary</h3></div></div><div class="table-wrap"><table><thead><tr><th>Service</th><th>Total</th><th>Open</th><th>Resolved</th><th>AI handled</th><th>Average QA</th></tr></thead><tbody id="serviceAnalyticsRows"></tbody></table><div id="serviceAnalyticsEmpty" class="empty-list">Create an incident to begin service analytics.</div></div></article></div><div id="analytics-calls-panel" role="tabpanel" aria-labelledby="analytics-calls-tab" hidden><div class="panel card analytics-filters"><label>Call ID<input type="search" id="callAnalyticsIdFilter" placeholder="CALL-DEMO-0001"></label><label>Technician<select id="callAnalyticsTechnicianFilter"><option value="">All technicians</option></select></label><label>Service<select id="callAnalyticsServiceFilter"><option value="">All services</option></select></label><button type="button" class="ghost" id="callAnalyticsResetFilters">Clear filters</button><p class="helper filter-count" id="callAnalyticsFilterCount" role="status"></p></div>
-<p class="helper" id="callAnalyticsStatus" role="status"></p>      <div class="metrics"><article><span>Total calls</span><strong id="callTotal">0</strong><small id="callCompletion">Completion rate</small></article><article><span>Average duration</span><strong id="callDuration">—</strong><small>Ended calls</small></article><article><span>Average queue wait</span><strong id="callWait">—</strong><small>Connected calls</small></article><article><span>Quality assessed</span><strong id="callAssessed">0</strong><small>Evidence from conversations</small></article></div>
-      <article class="panel card call-overall"><div><h3>Overall call quality</h3><p class="helper">Sum of six metrics. Each metric contributes up to 100 points.</p></div><div><strong id="callOverallScore">Pending</strong><p id="callOverallCoverage" class="helper"></p></div></article><h3>Conversation quality · 0–100</h3><p class="helper">Gemini scores each metric using transcript evidence. Insufficient evidence remains unscored. Open a transcript to inspect its assessment.</p><div class="quality-metric-grid" id="callQualityMetrics"></div>
-      <div class="analytics-grid"><article class="panel card"><h3>Calls by service</h3><div id="callServiceChart"></div></article><article class="panel card"><h3>Call status</h3><div id="callStateChart"></div></article><article class="panel card"><h3>Calls by day</h3><div id="callDailyChart"></div></article><article class="panel card"><h3>Technician performance</h3><div class="table-wrap"><table><thead><tr><th>Technician</th><th>Calls</th><th>Completed</th><th>Quality</th></tr></thead><tbody id="callTechnicianRows"></tbody></table></div></article></div><article class="panel card"><h3>Call quality scores</h3><div class="table-wrap"><table><thead><tr><th>Call ID</th><th>Technician</th><th>Service</th><th>Overall score</th><th>Percentage</th></tr></thead><tbody id="callAnalyticsRows"></tbody></table></div></article>
-</div>
+    <section class="view" id="view-analytics" aria-labelledby="analyticsTitle">
+      <div class="page-head"><div><p class="kicker">Service intelligence</p><h1 id="analyticsTitle">Analytics</h1><p class="sec" id="analyticsScope">Ticket and call performance for the records you can see.</p></div></div>
+      <div class="tabs" role="tablist" aria-label="Analytics type"><button type="button" role="tab" id="analytics-tickets-tab" aria-controls="analytics-tickets-panel" aria-selected="true" tabindex="0" data-report="analytics" data-report-tab="tickets">Tickets</button><button type="button" role="tab" id="analytics-calls-tab" aria-controls="analytics-calls-panel" aria-selected="false" tabindex="-1" data-report="analytics" data-report-tab="calls">Calls</button></div>
+      <div id="analytics-tickets-panel" role="tabpanel" aria-labelledby="analytics-tickets-tab" class="stack stack--lg">
+        <div class="card stack filters" role="search" aria-label="Filter ticket analytics">
+          <div class="fields">
+            <div class="field"><label for="ticketAnalyticsIdFilter">Ticket number</label><input class="input" type="search" id="ticketAnalyticsIdFilter" placeholder="e.g. INC0000001"></div>
+            <div class="field"><label for="ticketAnalyticsTechnicianFilter">Technician</label><select class="input" id="ticketAnalyticsTechnicianFilter"><option value="">All technicians</option></select></div>
+            <div class="field"><label for="ticketAnalyticsServiceFilter">Service</label><select class="input" id="ticketAnalyticsServiceFilter"><option value="">All services</option></select></div>
+          </div>
+          <div class="row row--between"><p class="help" id="ticketAnalyticsFilterCount" role="status"></p><button type="button" class="pop pop--quiet pop--sm" id="ticketAnalyticsResetFilters">Clear filters</button></div>
+        </div>
+        <div id="ticketAnalyticsError" class="alert" role="alert" hidden><strong>✕ Couldn’t load ticket analytics.</strong><span class="sec" id="ticketAnalyticsErrorMessage"></span><button type="button" class="pop pop--quiet pop--sm" data-retry-analytics="tickets">Retry</button></div>
+        <div class="stats">
+          <article class="metric"><h2 class="metric__label">Incidents</h2><p class="metric__value" id="analyticsTotal">—</p><p class="help">Count · matching filters, all time</p></article>
+          <article class="metric"><h2 class="metric__label">Services</h2><p class="metric__value" id="analyticsServices">—</p><p class="help">Count · services with at least one incident</p></article>
+          <article class="metric"><h2 class="metric__label">Resolved</h2><p class="metric__value" id="analyticsResolved">—</p><p class="help">Percent · Resolved ÷ all matching incidents</p></article>
+          <article class="metric"><h2 class="metric__label">Average QA</h2><p class="metric__value" id="analyticsQA">—</p><p class="help" id="analyticsQAHelp">Percent · mean QA of audited, resolved incidents</p></article>
+        </div>
+        <div class="grid grid--2">
+          <article class="card stack"><h2 class="h3">Incidents by service</h2><div id="serviceVolume"></div></article>
+          <article class="card stack"><h2 class="h3">By state</h2><div id="stateDistribution"></div></article>
+          <article class="card stack"><h2 class="h3">By priority</h2><div id="priorityDistribution"></div></article>
+          <article class="card stack"><h2 class="h3">By handling</h2><div id="routingDistribution"></div></article>
+        </div>
+        <article class="card stack"><h2 class="h3" id="serviceSummaryTitle">Service summary</h2><div class="tbl-wrap" role="region" aria-labelledby="serviceSummaryTitle" tabindex="0"><table class="tbl"><caption class="sr">Incidents per service</caption><thead><tr><th scope="col">Service</th><th scope="col">Total</th><th scope="col">Open</th><th scope="col">Resolved</th><th scope="col" class="col-opt">AI handled</th><th scope="col">Average QA</th></tr></thead><tbody id="serviceAnalyticsRows"></tbody></table></div><p class="sec" id="serviceAnalyticsEmpty" hidden></p></article>
+      </div>
+      <div id="analytics-calls-panel" role="tabpanel" aria-labelledby="analytics-calls-tab" class="stack stack--lg" hidden>
+        <div class="card stack filters" role="search" aria-label="Filter call analytics">
+          <div class="fields">
+            <div class="field"><label for="callAnalyticsIdFilter">Call ID</label><input class="input" type="search" id="callAnalyticsIdFilter" placeholder="e.g. CALL-…"></div>
+            <div class="field"><label for="callAnalyticsTechnicianFilter">Technician</label><select class="input" id="callAnalyticsTechnicianFilter"><option value="">All technicians</option></select></div>
+            <div class="field"><label for="callAnalyticsServiceFilter">Service</label><select class="input" id="callAnalyticsServiceFilter"><option value="">All services</option></select></div>
+          </div>
+          <div class="row row--between"><p class="help" id="callAnalyticsFilterCount" role="status"></p><button type="button" class="pop pop--quiet pop--sm" id="callAnalyticsResetFilters">Clear filters</button></div>
+        </div>
+        <div id="callAnalyticsStatus" class="alert" role="alert" hidden></div>
+        <div class="stats">
+          <article class="metric"><h2 class="metric__label">Calls</h2><p class="metric__value" id="callTotal">—</p><p class="help" id="callCompletion">Count · matching filters</p></article>
+          <article class="metric"><h2 class="metric__label">Average duration</h2><p class="metric__value" id="callDuration">—</p><p class="help">Minutes · ended calls</p></article>
+          <article class="metric"><h2 class="metric__label">Average queue wait</h2><p class="metric__value" id="callWait">—</p><p class="help">Seconds · before a technician connected</p></article>
+          <article class="metric"><h2 class="metric__label">Quality assessed</h2><p class="metric__value" id="callAssessed">—</p><p class="help">Count · calls with an AI quality assessment</p></article>
+        </div>
+        <article class="card card--lift stack" aria-labelledby="callOverallTitle"><div class="section-head section-head--tight"><h2 class="h3" id="callOverallTitle">Overall call quality</h2><strong class="metric__value" id="callOverallScore">—</strong></div><p class="help">Sum of six metrics, each scored 0–100 by AI from transcript evidence (maximum 600). Metrics without enough evidence stay unscored.</p><p class="sec" id="callOverallCoverage"></p></article>
+        <section class="stack" aria-labelledby="qualityMetricsTitle"><h2 class="h3" id="qualityMetricsTitle">Conversation quality by metric</h2><div class="stats" id="callQualityMetrics"></div></section>
+        <div class="grid grid--2">
+          <article class="card stack"><h2 class="h3">Calls by service</h2><div id="callServiceChart"></div></article>
+          <article class="card stack"><h2 class="h3">Calls by status</h2><div id="callStateChart"></div></article>
+          <article class="card stack"><h2 class="h3">Calls by day</h2><div id="callDailyChart"></div></article>
+          <article class="card stack"><h2 class="h3" id="techPerfTitle">Technician performance</h2><div class="tbl-wrap" role="region" aria-labelledby="techPerfTitle" tabindex="0"><table class="tbl"><thead><tr><th scope="col">Technician</th><th scope="col">Calls</th><th scope="col">Completed</th><th scope="col">Quality</th></tr></thead><tbody id="callTechnicianRows"></tbody></table></div></article>
+        </div>
+        <article class="card stack"><h2 class="h3" id="callScoresTitle">Call quality scores</h2><div class="tbl-wrap" role="region" aria-labelledby="callScoresTitle" tabindex="0"><table class="tbl"><thead><tr><th scope="col">Call ID</th><th scope="col">Technician</th><th scope="col" class="col-opt">Service</th><th scope="col">Overall score</th><th scope="col">Percent</th></tr></thead><tbody id="callAnalyticsRows"></tbody></table></div></article>
+      </div>
     </section>
 
-
-    <section class="view" id="view-transcripts">
-      <div class="panel-head page-section-head"><div><p class="eyebrow">CONVERSATIONS</p><h2>Transcripts</h2><p class="helper" id="transcriptScope">View your recorded conversations.</p></div></div>
-      <article class="panel card"><div class="transcript-filters"><label>Search transcripts<input id="transcriptSearch" type="search" placeholder="Call ID, incident number or participant"></label><label id="transcriptTechnicianLabel" hidden>Technician<select id="transcriptTechnicianFilter"><option value="">All technicians</option></select></label><label>Service<select id="transcriptServiceFilter"><option value="">All services</option></select></label></div><fieldset class="transcript-duration"><legend>Call length</legend><div class="duration-inputs"><label>Min (minutes)<input id="transcriptDurationMin" type="number" min="0" step="any" inputmode="decimal" placeholder="No minimum" aria-describedby="transcriptDurationLabel"></label><label>Max (minutes)<input id="transcriptDurationMax" type="number" min="0" step="any" inputmode="decimal" placeholder="No maximum" aria-describedby="transcriptDurationLabel"></label></div><output id="transcriptDurationLabel" for="transcriptDurationMin transcriptDurationMax">All lengths</output><p class="helper">Enter minutes, such as 2.5 for 2 minutes 30 seconds. Leave either box blank for no limit. Conversations without a recorded length appear when both boxes are blank.</p></fieldset><div class="panel-head"><p class="helper" id="transcriptCount" role="status"></p><button class="ghost pop--sm" id="clearTranscriptFilters">Clear filters</button></div><div id="transcriptList" class="table-wrap empty-list">Loading transcripts…</div></article>
-      <article class="panel card transcript-detail" id="transcriptDetail" hidden></article>
+    <section class="view" id="view-transcripts" aria-labelledby="transcriptsTitle">
+      <div class="page-head"><div><p class="kicker">Conversations</p><h1 id="transcriptsTitle">Transcripts</h1><p class="sec" id="transcriptScope">Your recorded conversations.</p></div></div>
+      <div class="card stack filters" role="search" aria-label="Filter transcripts">
+        <div class="fields">
+          <div class="field"><label for="transcriptSearch">Search</label><input class="input" id="transcriptSearch" type="search" placeholder="Call ID, incident number or person"></div>
+          <div class="field" id="transcriptTechnicianLabel" hidden><label for="transcriptTechnicianFilter">Technician</label><select class="input" id="transcriptTechnicianFilter"><option value="">All technicians</option></select></div>
+          <div class="field"><label for="transcriptServiceFilter">Service</label><select class="input" id="transcriptServiceFilter"><option value="">All services</option></select></div>
+          <div class="field"><label for="transcriptDurationMin">Shortest (minutes)</label><input class="input" id="transcriptDurationMin" type="number" min="0" step="any" inputmode="decimal" placeholder="No minimum" aria-describedby="transcriptDurationLabel"></div>
+          <div class="field"><label for="transcriptDurationMax">Longest (minutes)</label><input class="input" id="transcriptDurationMax" type="number" min="0" step="any" inputmode="decimal" placeholder="No maximum" aria-describedby="transcriptDurationLabel"></div>
+        </div>
+        <p class="help"><output id="transcriptDurationLabel" for="transcriptDurationMin transcriptDurationMax">All lengths</output>. Use decimals for seconds, e.g. 2.5 = 2 min 30 s. Conversations without a recorded length only show when both are blank.</p>
+        <div class="row row--between"><p class="help" id="transcriptCount" role="status"></p><button type="button" class="pop pop--quiet pop--sm" id="clearTranscriptFilters">Clear filters</button></div>
+      </div>
+      <div class="split section">
+        <div id="transcriptList" aria-live="polite"></div>
+        <article class="card stack split__detail" id="transcriptDetail" aria-label="Transcript" tabindex="-1" hidden></article>
+      </div>
     </section>
-
 
     <section class="view" id="view-configuration">
       <div class="page-heading"><p class="eyebrow">ADMINISTRATION</p><h1>Configuration</h1><p class="sec">Manage supported local connections. Cloud deployments should configure secrets through their environment.</p></div>
@@ -333,18 +394,26 @@
         <article class="card"><p class="eyebrow">BROWSER VOICE</p><h2>LiveKit connection</h2><p class="sec">Current connection settings are managed by the server.</p><p class="helper">Cloud deployments should use environment configuration. Local credential editing is available only when the deployment supports it.</p><button class="pop pop--quiet" id="configurationLiveKitButton" type="button">Configure LiveKit</button><p class="form-message" id="configurationLiveKitMessage" role="status" aria-live="polite"></p></article>
       </div>
     </section>
-    <section class="view" id="view-qa">
-<div class="panel-head page-section-head"><div><p class="eyebrow">INDEPENDENT REVIEW</p><h2>Quality audit</h2></div></div><div class="tabs report-tabs" role="tablist" aria-label="Qa type"><button type="button" class="tab" role="tab" id="qa-tickets-tab" aria-controls="qa-tickets-panel" aria-selected="true" tabindex="0" data-report="qa" data-report-tab="tickets">Tickets</button><button type="button" class="tab" role="tab" id="qa-calls-tab" aria-controls="qa-calls-panel" aria-selected="false" tabindex="-1" data-report="qa" data-report-tab="calls">Calls</button></div><div id="qa-tickets-panel" role="tabpanel" aria-labelledby="qa-tickets-tab">      <div class="panel-head page-section-head"><div><h3>Ticket audits</h3></div><button class="pop pop--sm" id="rerunAllQa">Rerun all audits</button></div>
-      <p class="helper" id="bulkQaStatus" role="status" aria-live="polite">Rerun AI QA for all resolved tickets.</p>
-      <div id="qaWorkspace" class="panel card empty-list">Select a ticket to inspect its evidence and rerun AI QA.</div></div><div id="qa-calls-panel" role="tabpanel" aria-labelledby="qa-calls-tab" hidden><div class="panel-head"><div><h3>Call audits</h3><p class="helper">Review greeting, problem solving, empathy, communication, verification and closure.</p></div><button class="pop pop--sm" id="evaluateCalls">Evaluate completed calls</button></div><p class="helper" id="callAuditStatus" role="status" aria-live="polite"></p><article class="panel card"><label>Search call audits<input id="callQaSearch" type="search" placeholder="Call ID, incident number or participant"></label><div id="callQaList" class="table-wrap"></div></article><article class="panel card transcript-detail" id="callQaDetail" hidden></article></div>
+    <section class="view" id="view-qa" aria-labelledby="qaTitle">
+      <div class="page-head"><div><p class="kicker">Independent review</p><h1 id="qaTitle">Quality audit</h1><p class="sec">AI checks resolved tickets against their source conversation, and scores completed calls. A person reviews every result.</p></div></div>
+      <div class="tabs" role="tablist" aria-label="Audit type"><button type="button" role="tab" id="qa-tickets-tab" aria-controls="qa-tickets-panel" aria-selected="true" tabindex="0" data-report="qa" data-report-tab="tickets">Ticket audits</button><button type="button" role="tab" id="qa-calls-tab" aria-controls="qa-calls-panel" aria-selected="false" tabindex="-1" data-report="qa" data-report-tab="calls">Call audits</button></div>
+      <div id="qa-tickets-panel" role="tabpanel" aria-labelledby="qa-tickets-tab" class="stack">
+        <div class="card stack stack--sm"><div class="row row--between"><h2 class="h3">Ticket audit job</h2><button class="pop pop--sm" id="rerunAllQa" type="button">Rerun all audits</button></div><p class="help" id="bulkQaStatus" role="status" aria-live="polite">Reruns AI QA for every resolved ticket you can see.</p><progress class="meter" id="bulkQaProgress" max="1" value="0" aria-label="Ticket audit progress" hidden></progress></div>
+        <div id="qaWorkspace"></div>
+      </div>
+      <div id="qa-calls-panel" role="tabpanel" aria-labelledby="qa-calls-tab" class="stack" hidden>
+        <div class="card stack stack--sm"><div class="row row--between"><h2 class="h3">Call audit job</h2><button class="pop pop--sm" id="evaluateCalls" type="button">Evaluate completed calls</button></div><p class="help" id="callAuditStatus" role="status" aria-live="polite"></p><progress class="meter" id="callAuditProgress" max="1" value="0" aria-label="Call audit progress" hidden></progress><p class="help">Six metrics: greeting, problem solving, empathy, communication, verification and closure.</p></div>
+        <div class="field field--inline"><label for="callQaSearch">Search call audits</label><input class="input" id="callQaSearch" type="search" placeholder="Call ID, incident number or person"></div>
+        <div class="split"><div id="callQaList"></div><article class="card stack split__detail" id="callQaDetail" aria-label="Call audit" tabindex="-1" hidden></article></div>
+      </div>
     </section>
     </main>
   </div>
   </div>
-  <dialog class="media-preview-dialog" id="mediaPreviewDialog" aria-label="Full-size incident attachment">
-    <button type="button" class="modal-close" id="closeMediaPreview" aria-label="Close image preview">×</button>
+  <dialog class="dlg dlg--media" id="mediaPreviewDialog" aria-labelledby="mediaPreviewCaption">
+    <div class="row row--between"><h2 class="h3" id="mediaPreviewCaption">Attachment</h2><button type="button" class="pop pop--quiet pop--sm" id="closeMediaPreview" data-close>Close</button></div>
     <img id="mediaPreviewImage" alt="">
-    <p id="mediaPreviewCaption"></p>
+    <a class="pop pop--quiet pop--sm" id="mediaPreviewOpen" href="#" target="_blank" rel="noopener">Open original</a>
   </dialog>
   <div class="modal-backdrop" id="keyModal" hidden>
     <section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="keyModalTitle">
@@ -354,23 +423,31 @@
       <form id="keyForm"><label><span id="apiKeyLabel">Gemini API key</span><input type="password" id="aiKeyInput" autocomplete="off" spellcheck="false" placeholder="Enter your existing API key" required minlength="20"></label><button class="pop full" type="submit">Use this key</button><p class="form-message" id="keyMessage"></p></form>
     </section>
   </div>
-  <div class="modal-backdrop" id="knowledgeModal" hidden>
-    <section class="key-modal knowledge-modal" role="dialog" aria-modal="true" aria-labelledby="knowledgeModalTitle">
-      <button class="modal-close" id="closeKnowledgePanel" aria-label="Close">×</button>
-      <p class="eyebrow">ADD ARTICLE</p><h2 id="knowledgeModalTitle">Make guidance searchable</h2>
-      <p class="helper" id="knowledgeSources" hidden></p><form id="knowledgeForm"><label>Title<input name="title" required></label><label>Product or service<input name="product" required></label><label>Symptoms<textarea name="symptoms" rows="3" required></textarea></label><label>Steps, one per line<textarea name="steps" rows="5" required></textarea></label><label>Expected resolution<textarea name="resolution" rows="3" required></textarea></label><label>Tags, comma separated<input name="tags"></label><button class="pop full" type="submit">Add to knowledge</button><p class="form-message" id="knowledgeMessage"></p></form>
-    </section>
-  </div>
-  <div class="modal-backdrop" id="incidentKnowledgeModal" hidden>
-    <section class="key-modal knowledge-modal" role="dialog" aria-modal="true" aria-labelledby="incidentKnowledgeTitle">
-      <button class="modal-close" id="closeIncidentKnowledgePanel" aria-label="Close">×</button>
-      <p class="eyebrow">KNOWLEDGE FROM EXPERIENCE</p><h2 id="incidentKnowledgeTitle">Create from incidents</h2>
-      <p class="helper">Use incident details, comments, resolution notes, and source conversations to draft a reusable article. Review and edit it before adding it to Knowledge.</p>
-      <form id="incidentKnowledgeForm"><label>Ticket numbers<textarea name="ticket_numbers" rows="4" placeholder="INC0000001, INC87654321" required maxlength="2000"></textarea></label>
-      <p class="helper">Enter up to 20 ticket numbers, separated by commas, spaces, or new lines.</p>
-      <button class="pop full" id="generateIncidentKnowledge" type="submit">Generate draft</button><p class="form-message" id="incidentKnowledgeMessage" role="status"></p></form>
-    </section>
-  </div>
+  <dialog class="dlg dlg--wide" id="knowledgeModal" aria-labelledby="knowledgeModalTitle">
+    <div class="row row--between"><h2 id="knowledgeModalTitle">Add an article</h2><span class="badge badge--high" id="knowledgeDraftBadge" hidden>◆ Draft · not published</span></div>
+    <p class="sec" id="knowledgeModalIntro">Published articles are used by AI during analysis and live calls.</p>
+    <p class="help" id="knowledgeSources" hidden></p>
+    <div class="alert alert--info" id="knowledgeWarnings" role="status" hidden></div>
+    <form id="knowledgeForm" novalidate>
+      <div class="field"><label for="kbTitle">Title</label><input class="input" id="kbTitle" name="title" required maxlength="200"></div>
+      <div class="field"><label for="kbProduct">Product or service</label><input class="input" id="kbProduct" name="product" required maxlength="200"></div>
+      <div class="field"><label for="kbSymptoms">Symptoms</label><textarea class="input" id="kbSymptoms" name="symptoms" rows="3" required></textarea></div>
+      <div class="field"><label for="kbSteps">Steps</label><textarea class="input" id="kbSteps" name="steps" rows="5" required aria-describedby="kbStepsHelp"></textarea><p class="help" id="kbStepsHelp">One step per line.</p></div>
+      <div class="field"><label for="kbResolution">Expected result</label><textarea class="input" id="kbResolution" name="resolution" rows="2" required></textarea></div>
+      <div class="field"><label for="kbTags">Tags</label><input class="input" id="kbTags" name="tags" aria-describedby="kbTagsHelp"><p class="help" id="kbTagsHelp">Separate with commas.</p></div>
+      <p class="form-status" id="knowledgeMessage" role="status"></p>
+      <div class="row"><button type="button" class="pop pop--quiet" data-close id="closeKnowledgePanel">Cancel</button><button class="pop" type="submit" id="knowledgeSubmit">Publish article</button></div>
+    </form>
+  </dialog>
+  <dialog class="dlg dlg--wide" id="incidentKnowledgeModal" aria-labelledby="incidentKnowledgeTitle">
+    <h2 id="incidentKnowledgeTitle">Draft an article from incidents</h2>
+    <p class="sec">AI reads the incidents, their comments, resolution notes and source conversations, and drafts an article. You review and edit it before publishing; nothing is published automatically.</p>
+    <form id="incidentKnowledgeForm" novalidate>
+      <div class="field"><label for="ikNumbers">Incident numbers</label><textarea class="input" id="ikNumbers" name="ticket_numbers" rows="3" placeholder="INC0000001, INC0000003" required maxlength="2000" aria-describedby="ikHelp incidentKnowledgeMessage"></textarea><p class="help" id="ikHelp">1 to 20 numbers, separated by commas, spaces or new lines.</p></div>
+      <p class="form-status" id="incidentKnowledgeMessage" role="status"></p>
+      <div class="row"><button type="button" class="pop pop--quiet" id="closeIncidentKnowledgePanel">Cancel</button><button class="pop" id="generateIncidentKnowledge" type="submit">Generate draft</button></div>
+    </form>
+  </dialog>
   <dialog class="dlg" id="rejectDraftDialog" aria-labelledby="rejectDraftTitle" aria-describedby="rejectDraftText">
     <h2 id="rejectDraftTitle">Reject this AI draft?</h2>
     <p class="sec" id="rejectDraftText">The incident already exists as New, and ResolveAI can’t delete incidents. To reject the draft, correct the fields yourself, or resolve the incident with a note that it was raised in error.</p>
