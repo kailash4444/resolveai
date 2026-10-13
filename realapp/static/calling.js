@@ -160,6 +160,7 @@ function renderCalling() {
   $('#receiveCallsToggle').checked = calling.user.calls_enabled;
   $('#receiveCallsToggle').disabled = !!calling.user.current_call_id;
   $('#phoneConnection').textContent = !calling.user.calls_enabled ? 'Calls disabled · your availability is saved.' : calling.user.current_call_id ? 'On a call · your saved availability resumes afterward.' : calling.ready ? (calling.user.availability === 'Available' ? 'Ready to receive calls · preferences saved' : `${calling.user.availability} · preferences saved`) : telephony.configured ? 'Calls enabled · allow microphone access to receive calls.' : 'Browser calling is not configured.';
+  $('#callMicState').textContent = `Microphone readiness: ${calling.ready ? 'ready' : telephony.configured ? 'not enabled' : 'browser calling is not configured'}`;
   $('#enablePhoneButton').hidden = !telephony.configured || calling.ready || !calling.user.calls_enabled;
   $('#addTechnicianButton').hidden = calling.user.role !== 'admin';
   $('#callsQueued').textContent = metrics.queued;
@@ -300,6 +301,8 @@ document.addEventListener('click', async event => {
     const action = event.target.closest('[data-call-action]');
     if (action) {
       const id = calling.selected, kind = action.dataset.callAction;
+      if (kind === 'finish' && !window.confirm('End this support call? The conversation will stop for everyone.')) return;
+      if (kind === 'transfer' && !window.confirm('Transfer this call back to the support queue?')) return;
       action.disabled = true;
       const result = await api(`/api/calling/${id}/${kind}`, {method:'POST',body:'{}'});
       if (kind === 'accept' && result.token) await acceptBrowserCall(id, result);
@@ -384,4 +387,11 @@ $('#livekitForm').addEventListener('submit', async event=>{
 setInterval(() => { if (calling.user && calling.user.role !== 'customer') loadCalling(); }, 4000);
 setInterval(heartbeat, 10000);
 $('#callSearch').addEventListener('input', () => { if (calling.data) renderCalling(); });
+document.addEventListener('click', event => {
+  const filter = event.target.closest('[data-call-filter]');
+  if (!filter) return;
+  calling.priority = filter.dataset.callFilter;
+  document.querySelectorAll('[data-call-filter]').forEach(button => button.setAttribute('aria-pressed', String(button === filter)));
+  if (calling.data) renderCalling();
+});
 loadCalling();

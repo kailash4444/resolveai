@@ -4781,3 +4781,5 @@ html, body, main, .landing-page { max-width: 100%; }
 .support-card #retrySupport { margin-top:12px; }
 [hidden] { display:none; }
 @media (max-width: 390px) { .selected-media-item { align-items:flex-start; flex-wrap:wrap; } .selected-media-item span { flex-basis:calc(100% - 64px); } }
+.call-mic-state { margin-top:4px; }
+#callWorkspace [data-call-action], #callWorkspace #muteCallButton { min-height:44px; }
