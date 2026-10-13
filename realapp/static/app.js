@@ -856,7 +856,8 @@ document.addEventListener('click',event=>{const source=event.target.closest('[da
 window.loadApplication = async () => {
   try {
     const auth=await api('/api/auth/status');applyAccountRole(auth.user);
-    if(!auth.user){$('#roleSignInChoices').hidden=auth.setup_required;$('#firstAdminSetup').hidden=!auth.setup_required;showView('signin');if(['/login','/signup'].includes(location.pathname))await window.openAccountAuth?.('technician',location.pathname==='/signup'?'signup':'signin');return;}
+    if(!auth.user){showView('signin');await window.Auth.showPublic(auth);return;}
+    if(['/login','/signup'].includes(location.pathname) && new URLSearchParams(location.search).get('next')!=='support'){history.replaceState(null,'',window.Shell.home(auth.user.role));}
     await Promise.all([loadConfig(),loadKnowledge()]);
     if(auth.user.role==='admin')state.users=await api('/api/users');
     const params=new URLSearchParams(location.search);

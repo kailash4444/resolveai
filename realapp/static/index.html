@@ -56,46 +56,82 @@
       <div class="empty stack"><h1 id="notFoundTitle">We can’t show that record</h1><p class="sec" id="notFoundMessage">It may have been removed, or it isn’t visible to your account.</p><div class="row" style="justify-content:center"><button class="pop" type="button" data-go-home>Go to your workspace</button></div></div>
     </section>
     <section class="view" id="view-signin">
-      <div class="landing-page pop-landing">
-        <header class="landing-nav">
-          <a class="landing-brand" href="/" aria-label="ResolveAI home"><span class="brand-mark">R</span><span class="brand-name">ResolveAI</span></a>
-          <nav class="landing-nav-links" aria-label="Main navigation"><a href="#preview">How it works</a><a href="#workspaces">Workspaces</a></nav>
-          <button type="button" class="pop" id="navSignInBtn" onclick="window.openRoleChooser('signin')">Sign in</button>
+      <div class="landing" id="landing">
+        <header class="landing__nav">
+          <a class="brand" href="/" aria-label="ResolveAI home"><span class="brand__mark" aria-hidden="true">R</span>ResolveAI</a>
+          <nav class="landing__links" aria-label="Main"><a class="sec" href="#preview">How it works</a><a class="sec" href="#workspaces">Workspaces</a><a class="pop" href="/login">Sign in</a></nav>
         </header>
-        <section class="landing-hero">
-          <p class="landing-kicker muted">AI FOR SERVICE OPERATIONS</p>
-          <h1 class="hero-title">Less firefighting.<br>More resolution.</h1>
-          <p class="hero-subtitle sec">AI that listens, investigates and suggests. People verify and resolve. From the first signal to verified closure.</p>
-          <div class="hero-auth-container">
-            <div class="hero-actions" id="roleSignInChoices">
-              <button class="pop" id="heroLoginBtn" type="button" onclick="window.openRoleChooser('signin')">Choose your workspace <span aria-hidden="true">→</span></button>
-              <a class="ghost" href="#preview">See how it works</a>
-            </div>
-            <div id="firstAdminSetup" class="hero-admin-setup" hidden>
-              <p class="helper sec">Set up your workspace’s first administrator account.</p>
-              <button class="pop" id="adminSetupButton">Create administrator account</button>
-            </div>
+        <div class="landing__main">
+        <section class="landing__hero">
+          <p class="kicker landing__kicker">AI for service operations</p>
+          <h1 class="landing__title" id="heroTitle">Less firefighting.<br>More resolution.</h1>
+          <p class="sec landing__lede">AI that listens, investigates and suggests. People verify and resolve. From the first signal to verified closure.</p>
+          <div class="landing__actions" id="roleSignInChoices"><a class="pop" href="#workspaces">Choose your workspace <span aria-hidden="true">→</span></a><a class="pop pop--quiet" href="#preview">See how it works</a></div>
+          <div class="card card--lift landing__setup" id="firstAdminSetup" hidden>
+            <h2>Set up ResolveAI</h2>
+            <p class="sec">No accounts exist yet. Create the first administrator account, then add your technicians and customers.</p>
+            <a class="pop" href="/login">Create administrator account <span aria-hidden="true">→</span></a>
           </div>
-          <p class="hero-subtext muted">Browser voice support <span aria-hidden="true">·</span> Gemini-assisted investigation <span aria-hidden="true">·</span> Human-led resolution</p>
+          <p class="muted landing__proof">Browser voice support <span aria-hidden="true">·</span> Gemini-assisted investigation <span aria-hidden="true">·</span> Human-led resolution</p>
         </section>
-        <section class="landing-preview-section" id="preview" aria-labelledby="landing-preview-title">
-          <div class="landing-section-heading"><h2 id="landing-preview-title">One incident, four steps</h2><span class="muted">Illustrative example. Not live data.</span></div>
-          <div class="landing-workflow-grid">
+        <section class="landing__preview" id="preview" aria-labelledby="previewTitle">
+          <div class="landing__section-head"><h2 id="previewTitle">One incident, four steps</h2><span class="muted">Illustrative example. Not live data.</span></div>
+          <div class="landing__steps">
             <article class="card"><p class="muted">1 · Signal</p><h3>Customer reports</h3><p class="sec">“I can’t sign in to my account.” A screenshot is attached.</p><span class="badge badge--medium">● Received</span></article>
             <article class="card"><p class="muted">2 · Analysis</p><h3>AI investigates</h3><p class="sec">Likely account lock after repeated attempts. Suggested urgency: High.</p><span class="badge badge--high">◆ AI suggestion</span></article>
             <article class="card"><p class="muted">3 · Knowledge and routing</p><h3>Runbook matched</h3><p class="sec">Matching guidance found and the case routed to an available technician.</p><span class="badge badge--medium">● Routed</span></article>
             <article class="card card--lift"><p class="muted">4 · Human review</p><h3>Technician decides</h3><p class="sec">Checks the evidence, confirms the fix with the customer, closes the case.</p><span class="badge badge--ok">✓ Approved by technician</span></article>
           </div>
         </section>
-        <section class="landing-workspaces" id="workspaces" aria-labelledby="workspaces-title">
-          <h2 id="workspaces-title">Choose your workspace</h2><p class="sec">Accounts are created by your administrator.</p>
-          <div class="workspace-grid">
-            <article class="card workspace-card"><h3>Customer</h3><p class="sec">Report an issue, follow its progress, and talk to support from your browser.</p><a class="pop workspace-link" href="/login?role=customer">Open customer portal <span aria-hidden="true">→</span></a></article>
-            <article class="card workspace-card"><h3>Technician</h3><p class="sec">Work the queue, take browser calls, and resolve with AI suggestions you can verify.</p><a class="pop workspace-link" href="/login?role=technician">Open technician console <span aria-hidden="true">→</span></a></article>
-            <article class="card workspace-card"><h3>Admin</h3><p class="sec">Manage people and configuration, review analytics, and audit quality.</p><a class="pop workspace-link" href="/login?role=technician">Open admin workspace <span aria-hidden="true">→</span></a></article>
+        <section class="landing__workspaces" id="workspaces" aria-labelledby="workspacesTitle">
+          <h2 id="workspacesTitle">Choose your workspace</h2>
+          <p class="sec">Accounts are created by your administrator.</p>
+          <div class="landing__roles">
+            <article class="card"><h3>Customer</h3><p class="sec">Report an issue, follow its progress, and talk to support from your browser.</p><a class="pop" href="/login?role=customer">Open customer portal <span aria-hidden="true">→</span></a></article>
+            <article class="card"><h3>Technician</h3><p class="sec">Work the queue, take browser calls, and resolve with AI suggestions you can verify.</p><a class="pop" href="/login?role=technician">Open technician console <span aria-hidden="true">→</span></a></article>
+            <article class="card"><h3>Admin</h3><p class="sec">Manage people and configuration, review analytics, and audit quality.</p><a class="pop" href="/login?role=admin">Open admin workspace <span aria-hidden="true">→</span></a></article>
           </div>
         </section>
-        <footer class="landing-footer muted">ResolveAI · Enterprise incident management</footer>
+        </div>
+        <footer class="muted landing__footer">ResolveAI · Enterprise incident management</footer>
+      </div>
+
+      <div class="auth" id="authPage" hidden>
+        <header class="auth__bar"><a class="brand" href="/" aria-label="ResolveAI home"><span class="brand__mark" aria-hidden="true">R</span>ResolveAI</a><a class="sec auth__back" href="/">← Back to home</a></header>
+        <div class="auth__main">
+          <section class="card card--lift auth__card" id="authCard" data-mode="signin">
+            <p class="kicker" id="authKicker">Sign in</p>
+            <h1 id="authTitle" tabindex="-1">Welcome back</h1>
+            <p class="sec auth__desc" id="authDescription">Sign in with the username and password from your administrator.</p>
+            <p class="alert alert--info" id="authNextNotice" role="status" hidden>○ Sign in to continue to browser voice support.</p>
+            <form id="authForm" novalidate>
+              <fieldset class="field auth__roles" id="authRoleField">
+                <legend>I’m signing in as</legend>
+                <div class="choices">
+                  <label class="choice"><input type="radio" name="expected_role" value="customer"><span class="choice__body"><strong>Customer</strong><span class="help">Report issues and follow your requests</span></span><span class="choice__state" aria-hidden="true">✓ Selected</span></label>
+                  <label class="choice"><input type="radio" name="expected_role" value="technician" checked><span class="choice__body"><strong>Technician</strong><span class="help">Service team. Administrators choose this too.</span></span><span class="choice__state" aria-hidden="true">✓ Selected</span></label>
+                </div>
+                <p class="help" id="adminSignInHint" hidden>Administrators sign in with <strong>Technician</strong>. Admin tools appear automatically after sign-in.</p>
+              </fieldset>
+              <div class="field" id="setupNameField" hidden><label for="authName">Full name</label><input class="input" id="authName" name="name" autocomplete="name" maxlength="80" aria-describedby="authError"></div>
+              <div class="field"><label for="authUsername">Username</label><input class="input" id="authUsername" name="username" autocomplete="username" required maxlength="80" autocapitalize="none" spellcheck="false" aria-describedby="authError"></div>
+              <div class="field">
+                <label for="authPassword">Password</label>
+                <div class="input-wrap"><input class="input" id="authPassword" name="password" type="password" autocomplete="current-password" required maxlength="128" aria-describedby="passwordHelp authError"><button type="button" class="pop pop--quiet pop--sm" id="togglePassword" aria-pressed="false" aria-controls="authPassword">Show</button></div>
+                <p class="help" id="passwordHelp" hidden>At least 12 characters.</p>
+              </div>
+              <div class="field" id="setupTokenField" hidden><label for="authToken">Administrator setup token</label><input class="input" id="authToken" name="setup_token" type="password" autocomplete="off" aria-describedby="setupTokenHelp authError"><p class="help" id="setupTokenHelp">Required because this server isn’t running on this computer. It’s set by whoever deployed ResolveAI.</p></div>
+              <p class="err" id="authError" role="alert" hidden></p>
+              <button type="button" class="pop pop--quiet pop--sm" id="authSwitchRole" hidden></button>
+              <button class="pop auth__submit" type="submit" id="authSubmit">Sign in <span aria-hidden="true">→</span></button>
+              <p class="help" id="authHelp">Forgot your password? Contact your ResolveAI administrator. New here? <a href="/signup">How to get an account</a>.</p>
+            </form>
+            <div class="stack" id="authSignupNotice" hidden>
+              <p class="alert alert--info"><strong>○ No self-service sign-up.</strong><span class="sec">Your administrator adds you in ResolveAI and tells you your username.</span></p>
+              <a class="pop" href="/login">Back to sign in</a>
+            </div>
+          </section>
+        </div>
       </div>
     </section>
     <section class="view pop-customer-home" id="view-customer-home">
@@ -255,59 +291,8 @@
     <p class="sec" id="sessionText">For your security you were signed out. Sign in again to continue. Anything you typed on this page is still here until you leave it.</p>
     <div class="row"><button type="button" class="pop pop--quiet" data-close>Stay on this page</button><button type="button" class="pop" id="sessionSignIn">Sign in again</button></div>
   </dialog>
-  <div class="modal-backdrop" id="roleChooserModal" hidden>
-    <section class="key-modal role-chooser-modal" role="dialog" aria-modal="true" aria-labelledby="roleChooserTitle" aria-describedby="roleChooserDesc" tabindex="-1">
-      <button class="modal-close" data-close-call-modal="roleChooserModal" id="closeRoleChooser" aria-label="Close">×</button>
-      <p class="eyebrow">ACCOUNT ACCESS</p>
-      <h2 id="roleChooserTitle">Choose your sign-in</h2>
-      <p class="helper" id="roleChooserDesc">Select the account type you use. Administrators choose Technician; admin permissions are applied automatically.</p>
-      <div class="role-chooser-grid">
-        <button type="button" class="role-choice-card" id="technicianSignIn"><span class="choice-icon" aria-hidden="true">◉</span><span class="choice-body"><strong>Technician</strong><span>Service team and administrator accounts</span></span><span aria-hidden="true">→</span></button>
-        <button type="button" class="role-choice-card" id="customerSignIn"><span class="choice-icon" aria-hidden="true">○</span><span class="choice-body"><strong>Customer</strong><span>Report issues and follow support requests</span></span><span aria-hidden="true">→</span></button>
-      </div>
-    </section>
-  </div>
-  <div class="auth-experience" id="authModal" hidden>
-    <aside class="auth-brand-panel" aria-label="ResolveAI overview">
-      <a class="auth-brand" href="/" aria-label="ResolveAI home"><span class="auth-brand-mark">R</span><span>ResolveAI</span></a>
-      <div class="auth-brand-copy"><p class="auth-kicker">SERVICE OPERATIONS, IN FOCUS</p><h1>Resolve issues.<br><span>Faster.</span></h1><p>Your AI-powered service desk, ready when you are.</p></div>
-      <div class="auth-visual" aria-hidden="true">
-        <svg viewBox="0 0 640 480" role="presentation">
-          <defs><radialGradient id="authOrb"><stop stop-color="#a8c9ff"/><stop offset=".28" stop-color="#528cff"/><stop offset="1" stop-color="#172b53"/></radialGradient><linearGradient id="authLine"><stop stop-color="#487ff0" stop-opacity=".06"/><stop offset=".5" stop-color="#8dafff" stop-opacity=".8"/><stop offset="1" stop-color="#7567f8" stop-opacity=".08"/></linearGradient></defs>
-          <ellipse cx="320" cy="245" rx="244" ry="86" fill="none" stroke="url(#authLine)" transform="rotate(-25 320 245)"/><ellipse cx="320" cy="245" rx="204" ry="132" fill="none" stroke="#3c5d9b" stroke-opacity=".45" transform="rotate(28 320 245)"/><ellipse cx="320" cy="245" rx="155" ry="180" fill="none" stroke="#6475bd" stroke-opacity=".3" transform="rotate(72 320 245)"/>
-          <circle cx="320" cy="245" r="92" fill="#2755a8" opacity=".13"/><circle cx="320" cy="245" r="62" fill="url(#authOrb)"/><circle cx="300" cy="222" r="17" fill="#e4edff" opacity=".58"/><circle cx="320" cy="245" r="74" fill="none" stroke="#83a9ff" stroke-opacity=".3"/>
-          <g fill="#9fbaff" stroke="#c7d8ff" stroke-width="1.5"><circle cx="105" cy="177" r="7"/><circle cx="479" cy="112" r="8"/><circle cx="514" cy="341" r="6"/><circle cx="184" cy="394" r="7"/><circle cx="397" cy="399" r="5"/></g><g fill="#0d1729" stroke="#3d5f9f"><rect x="45" y="252" width="114" height="48" rx="12"/><rect x="438" y="182" width="146" height="48" rx="12"/><rect x="347" y="46" width="135" height="46" rx="12"/></g>
-          <g fill="#a8b9da" font-family="Plus Jakarta Sans, sans-serif" font-size="12"><text x="61" y="281">AI insights</text><text x="454" y="211">Incident routing</text><text x="362" y="74">Resolution tracking</text></g><g fill="#7599ea"><circle cx="60" cy="273" r="3"/><circle cx="453" cy="203" r="3"/><circle cx="361" cy="66" r="3"/></g>
-        </svg>
-        <span class="auth-float-label auth-float-one">AI insights <i></i></span><span class="auth-float-label auth-float-two">Team collaboration <i></i></span><span class="auth-float-label auth-float-three">Workflow automation <i></i></span>
-      </div>
-      <div class="auth-brand-footer"><span><strong>Faster resolution</strong><small>Clearer next steps</small></span><span><strong>Higher productivity</strong><small>Less manual triage</small></span><span><strong>Happier teams</strong><small>One shared workspace</small></span></div>
-    </aside>
-    <main class="auth-main"><section class="auth-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
-      <a class="auth-mobile-brand" href="/" aria-label="ResolveAI home"><span class="auth-brand-mark">R</span><span>ResolveAI</span></a>
-      <p class="auth-kicker" id="authWorkspaceLabel">ACCOUNT ACCESS</p><h2 id="authTitle">Welcome back</h2><p class="auth-description" id="authDescription">Sign in to your ResolveAI account.</p>
-      <div class="auth-role-tabs" id="authRoleTabs" role="group" aria-label="Sign in as">
-        <button type="button" class="auth-role-tab" id="authRoleCustomerTab" data-role="customer"><span aria-hidden="true">◉</span> Customer</button>
-        <button type="button" class="auth-role-tab active" id="authRoleTechnicianTab" data-role="technician"><span aria-hidden="true">⌘</span> Technician</button>
-      </div>
-      <p class="auth-admin-signin-hint" id="adminSignInHint">Admin accounts: choose Technician. Your account permissions load automatically after sign-in.</p>
-      <form id="authForm">
-        <label class="auth-name-field" id="setupNameLabel" hidden>Full name<input name="name" autocomplete="name" placeholder="Your name"></label>
-        <label class="auth-field">Username<span class="auth-input-wrap"><span class="auth-input-icon" aria-hidden="true">@</span><input name="username" autocomplete="username" required maxlength="80" placeholder="Enter your username"></span></label>
-        <label class="auth-field">Password<span class="auth-input-wrap"><span class="auth-input-icon" aria-hidden="true">⌑</span><input name="password" type="password" autocomplete="current-password" required maxlength="128" placeholder="Enter your password"><button type="button" class="auth-password-toggle ghost pop--sm" aria-label="Show password" aria-pressed="false">Show</button></span></label>
-        <label class="auth-token-field" id="setupTokenLabel" hidden>Administrator setup token<input name="setup_token" type="password" autocomplete="off" placeholder="Enter setup token"></label>
-        <div class="auth-help-row"><span id="authInlineNotice" role="status"></span></div>
-        <button class="auth-submit pop" type="submit" id="authSubmit">Sign in <span aria-hidden="true">→</span></button>
-        <p class="form-message" id="authMessage" role="alert" aria-live="polite"></p>
-      </form>
-      <section class="auth-signup-notice" id="authSignupNotice" hidden aria-live="polite"><span class="auth-notice-icon" aria-hidden="true">i</span><div><strong>Accounts are created by your administrator</strong><p>Self-service registration is not enabled. Ask your ResolveAI administrator to create your account and share your username.</p></div></section>
-      <p class="auth-footer" id="authFooter">Accounts are created by your administrator.</p>
-      <a class="auth-back-home" href="/">← Back to ResolveAI</a>
-      <p class="auth-legal-note" id="authLegalNote" hidden>First-time setup creates the workspace administrator account.</p>
-    </section></main>
-  </div>
   <div class="modal-backdrop" id="technicianModal" hidden><section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="technicianTitle"><button class="modal-close" data-close-call-modal="technicianModal" aria-label="Close">×</button><p class="eyebrow">YOUR TEAM</p><h2 id="technicianTitle">Add user</h2><form id="technicianForm"><label>Role<select name="role"><option value="technician">Technician</option><option value="customer">Customer</option></select></label><label>Name<input name="name" required minlength="2" maxlength="80"></label><label>Username<input name="username" required minlength="3" pattern="[a-zA-Z0-9_.@-]+" autocomplete="off"></label><label>Password<input name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label><label id="userSkillsField">Services or skills, separated by commas<input name="skills" value="general" required></label><p class="helper">Use the service name to match specialist work. “general” receives work when no specialist is available.</p><label id="userLanguagesField">Languages, separated by commas<input name="languages" value="en" required></label><button class="pop full">Create user</button><p class="form-message" id="technicianMessage"></p></form></section></div>
-  <div class="modal-backdrop" id="requestModal" hidden><section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="requestTitle"><button class="modal-close" data-close-call-modal="requestModal" aria-label="Close">×</button><p class="eyebrow">SERVICE DESK INTAKE</p><h2 id="requestTitle">Route a support request</h2><p class="helper">Create an incident from a customer request and send it through the same AI and technician routing used by phone calls.</p><form id="routeRequestForm"><label>Customer<input name="caller" required maxlength="100"></label><label>Problem description<textarea name="description" rows="5" required minlength="20" maxlength="8000"></textarea></label><label>Language<input name="language" value="en" required maxlength="10"></label><button class="pop full">Create and route</button><p class="form-message" id="requestMessage"></p></form></section></div>
+  <div class="modal-backdrop" id="requestModal" hidden><section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="requestTitle"><button class="modal-close" data-close-call-modal="requestModal" aria-label="Close">×</button><p class="eyebrow">SERVICE DESK INTAKE</p><h2 id="requestTitle">Route a support request</h2><p class="helper">Create an incident from a customer request and send it through the same AI and technician routing used for browser voice calls.</p><form id="routeRequestForm"><label>Customer<input name="caller" required maxlength="100"></label><label>Problem description<textarea name="description" rows="5" required minlength="20" maxlength="8000"></textarea></label><label>Language<input name="language" value="en" required maxlength="10"></label><button class="pop full">Create and route</button><p class="form-message" id="requestMessage"></p></form></section></div>
   <div class="modal-backdrop" id="livekitModal" hidden><section class="key-modal livekit-modal" role="dialog" aria-modal="true" aria-labelledby="livekitTitle"><button class="modal-close" data-close-call-modal="livekitModal" aria-label="Close">×</button><p class="eyebrow">BROWSER CALLING</p><h2 id="livekitTitle">Connect LiveKit</h2><p class="helper">Use the local LiveKit server or your LiveKit Cloud project. Credentials are protected in your Windows profile and retained after restarts.</p><form id="livekitForm"><label>LiveKit server address<input name="url" required placeholder="ws://127.0.0.1:7880" autocomplete="off" spellcheck="false"></label><label>API key<input name="api_key" required autocomplete="off" spellcheck="false"></label><label>API secret<input name="api_secret" type="password" autocomplete="off" spellcheck="false" placeholder="Enter your API secret"></label><p class="helper">Cloud credentials are available in <a href="https://cloud.livekit.io/" target="_blank" rel="noopener noreferrer">LiveKit Cloud</a>. For local calls, run start-livekit-local.ps1 in the project.</p><button type="submit" class="pop full">Verify and save connection</button><p id="livekitMessage" class="form-message" role="status"></p></form></section></div>
   <dialog class="dlg" id="callActionDialog" aria-labelledby="callActionTitle" aria-describedby="callActionDescription"><h2 id="callActionTitle">Confirm call action</h2><p id="callActionDescription"></p><div class="row"><button type="button" class="pop pop--quiet" data-close>Cancel</button><button type="button" class="pop pop--danger" id="confirmCallAction">Confirm</button></div></dialog>
   <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="pop resume-audio" hidden>Enable call audio</button>
@@ -317,6 +302,7 @@
   <script src="/static/shell.js?v=1"></script>
   <script src="/static/customer-flow.js?v=2"></script>
   <script src="/static/app.js?v=18"></script>
+  <script src="/static/auth.js?v=1"></script>
   <script src="/static/calling.js?v=14"></script>
   <script src="/static/transcripts.js?v=6"></script>
 </body>
