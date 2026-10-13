@@ -26,6 +26,7 @@ from realapp.bulk_qa import BulkAudit
 from realapp.attachments import (save_attachment, get_attachment_data, find_case_for_attachment,
                                  validate_attachment, MAX_FILES_PER_REQUEST, MAX_TOTAL_SIZE)
 from realapp.resolution_radar import ResolutionRadar, evidence_digest
+from realapp.incident_time_machine import compare_history, reconstruct as reconstruct_incident
 
 
 settings = get_settings()
@@ -77,6 +78,14 @@ class RadarLinkReview(BaseModel):
 class EngineeringFollowupUpdate(BaseModel):
     brief: EngineeringBrief
     status: Literal['open', 'closed'] = 'open'
+
+
+class CounterfactualRequest(BaseModel):
+    decision_event_id: str = Field(min_length=1, max_length=160)
+    alternative: Literal[
+        'escalate_earlier', 'collect_diagnostic', 'avoid_repeat',
+        'follow_documented', 'verify_before_resolve', 'wait_for_evidence',
+    ]
 
 
 @app.get("/", include_in_schema=False)
@@ -564,6 +573,105 @@ def _require_radar_user(http: Request) -> dict:
     return user
 
 
+@app.get('/api/cases/{case_id}/time-machine')
+def get_incident_time_machine(case_id: str, http: Request):
+    user = _require_radar_user(http)
+    case = require_case(store.get_case(case_id), user)
+    # Use the same transcript and QA visibility rules as the incident detail API.
+    safe_case = visible_case(case, user)
+    assessment = store.get_resolution_assessment(case_id) if can_report(case, user) else None
+    if assessment and assessment.evidence_digest != evidence_digest(case):
+        assessment = None
+    result = reconstruct_incident(safe_case, assessment)
+    if user['role'] == 'technician' and not can_report(case, user):
+        result['warnings'].append('Transcript and QA details are hidden for incidents assigned to another technician; this reconstruction is partial.')
+    return result
+
+
+@app.post('/api/cases/{case_id}/time-machine/counterfactual')
+def explore_incident_alternative(case_id: str, request: CounterfactualRequest, http: Request):
+    user = _require_radar_user(http)
+    case = require_case(store.get_case(case_id), user)
+    safe_case = visible_case(case, user)
+    reconstruction = reconstruct_incident(safe_case)
+    events = reconstruction['events']
+    decision = next((item for item in events if item['id'] == request.decision_event_id), None)
+    decision_types = {'technician_action', 'failed_attempt', 'status_change'}
+    if not decision or decision['type'] not in decision_types or not decision['occurred_at']:
+        raise HTTPException(422, 'Choose a dated technician action, failed attempt, or status decision.')
+
+    alternatives = {
+        'escalate_earlier': 'Escalate to a human technician at this point.',
+        'collect_diagnostic': 'Collect a relevant diagnostic signal before trying another fix.',
+        'avoid_repeat': 'Avoid repeating the same unsuccessful troubleshooting step without new evidence.',
+        'follow_documented': 'Use a documented troubleshooting procedure that existed at this point.',
+        'verify_before_resolve': 'Verify the fix with the customer before marking the incident resolved.',
+        'wait_for_evidence': 'Wait for additional evidence before choosing a diagnosis or fix.',
+    }
+    before = [item for item in events if item['occurred_at'] and item['occurred_at'] < decision['occurred_at']]
+    after = [item for item in events if item['occurred_at'] and item['occurred_at'] > decision['occurred_at']]
+    event_view = lambda item: {
+        'id': item['id'], 'timestamp': item['occurred_at'], 'type': item['type'],
+        'actor': item['actor'], 'title': item['title'], 'evidence': item['detail'][:1200],
+        'recorded_outcome': item['outcome'],
+    }
+    available_before = before[-20:]
+    observed_after = after[:12]
+    try:
+        scenario = engine.explore_counterfactual(
+            f"{decision['title']}: {decision['detail']}", alternatives[request.alternative],
+            [event_view(item) for item in available_before],
+            [event_view(item) for item in observed_after],
+        )
+    except RuntimeError as error:
+        raise HTTPException(503, str(error)) from error
+    except Exception:
+        logger.exception('Incident counterfactual generation failed for %s', case_id)
+        raise HTTPException(502, 'Could not create a structured alternative from this incident evidence.') from None
+
+    allowed_evidence = {item['id'] for item in available_before}
+    cited = set(scenario.supporting_evidence_ids + scenario.contradicting_evidence_ids)
+    cited.update(evidence_id for step in scenario.steps for evidence_id in step.evidence_ids)
+    if not cited.issubset(allowed_evidence):
+        raise HTTPException(502, 'The generated scenario cited evidence unavailable at that decision point. Please retry.')
+    return {
+        'label': 'SIMULATED ALTERNATIVE — NOT AN OBSERVED OUTCOME',
+        'decision_point': decision,
+        'alternative': alternatives[request.alternative],
+        'evidence_available_before_decision': [event_view(item) for item in available_before],
+        'events_at_same_timestamp_order_unknown': [event_view(item) for item in events
+                                                   if item['id'] != decision['id']
+                                                   and item['occurred_at'] == decision['occurred_at']],
+        'observed_later_events': [event_view(item) for item in observed_after],
+        'scenario': scenario.model_dump(mode='json'),
+        'historical_validation': {
+            'status': 'not_established', 'comparable_count': 0,
+            'message': 'This incident alone cannot validate what the alternative would have caused. No success rate or time savings is inferred.',
+        },
+    }
+
+
+@app.post('/api/cases/{case_id}/time-machine/validate')
+def validate_incident_alternative(case_id: str, request: CounterfactualRequest, http: Request):
+    user = _require_radar_user(http)
+    case = require_case(store.get_case(case_id), user)
+    reconstruction = reconstruct_incident(visible_case(case, user))
+    decision = next((item for item in reconstruction['events'] if item['id'] == request.decision_event_id), None)
+    if not decision or decision['type'] not in {'technician_action', 'failed_attempt', 'status_change'} or not decision['occurred_at']:
+        raise HTTPException(422, 'Choose a dated technician action, failed attempt, or status decision.')
+    candidates = [item for item in store.list_cases() if can_read(item, user)]
+    comparison = compare_history(case, candidates)
+    return {
+        'decision_point': decision,
+        'alternative': request.alternative,
+        'strategy_validation': {
+            'status': 'not_established',
+            'message': 'The incident store does not consistently record alternative strategies as structured actions, so this cohort cannot estimate their effect.',
+        },
+        'historical_context': comparison,
+    }
+
+
 @app.get('/api/resolution-radar')
 def get_resolution_radar(http: Request, window: str = '30d', service: str = '',
                          priority: str = '', status: str = '', search: str = '', sort: str = 'debt'):
@@ -679,8 +787,11 @@ def list_knowledge(http: Request):
 
 @app.post("/api/knowledge", response_model=KnowledgeArticle, status_code=201)
 def add_knowledge(article: KnowledgeArticleInput, http: Request):
+    user = actor(http)
+    if user['role'] not in {'admin', 'technician'}:
+        raise HTTPException(403, 'Staff access is required to add knowledge.')
     if article.source_ticket_ids:
-        article.source_ticket_ids = [case.ticket.id for case in find_incidents(article.source_ticket_ids, actor(http))]
+        article.source_ticket_ids = [case.ticket.id for case in find_incidents(article.source_ticket_ids, user)]
     return store.add_knowledge(article)
 
 
