@@ -4783,3 +4783,6 @@ html, body, main, .landing-page { max-width: 100%; }
 @media (max-width: 390px) { .selected-media-item { align-items:flex-start; flex-wrap:wrap; } .selected-media-item span { flex-basis:calc(100% - 64px); } }
 .call-mic-state { margin-top:4px; }
 #callWorkspace [data-call-action], #callWorkspace #muteCallButton { min-height:44px; }
+.chart-data-table { margin-top:12px; }
+.chart-data-table caption { text-align:left; padding:8px; color:var(--text-secondary); }
+.chart-data-table th, .chart-data-table td { padding:8px 10px; }
