@@ -39,6 +39,7 @@ Self-service incidents enter **New** and appear for the administrator to assign 
 - Evidence-based ticket QA and human acceptance of recommendations.
 - ServiceNow-style incident states: New, In Progress, On Hold, and Resolved.
 - Editable incident fields, including short description, description, classification, priority, assignment, and state.
+- Standard category, subcategory, service, and assignment-group choices with a custom-value option.
 - Technician work notes and customer comments once an incident is In Progress.
 - Automatic Activity history for every saved ticket-field change, including previous and new values.
 - Resolution notes and AI QA only after the incident is moved to Resolved.

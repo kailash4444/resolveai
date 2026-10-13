@@ -155,14 +155,23 @@ function renderCase(item) {
   $("#caseResult").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function taxonomyField(label, name, current, choices) {
+  const matched = choices.includes(current);
+  const options = choices.map(value => `<option value="${esc(value)}" ${matched && value === current ? "selected" : ""}>${esc(value)}</option>`).join("");
+  return `<label>${label}<select name="${name}" data-taxonomy-select>${options}<option value="Other" ${matched ? "" : "selected"}>Other (specify)</option></select><input class="taxonomy-custom" name="${name}_other" aria-label="Custom ${label.toLowerCase()}" placeholder="Enter a ${label.toLowerCase()}" value="${matched ? "" : esc(current)}" ${matched ? "hidden disabled" : "required"}></label>`;
+}
+
 function ticketForm(item) {
   const ticket = item.ticket;
   const states = ticket.state === "Resolved" ? ["New","In Progress","On Hold","Resolved"] : ["New","In Progress","On Hold"];
   return `<form class="ticket-form" id="ticketForm">
     <label class="wide">Short description<input name="short_description" value="${esc(ticket.short_description)}" required></label>
     <label class="wide">Description<textarea name="description" rows="4">${esc(ticket.description)}</textarea></label>
-    <label>Category<input name="category" value="${esc(ticket.category)}"></label><label>Subcategory<input name="subcategory" value="${esc(ticket.subcategory)}"></label>
-    <label>Service<input name="service" value="${esc(ticket.service)}"></label><label>Assignment group<input name="assignment_group" value="${esc(ticket.assignment_group)}"></label>
+    <p class="helper wide taxonomy-help">Choose a standard value, or select <b>Other (specify)</b> to enter a custom value.</p>
+    ${taxonomyField("Category", "category", ticket.category, ["Access", "Hardware", "Incident", "Network", "Security", "Software", "Workplace"])}
+    ${taxonomyField("Subcategory", "subcategory", ticket.subcategory, ["Account", "Account lockout", "Application crash", "Connectivity", "Display", "Investigation", "Password reset", "Permissions", "Triage", "Unclassified"])}
+    ${taxonomyField("Service", "service", ticket.service, ["Business Application", "Corporate VPN", "Enterprise IT", "General", "General IT", "Google Workspace", "Identity", "Identity and Access Management", "Microsoft 365", "Outlook", "Reporting Portal", "Windows", "Workstation Display"])}
+    ${taxonomyField("Assignment group", "assignment_group", ticket.assignment_group, ["Application Support", "Endpoint Support", "Identity Service Desk", "Network Operations", "Security Operations", "Service Desk"])}
     <label class="wide">Assigned to${state.user?.role === 'admin' ? `<select name="assigned_user_id"><option value="">Unassigned</option>${state.users.filter(user=>user.role!=='customer').map(user=>`<option value="${esc(user.id)}" ${ticket.assigned_user_id===user.id?'selected':''}>${esc(user.name)} (${esc(user.username)})</option>`).join('')}</select>` : `<input value="${esc(ticket.assigned_to || '')}" readonly>`}</label>
     <label>Priority<select name="priority">${["P1","P2","P3","P4"].map(value => `<option ${value === ticket.priority ? "selected" : ""}>${value}</option>`).join("")}</select></label>
     <label>State<select name="state">${states.map(value => `<option ${value === ticket.state ? "selected" : ""}>${value}</option>`).join("")}</select></label>
@@ -198,6 +207,11 @@ function resolutionPanel(item) {
 async function saveTicket(form) {
   const editingTicketDetails = $("#view-ticket-detail").classList.contains("active");
   const values = Object.fromEntries(new FormData(form).entries());
+  for (const field of ["category", "subcategory", "service", "assignment_group"]) {
+    const customField = `${field}_other`;
+    if (values[field] === "Other") values[field] = (values[customField] || "").trim();
+    delete values[customField];
+  }
   if (values.state !== "Resolved") values.resolution = "";
   state.current = await api(`/api/cases/${state.current.id}/ticket`, { method: "PATCH", body: JSON.stringify(values) });
   if (editingTicketDetails) { await loadCases(); await openTicketDetails(state.current.id); }
@@ -551,6 +565,15 @@ document.addEventListener("submit", event => {
   if (event.target.id === "ticketForm") { event.preventDefault(); saveTicket(event.target).catch(error => toast(error.message)); }
   if (event.target.id === "workNoteForm") { event.preventDefault(); addWorkNote(event.target).catch(error => toast(error.message)); }
   if (event.target.id === "resolutionForm") { event.preventDefault(); saveResolution(event.target); }
+});
+document.addEventListener("change", event => {
+  const select = event.target.closest("[data-taxonomy-select]");
+  if (!select) return;
+  const custom = select.parentElement.querySelector(".taxonomy-custom");
+  const isCustom = select.value === "Other";
+  custom.hidden = !isCustom;
+  custom.disabled = !isCustom;
+  custom.required = isCustom;
 });
 $("#keyForm").addEventListener("submit", saveAIKey);
 $("#analyzeButton").addEventListener("click", analyzeConversation);
