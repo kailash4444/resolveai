@@ -21,6 +21,7 @@
       <button class="nav-item" data-view="transcripts"><span>≡</span>Transcripts</button>
       <button class="nav-item" data-view="technicians"><span>♧</span>Users</button>
       <button class="nav-item" data-view="analytics"><span>◫</span>Analytics</button>
+      <button class="nav-item" data-view="resolution-radar"><span>⌁</span>Resolution debt</button>
       <button class="nav-item" data-view="knowledge"><span>◇</span>Knowledge</button>
       <button class="nav-item" data-view="qa"><span>✓</span>Quality audit</button>
     </nav>
@@ -87,6 +88,17 @@
     <section class="view" id="view-ticket-detail">
       <div class="panel-head page-section-head"><div><p class="eyebrow">CASE MANAGEMENT</p><h2>Ticket details</h2></div><button class="secondary" data-view="tickets">← Back to tickets</button></div>
       <div id="ticketDetailPage" class="panel empty-list">Select a ticket to open its details.</div>
+      <article id="ticketDurability" class="panel" hidden></article>
+    </section>
+
+    <section class="view" id="view-resolution-radar">
+      <div class="panel-head page-section-head"><div><p class="eyebrow">SERVICE INTELLIGENCE</p><h2>Resolution Debt Radar</h2><p class="helper">Find recurring incidents whose earlier resolutions may not be holding.</p><p class="helper" id="radarPending"></p></div><button class="secondary" id="radarAnalyzeMissing">Analyze resolved history</button></div>
+      <div id="radarDashboard">
+        <div class="metrics radar-metrics"><article><span>Open systemic issues</span><strong id="radarOpen">0</strong><small>New, investigating, or monitoring</small></article><article><span>High-debt issues</span><strong id="radarHigh">0</strong><small>Score of 60 or higher</small></article><article><span>Recurring incidents</span><strong id="radarRepeats">0</strong><small>Observed within 30 days after closure</small></article><article><span>Temporary-workaround rate</span><strong id="radarWorkaround">—</strong><small>Analyzed resolved incidents only</small></article><article><span>Avoidable support effort</span><strong id="radarEffort">Insufficient data</strong><small>Reliable effort duration is not recorded</small></article></div>
+        <div class="panel radar-filter-panel"><label>Time window<select id="radarWindow"><option value="7d">7 days</option><option value="30d" selected>30 days</option><option value="90d">90 days</option><option value="all">All history</option></select></label><label>Service<select id="radarService"><option value="">All services</option></select></label><label>Priority<select id="radarPriority"><option value="">All priorities</option><option>P1</option><option>P2</option><option>P3</option><option>P4</option></select></label><label>Status<select id="radarStatus"><option value="">All statuses</option><option value="new">New</option><option value="investigating">Investigating</option><option value="monitoring">Monitoring</option><option value="resolved">Resolved / verified</option><option value="dismissed">Dismissed</option></select></label><label>Search<input id="radarSearch" type="search" placeholder="Issue, symptom, or INC number"></label><label>Sort by<select id="radarSort"><option value="debt">Resolution debt score</option><option value="recurrence">Recurrence</option><option value="severity">Severity</option><option value="recent">Most recent</option></select></label></div>
+        <article class="panel table-wrap radar-table-wrap"><table><thead><tr><th>Issue cluster</th><th>Debt score</th><th>Priority</th><th>Incidents</th><th>Customers</th><th>Recurrences</th><th>Workarounds</th><th>Latest</th><th>Analysis</th><th>Status</th></tr></thead><tbody id="radarRows"></tbody></table><div id="radarEmpty" class="empty-list" hidden>No recurring incident clusters match these filters.</div><p class="helper radar-score-note">Debt score prioritizes investigation; it is not a probability of recurrence. Missing signals are excluded and remaining weights are renormalized.</p></article>
+      </div>
+      <div id="radarDetail" hidden></div>
     </section>
 
     <section class="view" id="view-calls">
@@ -165,6 +177,7 @@
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=3"></script>
   <script src="/static/app.js?v=15"></script>
+  <script src="/static/resolution-radar.js?v=2"></script>
   <script src="/static/calling.js?v=11"></script>
   <script src="/static/transcripts.js?v=5"></script>
 </body>

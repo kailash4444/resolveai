@@ -46,6 +46,7 @@ Self-service incidents enter **New** and appear for the administrator to assign 
 - Server-side background QA after resolution, so resolving returns immediately.
 - A Quality Audit ticket list showing every resolved ticket as Pending or with its completed score.
 - Ticket list, analytics, and a knowledge-gap insight.
+- Resolution Debt Radar with recurring-incident clusters, cached durability assessments, explainable scores, investigation tracking, and editable internal engineering briefs.
 - Google Gemini API locally and Vertex AI on GCP, with configurable model names.
 - Persistent local SQLite storage, plus in-memory test and Cloud Firestore modes.
 - Technician accounts, presence, language/skill matching, atomic call reservations, and wrap-up.
@@ -113,6 +114,7 @@ Both scripts enable the required APIs and deploy with Google models, Firestore s
 ```text
 realapp/
   main.py                 FastAPI routes, key setup, and audio upload
+  resolution_radar.py    Durability analysis, incident clustering, and debt scoring
   config.py               Provider and model configuration
   engine.py               Optional legacy OpenAI adapter
   gemini.py               Google AI / Vertex AI text, embeddings, transcription and TTS

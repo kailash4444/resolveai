@@ -10,7 +10,15 @@ async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers });
   if (!response.ok) {
     let message = `Request failed (${response.status})`;
-    try { message = (await response.json()).detail || message; } catch (_) {}
+    try {
+      const detail = (await response.json()).detail;
+      if (typeof detail === "string") message = detail;
+      else if (Array.isArray(detail)) message = detail.map(item => {
+        const field = Array.isArray(item.loc) ? item.loc.filter(part => part !== "body").join(" → ") : "";
+        return [field, item.msg || "Invalid value"].filter(Boolean).join(": ");
+      }).join("; ") || message;
+      else if (detail && typeof detail === "object") message = detail.message || JSON.stringify(detail);
+    } catch (_) {}
     throw new Error(message);
   }
   return response.json();
@@ -47,7 +55,7 @@ function showView(name) {
   else if (state.user.role === 'technician' && name === 'technicians') name = 'calls';
   $$(".view").forEach(el => el.classList.toggle("active", el.id === `view-${name}`));
   $$(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.view === name));
-  const titles = { overview: "Operations overview", case: "New support case", tickets: "Tickets", "ticket-detail": "Ticket details", analytics: "Analytics", knowledge: "Knowledge management", qa: "Quality audit", calls: "Calls & queue", technicians: "Technicians" };
+  const titles = { overview: "Operations overview", case: "New support case", tickets: "Tickets", "ticket-detail": "Ticket details", analytics: "Analytics", "resolution-radar": "Resolution Debt Radar", knowledge: "Knowledge management", qa: "Quality audit", calls: "Calls & queue", technicians: "Technicians" };
   document.title = ({"transcripts":"Transcripts","call-analytics":"Call analytics","customer-home":"My support","customer-create":"Create an incident","signin":"Welcome","technicians":"User management"})[name] || titles[name] || "ResolveAI";
 
   if (name === "customer-home") loadCustomerCalls();
@@ -55,6 +63,7 @@ function showView(name) {
   if (name === "knowledge") loadKnowledge();
   if (name === "analytics") selectReportTab("analytics", reportTabs.analytics);
   if (name === "transcripts") window.loadTranscripts?.();
+  if (name === "resolution-radar") window.loadResolutionRadar?.();
   if (name === "overview") loadOverview();
   if (name === "qa") selectReportTab("qa", reportTabs.qa);
   if (name === "calls" || name === "technicians") window.loadCalling?.();
@@ -363,6 +372,8 @@ async function openTicketDetails(caseId) {
   showView("ticket-detail");
   const detail = $("#ticketDetailPage"); detail.className = "panel ticket-detail-panel";
   detail.innerHTML = `<div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h2>${esc(state.current.ticket.id)}</h2><p class="helper">${state.user?.role === "customer" ? "Track progress and add comments." : "Edit the incident fields and save your changes."}</p></div><span class="tag">${esc(state.current.ticket.state)}</span></div>${state.user?.role === "customer" ? customerTicketDetails(state.current) : renderAttachments(state.current.ticket.attachments) + ticketForm(state.current) + followupPanels(state.current)}${transcriptPanel(state.current)}`;
+  $('#ticketDurability').hidden = state.user?.role === 'customer';
+  if (state.user?.role !== 'customer') window.loadCaseResolutionRadar?.(state.current.id);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -568,6 +579,7 @@ window.applyAccountRole = user => {
   if (state.user?.id !== user?.id) {
     state.cases = []; state.users = []; state.current = null;
     $('#ticketRows').innerHTML = ''; $('#ticketDetailPage').innerHTML = '';
+    $('#ticketDurability').hidden = true; $('#ticketDurability').innerHTML = '';
     $('#ticketSearch').value = ''; $('#ticketAssignee').innerHTML = '<option value="">All assigned names</option>';
     $('#ticketStateFilter').value = ''; $('#ticketPriorityFilter').value = '';
     analyticsCases = []; lastBulkQaStatus = null; clearTimeout(bulkQaTimer);

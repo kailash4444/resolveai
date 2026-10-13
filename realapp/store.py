@@ -5,7 +5,8 @@ from pathlib import Path
 from threading import RLock
 
 from realapp.knowledge import SEED_ARTICLES
-from realapp.models import CaseRecord, KnowledgeArticle, KnowledgeArticleInput
+from realapp.models import (CaseRecord, EngineeringFollowup, IssueCluster, KnowledgeArticle,
+                            KnowledgeArticleInput, ResolutionAssessment)
 from realapp.numbering import assign_case, assign_article, sync_case, migrate
 
 
@@ -18,6 +19,9 @@ class MemoryStore:
         for article in SEED_ARTICLES:
             saved = assign_article(article, None, self._meta)
             self._knowledge[saved.id] = saved
+        self._resolution_assessments: dict[str, ResolutionAssessment] = {}
+        self._radar_clusters: dict[str, IssueCluster] = {}
+        self._engineering_followups: dict[str, EngineeringFollowup] = {}
 
     def save_case(self, case: CaseRecord) -> CaseRecord:
         with self._lock:
@@ -57,6 +61,49 @@ class MemoryStore:
             self._knowledge = {article.id:article for article in articles}
             return aliases
 
+    def get_resolution_assessment(self, case_id: str) -> ResolutionAssessment | None:
+        with self._lock:
+            value = self._resolution_assessments.get(case_id)
+            return deepcopy(value) if value else None
+
+    def save_resolution_assessment(self, value: ResolutionAssessment) -> ResolutionAssessment:
+        with self._lock:
+            self._resolution_assessments[value.case_id] = deepcopy(value)
+        return deepcopy(value)
+
+    def list_resolution_assessments(self) -> list[ResolutionAssessment]:
+        with self._lock:
+            return [deepcopy(value) for value in self._resolution_assessments.values()]
+
+    def get_radar_cluster(self, cluster_id: str) -> IssueCluster | None:
+        with self._lock:
+            value = self._radar_clusters.get(cluster_id)
+            return deepcopy(value) if value else None
+
+    def save_radar_cluster(self, value: IssueCluster) -> IssueCluster:
+        with self._lock:
+            self._radar_clusters[value.id] = deepcopy(value)
+        return deepcopy(value)
+
+    def list_radar_clusters(self) -> list[IssueCluster]:
+        with self._lock:
+            return [deepcopy(value) for value in self._radar_clusters.values()]
+
+    def save_engineering_followup(self, value: EngineeringFollowup) -> EngineeringFollowup:
+        with self._lock:
+            self._engineering_followups[value.id] = deepcopy(value)
+        return deepcopy(value)
+
+    def get_engineering_followup(self, followup_id: str) -> EngineeringFollowup | None:
+        with self._lock:
+            value = self._engineering_followups.get(followup_id)
+            return deepcopy(value) if value else None
+
+    def list_engineering_followups(self, cluster_id: str) -> list[EngineeringFollowup]:
+        with self._lock:
+            return [deepcopy(value) for value in self._engineering_followups.values()
+                    if value.cluster_id == cluster_id]
+
 
 class FirestoreStore:
     def __init__(self, project: str | None, collection: str) -> None:
@@ -66,6 +113,9 @@ class FirestoreStore:
         self.cases = self.client.collection(collection)
         self.knowledge = self.client.collection(f"{collection}_knowledge")
         self.numbers = self.client.collection(f"{collection}_metadata").document("numbers")
+        self.radar_assessments = self.client.collection(f"{collection}_resolution_assessments")
+        self.radar_clusters = self.client.collection(f"{collection}_resolution_clusters")
+        self.radar_followups = self.client.collection(f"{collection}_engineering_followups")
 
     def save_case(self, case: CaseRecord) -> CaseRecord:
         from google.cloud import firestore
@@ -142,6 +192,40 @@ class FirestoreStore:
             return aliases
         return convert(self.client.transaction())
 
+    def get_resolution_assessment(self, case_id: str) -> ResolutionAssessment | None:
+        snapshot = self.radar_assessments.document(case_id).get()
+        return ResolutionAssessment.model_validate(snapshot.to_dict()) if snapshot.exists else None
+
+    def save_resolution_assessment(self, value: ResolutionAssessment) -> ResolutionAssessment:
+        self.radar_assessments.document(value.case_id).set(value.model_dump(mode='json'))
+        return value
+
+    def list_resolution_assessments(self) -> list[ResolutionAssessment]:
+        return [ResolutionAssessment.model_validate(doc.to_dict()) for doc in self.radar_assessments.stream()]
+
+    def get_radar_cluster(self, cluster_id: str) -> IssueCluster | None:
+        snapshot = self.radar_clusters.document(cluster_id).get()
+        return IssueCluster.model_validate(snapshot.to_dict()) if snapshot.exists else None
+
+    def save_radar_cluster(self, value: IssueCluster) -> IssueCluster:
+        self.radar_clusters.document(value.id).set(value.model_dump(mode='json'))
+        return value
+
+    def list_radar_clusters(self) -> list[IssueCluster]:
+        return [IssueCluster.model_validate(doc.to_dict()) for doc in self.radar_clusters.stream()]
+
+    def save_engineering_followup(self, value: EngineeringFollowup) -> EngineeringFollowup:
+        self.radar_followups.document(value.id).set(value.model_dump(mode='json'))
+        return value
+
+    def get_engineering_followup(self, followup_id: str) -> EngineeringFollowup | None:
+        snapshot = self.radar_followups.document(followup_id).get()
+        return EngineeringFollowup.model_validate(snapshot.to_dict()) if snapshot.exists else None
+
+    def list_engineering_followups(self, cluster_id: str) -> list[EngineeringFollowup]:
+        return [EngineeringFollowup.model_validate(doc.to_dict()) for doc in
+                self.radar_followups.where('cluster_id', '==', cluster_id).stream()]
+
 
 class SQLiteStore(MemoryStore):
     """Local durable tickets and knowledge; API keys never enter this database."""
@@ -153,6 +237,9 @@ class SQLiteStore(MemoryStore):
             db.execute("CREATE TABLE IF NOT EXISTS cases (id TEXT PRIMARY KEY, body TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS knowledge (id TEXT PRIMARY KEY, body TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS metadata (id TEXT PRIMARY KEY, body TEXT NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS resolution_assessments (case_id TEXT PRIMARY KEY, body TEXT NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS resolution_clusters (id TEXT PRIMARY KEY, body TEXT NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS engineering_followups (id TEXT PRIMARY KEY, cluster_id TEXT NOT NULL, body TEXT NOT NULL)")
             if db.execute('SELECT COUNT(*) FROM knowledge').fetchone()[0] == 0:
                 for article in SEED_ARTICLES:
                     db.execute("INSERT INTO knowledge VALUES (?, ?)", (article.id, article.model_dump_json()))
@@ -229,6 +316,55 @@ class SQLiteStore(MemoryStore):
             db.executemany('INSERT INTO knowledge VALUES (?,?)',[(a.id,a.model_dump_json()) for a in articles])
             self._write_meta(db,meta)
             return aliases
+
+    def get_resolution_assessment(self, case_id):
+        with self.connection() as db:
+            row = db.execute('SELECT body FROM resolution_assessments WHERE case_id = ?', (case_id,)).fetchone()
+        return ResolutionAssessment.model_validate_json(row[0]) if row else None
+
+    def save_resolution_assessment(self, value):
+        with self.connection() as db:
+            db.execute('INSERT OR REPLACE INTO resolution_assessments VALUES (?, ?)',
+                       (value.case_id, value.model_dump_json()))
+        return value
+
+    def list_resolution_assessments(self):
+        with self.connection() as db:
+            rows = db.execute('SELECT body FROM resolution_assessments').fetchall()
+        return [ResolutionAssessment.model_validate_json(row[0]) for row in rows]
+
+    def get_radar_cluster(self, cluster_id):
+        with self.connection() as db:
+            row = db.execute('SELECT body FROM resolution_clusters WHERE id = ?', (cluster_id,)).fetchone()
+        return IssueCluster.model_validate_json(row[0]) if row else None
+
+    def save_radar_cluster(self, value):
+        with self.connection() as db:
+            db.execute('INSERT OR REPLACE INTO resolution_clusters VALUES (?, ?)',
+                       (value.id, value.model_dump_json()))
+        return value
+
+    def list_radar_clusters(self):
+        with self.connection() as db:
+            rows = db.execute('SELECT body FROM resolution_clusters').fetchall()
+        return [IssueCluster.model_validate_json(row[0]) for row in rows]
+
+    def save_engineering_followup(self, value):
+        with self.connection() as db:
+            db.execute('INSERT OR REPLACE INTO engineering_followups VALUES (?, ?, ?)',
+                       (value.id, value.cluster_id, value.model_dump_json()))
+        return value
+
+    def get_engineering_followup(self, followup_id):
+        with self.connection() as db:
+            row = db.execute('SELECT body FROM engineering_followups WHERE id = ?', (followup_id,)).fetchone()
+        return EngineeringFollowup.model_validate_json(row[0]) if row else None
+
+    def list_engineering_followups(self, cluster_id):
+        with self.connection() as db:
+            rows = db.execute('SELECT body FROM engineering_followups WHERE cluster_id = ?',
+                              (cluster_id,)).fetchall()
+        return [EngineeringFollowup.model_validate_json(row[0]) for row in rows]
 
 
 def create_store(settings):

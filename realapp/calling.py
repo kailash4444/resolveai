@@ -198,7 +198,8 @@ class CallingService:
             techs = [public_technician(t) for t in db["technicians"].values()]
             incoming = []
             if actor and actor['role'] != 'admin':
-                incoming = [{k:c.get(k) for k in ('id','origin','status','created_at','service','priority')}
+                incoming = [{k:c.get(k) for k in ('id','origin','status','created_at','service','priority',
+                            'summary','attempted_steps','recommended_action','next_question')}
                             for c in calls if c['status'] in {'Queued','Ringing'} and not c.get('pickup_claimed')
                             and c.get('ready_at') is not None and c['technician_id'] != actor['id']]
                 calls = [c for c in calls if c['technician_id'] == actor['id']]
@@ -234,6 +235,7 @@ class CallingService:
                     "priority": "P3", "summary": "Understanding the customer issue", "reason": "", "case_id": None,
                     "technician_id": None, "technician_name": "", "created_at": self.now(), "queued_at": None,
                     "reserved_until": None, "connected_at": None, "ended_at": None, "transcript": [], "events": [],
+                    "attempted_steps": [], "recommended_action": "", "next_question": "",
                     "ai_turns": 0, "declined": {}, "dispatch_id": None, "dispatch_sent": False, "last_error": "",
                     "ready_at": 0 if origin == "desk" else None}
             history(call, "Browser call received" if origin == "browser" else "Support request received")
@@ -323,7 +325,9 @@ class CallingService:
             current.update(case_id=case.id if call['origin'] != 'browser' else None,
                            draft_case=case.model_dump(mode='json') if call['origin'] == 'browser' else None,
                            service=case.ticket.service, priority=case.ticket.priority,
-                           summary=case.understanding.summary, reason=case.routing.rationale)
+                           summary=case.understanding.summary, reason=case.routing.rationale,
+                           attempted_steps=case.attempted_steps, recommended_action=case.recommended_action,
+                           next_question=case.next_question)
             if current["status"] == "Triage":
                 current["status"] = "AI" if ai else "Queued"
                 if not ai:

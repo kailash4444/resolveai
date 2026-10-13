@@ -134,6 +134,7 @@ class AnalysisPayload(BaseModel):
     next_question: str
     recommended_action: str
     ticket: TicketDraft
+    attempted_steps: list[str] = Field(default_factory=list, max_length=6)
 
 
 class QAAuditPayload(BaseModel):
@@ -148,6 +149,13 @@ class ScopedQACheck(QACheck):
 
 class ScopedQAAuditPayload(QAAuditPayload):
     checks: list[ScopedQACheck]
+
+
+class TicketStateTransition(BaseModel):
+    from_state: str
+    to_state: str
+    changed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    changed_by: str = 'System'
 
 
 class CaseRecord(BaseModel):
@@ -170,6 +178,104 @@ class CaseRecord(BaseModel):
     ticket: Ticket
     qa_checks: list[QACheck]
     quality_score: int | None = None
+    attempted_steps: list[str] = Field(default_factory=list, max_length=6)
+    state_history: list[TicketStateTransition] = Field(default_factory=list)
+
+
+class ResolutionApproach(BaseModel):
+    approach: str = Field(max_length=240)
+    outcome: str = Field(max_length=500)
+    evidence_id: str = ''
+
+
+class ResolutionAssessmentPayload(BaseModel):
+    classification: Literal['durable_fix', 'temporary_workaround', 'unresolved', 'unknown']
+    confidence: float = Field(ge=0, le=1)
+    rationale: str = Field(max_length=1200)
+    evidence_ids: list[str] = Field(default_factory=list, max_length=12)
+    approaches: list[ResolutionApproach] = Field(default_factory=list, max_length=8)
+    verification_evidence: str = Field(default='', max_length=800)
+    missing_information: list[str] = Field(default_factory=list, max_length=8)
+
+
+class ResolutionAssessment(ResolutionAssessmentPayload):
+    id: str
+    case_id: str
+    evidence_digest: str
+    provider: str
+    model: str
+    analyzed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ClusterIncidentLink(BaseModel):
+    case_id: str
+    ticket_id: str
+    confidence: float = Field(ge=0, le=1)
+    rationale: str
+    link_type: Literal['anchor', 'related', 'recurrence', 'reopening'] = 'related'
+    review_state: Literal['unreviewed', 'confirmed', 'dismissed'] = 'unreviewed'
+
+
+class ClusterStatusEvent(BaseModel):
+    status: Literal['new', 'investigating', 'monitoring', 'resolved', 'dismissed']
+    changed_by: str
+    changed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    note: str = ''
+
+
+class IssueCluster(BaseModel):
+    id: str
+    signature: dict[str, str] = Field(default_factory=dict)
+    summary: str
+    service: str
+    priority: str
+    status: Literal['new', 'investigating', 'monitoring', 'resolved', 'dismissed'] = 'new'
+    incident_count: int = 0
+    customer_count: int | None = None
+    recurrence_count: int = 0
+    recurrence_rate: float | None = None
+    workaround_count: int = 0
+    workaround_rate: float | None = None
+    first_occurrence: datetime
+    latest_occurrence: datetime
+    last_analysis_at: datetime | None = None
+    debt_score: int | None = None
+    score_band: str = 'insufficient'
+    score_components: dict[str, float | None] = Field(default_factory=dict)
+    evidence_coverage: float = 0
+    missing_signals: list[str] = Field(default_factory=list)
+    links: list[ClusterIncidentLink] = Field(default_factory=list)
+    status_history: list[ClusterStatusEvent] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class EngineeringBriefPayload(BaseModel):
+    executive_summary: str = Field(max_length=1800)
+    repeated_failure_pattern: str = Field(max_length=1200)
+    root_cause_hypothesis: str = Field(max_length=1200)
+    recommended_investigation: list[str] = Field(min_length=1, max_length=8)
+    verification_plan: list[str] = Field(min_length=1, max_length=8)
+    unknowns_and_limitations: list[str] = Field(default_factory=list, max_length=10)
+
+
+class EngineeringBrief(EngineeringBriefPayload):
+    title: str
+    customer_impact: str
+    evidence: list[str] = Field(default_factory=list)
+    what_has_been_tried: list[str] = Field(default_factory=list)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    source_ticket_ids: list[str] = Field(default_factory=list)
+
+
+class EngineeringFollowup(BaseModel):
+    id: str
+    cluster_id: str
+    brief: EngineeringBrief
+    status: Literal['open', 'closed'] = 'open'
+    created_by: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class TicketUpdate(BaseModel):
