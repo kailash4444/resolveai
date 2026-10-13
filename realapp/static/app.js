@@ -88,7 +88,8 @@ function showView(name) {
   if (name === "transcripts") window.loadTranscripts?.();
   if (name === "overview") loadOverview();
   if (name === "qa") { state.qaDetail = null; selectReportTab("qa", reportTabs.qa); }
-  if (name === "calls" || name === "technicians") window.loadCalling?.();
+  if (["calls", "technicians", "configuration"].includes(name)) window.loadCalling?.();
+  if (name === "configuration") renderAiConfig();
 }
 
 const caseUploader = ResolveUploader.create({drop: $('#caseDrop'), list: $('#caseMediaSelection'), errors: $('#caseMediaErrors')});
@@ -128,10 +129,6 @@ function showFeedback(message, error = false) {
 
 async function loadConfig() {
   state.config = await api("/api/config");
-  const configAiStatus = $('#configurationAiStatus');
-  if (configAiStatus) configAiStatus.textContent = state.config.configured ? 'Configured' : state.config.runtime_key_supported === false ? 'Managed by deployment environment' : 'Not configured';
-  const configAiButton = $('#configurationAiButton');
-  if (configAiButton) configAiButton.hidden = state.user?.role !== 'admin' || state.config.runtime_key_supported === false;
   const ready = state.config.configured, provider = providerName();
   $('#keyModalTitle').textContent = `Connect ${provider}`;
   $('#apiKeyLabel').textContent = `${provider} API key`;
@@ -146,7 +143,24 @@ async function loadConfig() {
   connection.className = `badge ${ready ? 'badge--ok' : 'badge--high'}`; connection.textContent = ready ? `✓ ${provider} ready` : '◆ AI provider not configured';
   $("#openKeyPanel").hidden = state.user?.role !== 'admin' || !state.config.runtime_key_supported;
   if (!state.current) setCaseStatus(providerLine(), !ready);
+  renderAiConfig();
 }
+
+function renderAiConfig() {
+  const c = state.config, badge = $('#configurationAiStatus');
+  if (!c) return;
+  const envManaged = !c.runtime_key_supported;
+  if (c.configured) { badge.className = 'badge badge--ok'; badge.textContent = `✓ ${providerName()} configured`; }
+  else if (envManaged) { badge.className = 'badge badge--high'; badge.textContent = '◆ Not configured'; }
+  else { badge.className = 'badge badge--high'; badge.textContent = '◆ Key needed'; }
+  $('#aiConfigDetails').innerHTML = [['Provider', providerName()], ['Analysis model', c.model], ['Transcription model', c.transcription_model], ['Data store', c.data_backend]].map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
+  $('#aiConfigHelp').textContent = c.provider === 'mock' ? 'This server runs the test provider: results are demo output, not real AI analysis.'
+    : envManaged ? 'This deployment manages the AI key through environment configuration (for example a secret manager or service identity). Change it there, not here.'
+      : c.configured ? 'A key is saved. Saving a new one replaces it; the current key is never shown.' : 'Add an API key so ResolveAI can transcribe and analyze.';
+  $('#configurationAiButton').hidden = state.user?.role !== 'admin' || envManaged;
+  $('#configurationAiButton').textContent = c.configured ? 'Replace API key' : 'Set API key';
+}
+
 
 const PRIORITY_RANK = {P1: 0, P2: 1, P3: 2, P4: 3};
 function age(value) {
@@ -724,13 +738,14 @@ async function openKnowledgeSource(number) {
 
 async function saveAIKey(event) {
   event.preventDefault();
-  const input = $("#aiKeyInput"); const message = $("#keyMessage");
-  message.className = "form-message"; message.textContent = "Connecting…";
+  const input = $("#aiKeyInput"), message = $("#keyMessage"), button = event.target.querySelector('[type=submit]');
+  if (input.value.trim().length < 20) { setFormStatus(message, '✕ That key looks incomplete. Paste the full key.', true); input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
+  input.removeAttribute('aria-invalid'); button.disabled = true; button.setAttribute('aria-busy', 'true'); setFormStatus(message, 'Checking and saving…');
   try {
     await api(state.config.provider === "google_ai" ? "/api/config/gemini-key" : "/api/config/openai-key", { method: "POST", body: JSON.stringify({ api_key: input.value }) });
-    input.value = ""; message.textContent = "Key protected in your local profile."; await loadConfig();
-    setTimeout(() => { $("#keyModal").hidden = true; message.textContent = ""; }, 700);
-  } catch (error) { message.className = "form-message error"; message.textContent = error.message; }
+    input.value = ""; await loadConfig(); $('#keyModal').close(); toast(`${providerName()} key saved.`);
+  } catch (error) { setFormStatus(message, `✕ Not saved: ${error.message}`, true); }
+  finally { input.value = ''; button.disabled = false; button.removeAttribute('aria-busy'); }
 }
 
 async function transcribeAudio(file) {
@@ -798,9 +813,10 @@ document.addEventListener("click", event => {
   const qaRow = event.target.closest("[data-qa-case-id]"); if (qaRow) openCase(qaRow.dataset.qaCaseId, "qa");
   if (event.target.closest("[data-open-qa]") && state.current) renderQA(state.current);
   if (event.target.closest("#rerunQa")) rerunQA();
-  if (event.target.closest("#openKeyPanel, #configurationAiButton")) { $("#keyModal").hidden = false; $('#aiKeyInput').focus(); }
+  if (event.target.closest("#openKeyPanel, #configurationAiButton")) { $('#keyModalTitle').textContent = `Connect ${providerName()}`; setFormStatus($('#keyMessage'), ''); $("#keyModal").showModal(); }
+  const reveal = event.target.closest('[data-reveal]');
+  if (reveal) { const input = $('#' + reveal.dataset.reveal), show = input.type === 'password'; input.type = show ? 'text' : 'password'; reveal.textContent = show ? 'Hide' : 'Show'; reveal.setAttribute('aria-pressed', String(show)); }
   if (event.target.closest('#dismissGlobalFeedback')) $('#globalFeedback').hidden = true;
-  if (event.target.closest("#closeKeyPanel") || event.target === $("#keyModal")) $("#keyModal").hidden = true;
   if (event.target.closest("#openKnowledgePanel")) openKnowledgeEditor();
   if (event.target.closest('#openIncidentKnowledgePanel')) { setFormStatus($('#incidentKnowledgeMessage'), ''); $('#incidentKnowledgeModal').showModal(); }
   if (event.target.closest('#closeIncidentKnowledgePanel')) $('#incidentKnowledgeModal').close();

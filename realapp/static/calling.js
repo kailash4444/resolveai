@@ -19,7 +19,8 @@ window.loadCalling = async () => {
     calling.data = await api('/api/calling');
     calling.user = calling.data.user;
     if (calling.user.role === 'admin' && $('#view-technicians').classList.contains('active')) calling.data.users = await api('/api/users');
-    $('#callsUnavailable').hidden = true;
+    $('#callsUnavailable').hidden = true; $('#usersError').hidden = true;
+    renderLiveKitConfig();
     await restorePhone();
     renderCalling();
     if (new URLSearchParams(location.search).get('connect') === 'livekit' && !calling.livekitShown && calling.user.role === 'admin') {
@@ -28,10 +29,23 @@ window.loadCalling = async () => {
     }
   } catch (error) {
     $('#callingSync').textContent = '✕ Connection interrupted';
+    $('#usersErrorMessage').textContent = error.message; $('#usersError').hidden = !$('#view-technicians').classList.contains('active');
     if (!calling.data) { $('#callsUnavailableMessage').textContent = error.message; $('#callsUnavailable').hidden = false; patch($('#callList'), '<p class="sec">Calls can’t be shown until the calling service responds.</p>'); }
   }
   finally { calling.loading = false; }
 };
+
+function renderLiveKitConfig() {
+  const voice = calling.data?.voice; if (!voice) return;
+  const checks = Object.entries(voice.checks || {});
+  const badge = $('#configurationLiveKitStatus');
+  if (voice.configured) { badge.className = 'badge badge--ok'; badge.textContent = '✓ Connected'; }
+  else if (checks.some(([, ok]) => ok)) { badge.className = 'badge badge--err'; badge.textContent = '✕ Incomplete'; }
+  else { badge.className = 'badge badge--high'; badge.textContent = '◆ Not configured'; }
+  $('#liveKitChecks').innerHTML = checks.map(([name, ok]) => `<li>${ok ? '<span class="badge badge--ok">✓ OK</span>' : '<span class="badge badge--err">✕ Missing</span>'} ${esc(name)}</li>`).join('') + (voice.url ? `<li><span class="badge badge--low">○ Address</span> <span class="mono">${esc(voice.url)}</span></li>` : '');
+  $('#liveKitHelp').textContent = voice.setup_available === false ? 'Credentials can only be edited when ResolveAI runs on this computer (localhost). Cloud deployments set LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET in the environment.' : voice.configured ? 'Saving new details replaces the current ones. The secret is never shown.' : 'Add your LiveKit address and API credentials to turn on browser voice.';
+  $('#configurationLiveKitButton').hidden = voice.setup_available === false;
+}
 
 function renderIndicators() {
   const {voice} = calling.data, user = calling.user;
@@ -213,12 +227,7 @@ async function acceptBrowserCall(id, connection) {
 
 document.addEventListener('click', async event => {
   try {
-    if (event.target.classList.contains('modal-backdrop')) {
-      event.target.hidden = true;
-    }
-    const close = event.target.closest('[data-close-call-modal]');
-    if (close) $(`#${close.dataset.closeCallModal}`).hidden = true;
-    if (close?.dataset.closeCallModal === 'livekitModal') $('#livekitForm [name=api_secret]').value = '';
+    if (event.target.closest('[data-close-call-modal="livekitModal"]')) $('#livekitForm [name=api_secret]').value = '';
     const select = event.target.closest('[data-call-select]');
     if (select) await selectCall(select.dataset.callSelect);
     const ticket = event.target.closest('[data-call-ticket]');
@@ -253,7 +262,8 @@ document.addEventListener('click', async event => {
     if (event.target.closest('#resumeAudioButton')) {await calling.room?.startAudio();$('#resumeAudioButton').hidden=true;}
     if (event.target.closest('#signInButton')) location.assign('/login?role=technician');
     if (event.target.closest('#enablePhoneButton')) await enablePhone();
-    if (event.target.closest('#addTechnicianButton')) { $('#technicianModal').hidden = false; $('#technicianForm [name=role]').focus(); }
+    if (event.target.closest('#addTechnicianButton')) { $('#technicianForm').reset(); $('#technicianForm').dispatchEvent(new Event('change')); $('#technicianMessage').textContent = ''; $('#technicianModal').showModal(); }
+    if (event.target.closest('#retryUsers')) await loadCalling();
     if (event.target.closest('#routeRequestButton')) { $('#requestMessage').textContent = ''; $('#requestModal').showModal(); }
     if (event.target.closest('#retryCalls')) await loadCalling();
     if (event.target.closest('#confirmCallAction')) {
@@ -294,7 +304,9 @@ async function submitCallingForm(event, path, messageId, transform, after) {
   event.preventDefault();
   const form = event.target, button = form.querySelector('button[type=submit]');
   const message = $(messageId);
-  if (!form.checkValidity()) { const bad = [...form.elements].find(el => el.willValidate && !el.validity.valid); bad.setAttribute('aria-invalid', 'true'); message.className = 'form-status err'; message.textContent = `✕ Check ${form.querySelector(`label[for="${bad.id}"]`)?.textContent || 'the highlighted field'}: ${bad.validationMessage}`; bad.focus(); return; }
+  if (!form.checkValidity()) { const bad = [...form.elements].find(el => el.willValidate && !el.validity.valid); bad.setAttribute('aria-invalid', 'true'); message.className = 'form-status err'; const label = form.querySelector(`label[for="${bad.id}"]`)?.textContent || 'This field';
+    const why = bad.validity.valueMissing ? 'is required.' : bad.validity.tooShort ? `needs at least ${bad.minLength} characters.` : bad.validity.patternMismatch ? `can only use ${bad.id === 'userUsername' ? 'letters, numbers and . _ @ -' : 'the allowed characters'}.` : bad.validationMessage;
+    message.textContent = `✕ ${label} ${why}`; bad.focus(); return; }
   form.querySelectorAll('[aria-invalid]').forEach(el => el.removeAttribute('aria-invalid'));
   message.className = 'form-status'; message.textContent = 'Saving…'; button.disabled = true; button.setAttribute('aria-busy', 'true');
   try {
@@ -308,11 +320,15 @@ async function submitCallingForm(event, path, messageId, transform, after) {
 document.addEventListener('submit', event => {
   if (event.target.id === 'callReplyForm') submitCallingForm(event, `/api/calling/${calling.selected}/message`, '#callReplyMessage', null, async () => document.activeElement?.blur());
 });
-$('#technicianForm [name=role]').addEventListener('change', event => {
+$('#technicianForm').addEventListener('change', event => {
+  if (event.target.name !== 'role') return;
   const customer = event.target.value === 'customer';
-  ['userSkillsField','userLanguagesField'].forEach(id => { const field = $('#'+id), input = field.querySelector('input'); field.hidden = customer; input.required = !customer; input.disabled = customer; if (customer) input.value = ''; else if (!input.value) input.value = id === 'userSkillsField' ? 'general' : 'en'; });
+  ['userSkillsField', 'userLanguagesField'].forEach(id => { const field = $('#' + id), input = field.querySelector('input'); field.hidden = customer; input.required = !customer; input.disabled = customer; if (!customer && !input.value) input.value = id === 'userSkillsField' ? 'general' : 'en'; });
 });
-$('#technicianForm').addEventListener('submit', event => submitCallingForm(event, '/api/users', '#technicianMessage', values => ({...values, skills:(values.skills || 'general').split(',').map(x=>x.trim()).filter(Boolean), languages:(values.languages || 'en').split(',').map(x=>x.trim()).filter(Boolean)}), async () => { $('#technicianModal').hidden = true; state.users=await api('/api/users');toast('User account created.'); }));
+$('#technicianForm').addEventListener('submit', event => submitCallingForm(event, '/api/users', '#technicianMessage', values => ({...values, skills: (values.skills || 'general').split(',').map(x => x.trim()).filter(Boolean), languages: (values.languages || 'en').split(',').map(x => x.trim()).filter(Boolean)}), async user => {
+  $('#technicianModal').close(); state.users = await api('/api/users');
+  toast(`Account created for ${user.name} (${user.username}). Share the sign-in details securely.`);
+}));
 $('#routeRequestForm').addEventListener('submit', event => submitCallingForm(event, '/api/calling/requests', '#requestMessage', null, async result => {
   calling.selected = result.id; $('#requestModal').close(); toast('Incident created and routed.');
 }));
@@ -323,24 +339,25 @@ async function openLiveKitSetup() {
   $('#livekitForm [name=api_key]').value=config.api_key;
   const secret=$('#livekitForm [name=api_secret]');secret.value='';secret.required=!config.credentials_saved;
   secret.placeholder=config.credentials_saved?'Saved securely · leave blank to keep':'Enter your API secret';
-  $('#livekitMessage').textContent='';$('#livekitModal').hidden=false;$('#livekitForm [name=url]').focus();
+  $('#livekitMessage').textContent='';$('#livekitModal').showModal();
 }
 window.openLiveKitSetup = openLiveKitSetup;
 $('#configurationLiveKitButton')?.addEventListener('click', async () => {
   const message = $('#configurationLiveKitMessage'); message.textContent = '';
-  try { await openLiveKitSetup(); } catch (error) { message.textContent = error.message; }
+  try { await openLiveKitSetup(); setFormStatus(message, ''); }
+  catch (error) { setFormStatus(message, error.status === 403 ? `○ ${error.message}` : `✕ ${error.message}`, error.status !== 403); }
 });
 $('#livekitForm').addEventListener('submit', async event=>{
   event.preventDefault();const form=event.target,button=form.querySelector('button[type=submit]'),message=$('#livekitMessage');
-  button.disabled=true;message.textContent='Checking the LiveKit connection…';message.className='form-message';
+  button.disabled=true;button.setAttribute('aria-busy','true');setFormStatus(message,'Checking the LiveKit connection…');
   try {
     await api('/api/config/livekit',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(form)))});
     calling.ready=false;await heartbeat();await loadCalling();
-    message.textContent='LiveKit connection verified and saved. Enable calls to start receiving customers.';
+    setFormStatus(message,'✓ Connected and saved. Technicians can now enable browser calls.');toast('LiveKit connection saved.');
     form.querySelector('[name=api_secret]').required=false;
     form.querySelector('[name=api_secret]').placeholder='Saved securely · leave blank to keep';
-  }catch(error){message.className='form-message error';message.textContent=error.message;}
-  finally{form.querySelector('[name=api_secret]').value='';button.disabled=false;}
+  }catch(error){setFormStatus(message,`✕ Not saved: ${error.message}`,true);}
+  finally{form.querySelector('[name=api_secret]').value='';button.disabled=false;button.removeAttribute('aria-busy');}
 });
 
 setInterval(() => { if (calling.user && calling.user.role !== 'customer') loadCalling(); }, 4000);

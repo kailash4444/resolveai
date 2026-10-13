@@ -297,9 +297,32 @@
         <p class="help" id="callPerformance"></p>
       </section>
     </section>
-    <section class="view" id="view-technicians">
-      <div class="panel-head page-section-head"><div><p class="eyebrow">SERVICE TEAM</p><h2>Users</h2><p class="helper">Create technician and customer accounts. All users share the AI connection configured by the administrator.</p></div><button class="pop pop--sm" id="addTechnicianButton" hidden>Add user</button></div>
-      <div class="panel card table-wrap"><table><thead><tr><th>User</th><th>Skills</th><th>Languages</th><th>Availability</th><th>Phone</th><th>Current call</th></tr></thead><tbody id="technicianRows"></tbody></table><div class="empty-list" id="techniciansEmpty">Open Calls & queue and sign in to manage your team.</div></div>
+    <section class="view" id="view-technicians" aria-labelledby="usersTitle">
+      <div class="page-head"><div><p class="kicker">Administration</p><h1 id="usersTitle">Users</h1><p class="sec">Everyone who can sign in. You can create technician and customer accounts here; editing, disabling and password resets aren’t available yet.</p></div><button class="pop" id="addTechnicianButton" type="button" hidden>Add user</button></div>
+      <div class="alert" id="usersError" role="alert" hidden><strong>✕ Couldn’t load users.</strong><span class="sec" id="usersErrorMessage"></span><button type="button" class="pop pop--quiet pop--sm" id="retryUsers">Retry</button></div>
+      <div class="tbl-wrap" role="region" aria-labelledby="usersTitle" tabindex="0"><table class="tbl"><caption class="sr">User accounts</caption><thead><tr><th scope="col">User</th><th scope="col">Role</th><th scope="col" class="col-opt">Skills</th><th scope="col" class="col-opt">Languages</th><th scope="col">Call status</th><th scope="col" class="col-opt">Microphone</th></tr></thead><tbody id="technicianRows"><tr><td colspan="6"><div class="skeleton" role="status" aria-label="Loading users"></div></td></tr></tbody></table></div>
+      <div class="empty section" id="techniciansEmpty" hidden><h2 class="h3">No other users yet</h2><p class="sec">Add technicians and customers so they can sign in.</p></div>
+    </section>
+
+    <section class="view" id="view-configuration" aria-labelledby="configTitle">
+      <div class="page-head"><div><p class="kicker">Administration</p><h1 id="configTitle">Configuration</h1><p class="sec">Connections ResolveAI needs. Secrets are never shown after saving. Cloud deployments set these through environment configuration instead.</p></div></div>
+      <div class="grid grid--2">
+        <section class="card stack" aria-labelledby="aiConfigTitle">
+          <div class="row row--between"><h2 class="h3" id="aiConfigTitle">AI provider</h2><span class="badge badge--low" id="configurationAiStatus" role="status">○ Checking</span></div>
+          <p class="sec">Used for transcription, analysis, image analysis, knowledge drafts and QA.</p>
+          <dl class="kv" id="aiConfigDetails"></dl>
+          <p class="help" id="aiConfigHelp"></p>
+          <div><button class="pop" id="configurationAiButton" type="button" hidden>Set API key</button></div>
+        </section>
+        <section class="card stack" aria-labelledby="lkConfigTitle">
+          <div class="row row--between"><h2 class="h3" id="lkConfigTitle">Browser voice (LiveKit)</h2><span class="badge badge--low" id="configurationLiveKitStatus" role="status">○ Checking</span></div>
+          <p class="sec">Carries audio for browser voice support and technician calls.</p>
+          <ul class="checklist" id="liveKitChecks" aria-label="LiveKit checks"></ul>
+          <p class="help" id="liveKitHelp"></p>
+          <div><button class="pop pop--quiet" id="configurationLiveKitButton" type="button">Configure LiveKit</button></div>
+          <p class="form-status" id="configurationLiveKitMessage" role="status"></p>
+        </section>
+      </div>
     </section>
 
     <section class="view" id="view-knowledge" aria-labelledby="knowledgeTitle">
@@ -387,13 +410,6 @@
       </div>
     </section>
 
-    <section class="view" id="view-configuration">
-      <div class="page-heading"><p class="eyebrow">ADMINISTRATION</p><h1>Configuration</h1><p class="sec">Manage supported local connections. Cloud deployments should configure secrets through their environment.</p></div>
-      <div class="grid two">
-        <article class="card"><p class="eyebrow">AI PROVIDER</p><h2>Gemini connection</h2><p class="sec">Current status: <strong id="configurationAiStatus">Loading configuration…</strong></p><p class="helper">Keys are not shown after saving. Where runtime key editing is unavailable, use deployment environment configuration.</p><button class="pop" id="configurationAiButton" type="button">Configure AI key</button></article>
-        <article class="card"><p class="eyebrow">BROWSER VOICE</p><h2>LiveKit connection</h2><p class="sec">Current connection settings are managed by the server.</p><p class="helper">Cloud deployments should use environment configuration. Local credential editing is available only when the deployment supports it.</p><button class="pop pop--quiet" id="configurationLiveKitButton" type="button">Configure LiveKit</button><p class="form-message" id="configurationLiveKitMessage" role="status" aria-live="polite"></p></article>
-      </div>
-    </section>
     <section class="view" id="view-qa" aria-labelledby="qaTitle">
       <div class="page-head"><div><p class="kicker">Independent review</p><h1 id="qaTitle">Quality audit</h1><p class="sec">AI checks resolved tickets against their source conversation, and scores completed calls. A person reviews every result.</p></div></div>
       <div class="tabs" role="tablist" aria-label="Audit type"><button type="button" role="tab" id="qa-tickets-tab" aria-controls="qa-tickets-panel" aria-selected="true" tabindex="0" data-report="qa" data-report-tab="tickets">Ticket audits</button><button type="button" role="tab" id="qa-calls-tab" aria-controls="qa-calls-panel" aria-selected="false" tabindex="-1" data-report="qa" data-report-tab="calls">Call audits</button></div>
@@ -415,14 +431,15 @@
     <img id="mediaPreviewImage" alt="">
     <a class="pop pop--quiet pop--sm" id="mediaPreviewOpen" href="#" target="_blank" rel="noopener">Open original</a>
   </dialog>
-  <div class="modal-backdrop" id="keyModal" hidden>
-    <section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="keyModalTitle">
-      <button class="modal-close" id="closeKeyPanel" aria-label="Close">×</button>
-      <p class="eyebrow">LOCAL CONNECTION</p><h2 id="keyModalTitle">Connect Gemini</h2>
-      <p class="helper">Your key is protected in your local Windows profile and reused after builds, tests, and server restarts. It is not saved in the browser, Firestore, project files, or downloadable archive.</p>
-      <form id="keyForm"><label><span id="apiKeyLabel">Gemini API key</span><input type="password" id="aiKeyInput" autocomplete="off" spellcheck="false" placeholder="Enter your existing API key" required minlength="20"></label><button class="pop full" type="submit">Use this key</button><p class="form-message" id="keyMessage"></p></form>
-    </section>
-  </div>
+  <dialog class="dlg" id="keyModal" aria-labelledby="keyModalTitle">
+    <h2 id="keyModalTitle">Connect Gemini</h2>
+    <p class="sec">The key is encrypted in this server’s local profile. It isn’t stored in the browser or project files, and it’s never shown again.</p>
+    <form id="keyForm" novalidate>
+      <div class="field"><label for="aiKeyInput" id="apiKeyLabel">Gemini API key</label><div class="input-wrap"><input class="input" type="password" id="aiKeyInput" autocomplete="off" spellcheck="false" required minlength="20" aria-describedby="keyMessage"><button type="button" class="pop pop--quiet pop--sm" data-reveal="aiKeyInput" aria-pressed="false">Show</button></div></div>
+      <p class="form-status" id="keyMessage" role="status"></p>
+      <div class="row"><button type="button" class="pop pop--quiet" data-close id="closeKeyPanel">Cancel</button><button class="pop" type="submit">Save key</button></div>
+    </form>
+  </dialog>
   <dialog class="dlg dlg--wide" id="knowledgeModal" aria-labelledby="knowledgeModalTitle">
     <div class="row row--between"><h2 id="knowledgeModalTitle">Add an article</h2><span class="badge badge--high" id="knowledgeDraftBadge" hidden>◆ Draft · not published</span></div>
     <p class="sec" id="knowledgeModalIntro">Published articles are used by AI during analysis and live calls.</p>
@@ -464,7 +481,22 @@
     <p class="sec" id="sessionText">For your security you were signed out. Sign in again to continue. Anything you typed on this page is still here until you leave it.</p>
     <div class="row"><button type="button" class="pop pop--quiet" data-close>Stay on this page</button><button type="button" class="pop" id="sessionSignIn">Sign in again</button></div>
   </dialog>
-  <div class="modal-backdrop" id="technicianModal" hidden><section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="technicianTitle"><button class="modal-close" data-close-call-modal="technicianModal" aria-label="Close">×</button><p class="eyebrow">YOUR TEAM</p><h2 id="technicianTitle">Add user</h2><form id="technicianForm"><label>Role<select name="role"><option value="technician">Technician</option><option value="customer">Customer</option></select></label><label>Name<input name="name" required minlength="2" maxlength="80"></label><label>Username<input name="username" required minlength="3" pattern="[a-zA-Z0-9_.@-]+" autocomplete="off"></label><label>Password<input name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label><label id="userSkillsField">Services or skills, separated by commas<input name="skills" value="general" required></label><p class="helper">Use the service name to match specialist work. “general” receives work when no specialist is available.</p><label id="userLanguagesField">Languages, separated by commas<input name="languages" value="en" required></label><button class="pop full">Create user</button><p class="form-message" id="technicianMessage"></p></form></section></div>
+  <dialog class="dlg dlg--wide" id="technicianModal" aria-labelledby="technicianTitle">
+    <h2 id="technicianTitle">Add a user</h2>
+    <p class="sec">Creates an account that can sign in straight away. Share the username and password with the person securely. Administrator accounts can’t be created here.</p>
+    <form id="technicianForm" novalidate>
+      <fieldset class="field"><legend>Role</legend><div class="choices"><label class="choice"><input type="radio" name="role" value="technician" checked><span class="choice__body"><strong>Technician</strong><span class="help">Works tickets and takes calls</span></span><span class="choice__state" aria-hidden="true">✓ Selected</span></label><label class="choice"><input type="radio" name="role" value="customer"><span class="choice__body"><strong>Customer</strong><span class="help">Reports issues and follows them</span></span><span class="choice__state" aria-hidden="true">✓ Selected</span></label></div></fieldset>
+      <div class="fields">
+        <div class="field"><label for="userName">Full name</label><input class="input" id="userName" name="name" required minlength="2" maxlength="80" autocomplete="off"></div>
+        <div class="field"><label for="userUsername">Username</label><input class="input" id="userUsername" name="username" required minlength="3" maxlength="80" pattern="[a-zA-Z0-9_.@\-]+" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="userUsernameHelp"><p class="help" id="userUsernameHelp">Letters, numbers and . _ @ - only.</p></div>
+        <div class="field field--wide"><label for="userPassword">Temporary password</label><div class="input-wrap"><input class="input" id="userPassword" name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password" aria-describedby="userPasswordHelp"><button type="button" class="pop pop--quiet pop--sm" data-reveal="userPassword" aria-pressed="false">Show</button></div><p class="help" id="userPasswordHelp">At least 12 characters. There’s no reset yet, so keep a secure record.</p></div>
+        <div class="field" id="userSkillsField"><label for="userSkills">Services or skills</label><input class="input" id="userSkills" name="skills" value="general" required aria-describedby="userSkillsHelp"><p class="help" id="userSkillsHelp">Comma-separated. Match service names to route specialist work; “general” takes work when no specialist is free.</p></div>
+        <div class="field" id="userLanguagesField"><label for="userLanguages">Languages</label><input class="input" id="userLanguages" name="languages" value="en" required aria-describedby="userLanguagesHelp"><p class="help" id="userLanguagesHelp">Comma-separated language codes, e.g. en, hi.</p></div>
+      </div>
+      <p class="form-status" id="technicianMessage" role="status"></p>
+      <div class="row"><button type="button" class="pop pop--quiet" data-close>Cancel</button><button type="submit" class="pop">Create account</button></div>
+    </form>
+  </dialog>
   <dialog class="dlg dlg--wide" id="requestModal" aria-labelledby="requestTitle">
     <h2 id="requestTitle">Route a support request</h2>
     <p class="sec">Creates an incident from a customer request and sends it through the same AI and technician routing used for browser voice calls.</p>
@@ -476,7 +508,18 @@
       <div class="row"><button type="button" class="pop pop--quiet" data-close>Cancel</button><button type="submit" class="pop">Create and route</button></div>
     </form>
   </dialog>
-  <div class="modal-backdrop" id="livekitModal" hidden><section class="key-modal livekit-modal" role="dialog" aria-modal="true" aria-labelledby="livekitTitle"><button class="modal-close" data-close-call-modal="livekitModal" aria-label="Close">×</button><p class="eyebrow">BROWSER CALLING</p><h2 id="livekitTitle">Connect LiveKit</h2><p class="helper">Use the local LiveKit server or your LiveKit Cloud project. Credentials are protected in your Windows profile and retained after restarts.</p><form id="livekitForm"><label>LiveKit server address<input name="url" required placeholder="ws://127.0.0.1:7880" autocomplete="off" spellcheck="false"></label><label>API key<input name="api_key" required autocomplete="off" spellcheck="false"></label><label>API secret<input name="api_secret" type="password" autocomplete="off" spellcheck="false" placeholder="Enter your API secret"></label><p class="helper">Cloud credentials are available in <a href="https://cloud.livekit.io/" target="_blank" rel="noopener noreferrer">LiveKit Cloud</a>. For local calls, run start-livekit-local.ps1 in the project.</p><button type="submit" class="pop full">Verify and save connection</button><p id="livekitMessage" class="form-message" role="status"></p></form></section></div>
+  <dialog class="dlg dlg--wide" id="livekitModal" aria-labelledby="livekitTitle">
+    <h2 id="livekitTitle">Connect LiveKit</h2>
+    <p class="sec">Use a local LiveKit server or a LiveKit Cloud project. ResolveAI checks the connection before saving. The secret is encrypted on this server and never shown again.</p>
+    <form id="livekitForm" novalidate>
+      <div class="field"><label for="lkUrl">Server address</label><input class="input" id="lkUrl" name="url" required placeholder="wss://your-project.livekit.cloud" autocomplete="off" spellcheck="false"></div>
+      <div class="field"><label for="lkKey">API key</label><input class="input" id="lkKey" name="api_key" required autocomplete="off" spellcheck="false"></div>
+      <div class="field"><label for="lkSecret">API secret</label><div class="input-wrap"><input class="input" id="lkSecret" name="api_secret" type="password" autocomplete="off" spellcheck="false" aria-describedby="lkSecretHelp"><button type="button" class="pop pop--quiet pop--sm" data-reveal="lkSecret" aria-pressed="false">Show</button></div><p class="help" id="lkSecretHelp">Required the first time. Leave blank to keep the saved secret.</p></div>
+      <p class="help">Find credentials in LiveKit Cloud (cloud.livekit.io). For local calls, run start-livekit-local.ps1 in the project.</p>
+      <p class="form-status" id="livekitMessage" role="status"></p>
+      <div class="row"><button type="button" class="pop pop--quiet" data-close data-close-call-modal="livekitModal">Close</button><button type="submit" class="pop">Check and save</button></div>
+    </form>
+  </dialog>
   <dialog class="dlg" id="callActionDialog" aria-labelledby="callActionTitle" aria-describedby="callActionDescription"><h2 id="callActionTitle">Confirm call action</h2><p class="sec" id="callActionDescription"></p><div class="row"><button type="button" class="pop pop--quiet" data-close>Cancel</button><button type="button" class="pop pop--danger" id="confirmCallAction">Confirm</button></div></dialog>
   <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="pop resume-audio" type="button" hidden>Turn on call audio</button>
   <script src="/static/resolveai-components.js?v=1"></script>
