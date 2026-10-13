@@ -523,7 +523,7 @@ function renderTickets() {
   empty.hidden = cases.length > 0;
   empty.innerHTML = state.cases.length
     ? '<h2 class="h3">No tickets match these filters</h2><p class="sec">Try a different search, or clear the filters.</p><div><button type="button" class="pop pop--quiet" data-clear-all-filters>Clear filters</button></div>'
-    : '<h2 class="h3">No tickets yet</h2><p class="sec">Incidents reported by customers, calls and conversation intake appear here.</p><div><a class="pop" href="?view=case" data-view="case">New case</a></div>';
+    : '<h2 class="h3">No tickets yet</h2><p class="sec">Incidents reported by customers, calls and conversation intake appear here. Use New case above to analyze a conversation.</p>';
   $('#ticketRows').innerHTML = cases.map(item => `<tr><td>${incidentLink(item)}</td><td>${esc(item.ticket.short_description)}${exampleTag(item)}</td><td class="col-opt">${esc(item.ticket.service)}</td><td>${priorityBadge(item.ticket.priority)}</td><td class="col-opt">${esc(item.ticket.assigned_to || 'Unassigned')}</td><td>${stateBadge(item.ticket.state)}</td></tr>`).join('');
 }
 $('#ticketSearch').addEventListener('input', renderTickets);

@@ -24,17 +24,17 @@ def test_ticket_list_opens_dedicated_editor_without_qa_controls():
     assert 'id="ticketDetailPage"' in page.text
     assert "<th>QA</th>" not in page.text
     assert 'id="topStartCase"' not in page.text
-    assert 'data-open-case>New case</button>' in page.text
+    assert 'data-view="case">New case</a>' in page.text
     assert 'id="knowledgeSearch"' in page.text
     assert 'id="openKnowledgePanel"' in page.text
-    assert 'id="knowledgeModal" hidden' in page.text
-    assert 'data-view="analytics"' in page.text
+    assert '<dialog class="dlg dlg--wide" id="knowledgeModal"' in page.text
+    assert "['analytics', 'Analytics']" in client.get('/static/shell.js').text
     assert 'id="view-analytics"' in page.text
     assert 'id="serviceAnalyticsRows"' in page.text
     script = client.get("/static/app.js")
-    assert 'openTicketDetails(caseRow.dataset.caseId)' in script.text
-    assert 'data-followup-tab="activity"' in script.text
-    assert 'data-followup-pane="resolution" hidden' in script.text
+    assert 'openTicketDetails(ticketLink.dataset.ticketLink)' in script.text
+    assert 'id="fu-activity-tab"' in script.text
+    assert 'id="fu-resolution" role="tabpanel" aria-labelledby="fu-resolution-tab" hidden' in script.text
     assert 'data-qa-case-id' in script.text
     assert "AI QA is running in the background" in script.text
     assert 'renderKnowledge(event.target.value)' in script.text
