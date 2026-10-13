@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile, Request
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, SecretStr
@@ -16,10 +16,12 @@ from realapp.models import AnalysisRequest, CaseRecord, KnowledgeArticle, Knowle
 from realapp.store import create_store
 from realapp.livekit_setup import restore_livekit_settings
 from realapp.incident_context import knowledge_context
-from realapp.models import KnowledgeFromIncidentsRequest, CustomerIncidentCreate, Ticket, TranscriptTurn, Understanding, RoutingDecision
+from realapp.models import KnowledgeFromIncidentsRequest, CustomerIncidentCreate, Ticket, TranscriptTurn, Understanding, RoutingDecision, Attachment, VisualAnalysisPayload
 from realapp.access import actor, can_read, can_report, require_case, visible_case
 from realapp.resolved_knowledge import ResolvedKnowledgePublisher
 from realapp.bulk_qa import BulkAudit
+from realapp.attachments import (save_attachment, get_attachment_data, find_case_for_attachment,
+                                 validate_attachment, MAX_FILES_PER_REQUEST, MAX_TOTAL_SIZE)
 
 
 settings = get_settings()
@@ -41,6 +43,16 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 class OpenAIKeyRequest(BaseModel):
     api_key: SecretStr = Field(min_length=20)
+
+
+def enforce_upload_request_limit(http: Request) -> None:
+    length = http.headers.get("content-length")
+    if length:
+        try:
+            if int(length) > MAX_TOTAL_SIZE + 1024 * 1024:
+                raise HTTPException(413, "The complete upload request must be 21 MB or smaller.")
+        except ValueError as exc:
+            raise HTTPException(400, "Invalid Content-Length header.") from exc
 
 
 @app.get("/", include_in_schema=False)
@@ -149,18 +161,184 @@ def analyze(request: AnalysisRequest, http: Request):
 
 
 @app.post('/api/customer/incidents', response_model=CaseRecord, status_code=201)
-def customer_incident(value: CustomerIncidentCreate, http: Request):
+async def customer_incident(http: Request):
     user = actor(http)
-    case = CaseRecord(id=f'CASE-{uuid4().hex[:8].upper()}', customer_id=user['id'], created_by=user['id'],
-        caller=user['name'], channel='Self service', transcript=[TranscriptTurn(speaker='Customer', text=value.description)],
-        issue_title=value.short_description, handler_label='Human handling',
-        understanding=Understanding(summary=value.description, intent='Customer-reported incident', product=value.service, urgency='Medium', sentiment='Unknown'),
-        routing=RoutingDecision(handler='Human',confidence=1,risk='Medium',rationale='Customer-reported incident awaiting technician assignment.'),
-        knowledge_matches=[], next_question='', recommended_action='Review and assign this incident.',
-        ticket=Ticket(id=f'INC-{uuid4().hex[:8].upper()}',short_description=value.short_description,description=value.description,
-            service=value.service,category='Incident',subcategory='Unclassified',priority='P3',assignment_group='Service Desk'),qa_checks=[])
-    case.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8]}',author='Ticket created',author_type='System',
-        text=f'Short description : {value.short_description}\nDescription : {value.description}\nState : New'))
+    content_type = http.headers.get('content-type', '').lower()
+    attachments_with_content: list[tuple[Attachment, bytes]] = []
+
+    if 'multipart/form-data' in content_type:
+        enforce_upload_request_limit(http)
+        form = await http.form(max_files=MAX_FILES_PER_REQUEST, max_fields=10, max_part_size=1024 * 1024)
+        short_desc = str(form.get('short_description', '')).strip()
+        description = str(form.get('description', '')).strip()
+        service_name = str(form.get('service', 'General')).strip() or 'General'
+        try:
+            val = CustomerIncidentCreate(short_description=short_desc, description=description, service=service_name)
+        except Exception as err:
+            raise HTTPException(422, str(err)) from err
+
+        uploads = form.getlist('attachments') or form.getlist('files')
+        staged = []
+        total_size = 0
+        for upload in uploads:
+            if not getattr(upload, 'filename', None):
+                continue
+            raw_bytes = await upload.read(MAX_TOTAL_SIZE + 1)
+            total_size += len(raw_bytes)
+            if total_size > MAX_TOTAL_SIZE:
+                raise HTTPException(413, "Attachments exceed the 20 MB total upload limit.")
+            validate_attachment(upload.filename, raw_bytes, upload.content_type)
+            staged.append((upload, raw_bytes))
+        for upload, raw_bytes in staged:
+            att = save_attachment(upload.filename, raw_bytes, upload.content_type, settings)
+            attachments_with_content.append((att, raw_bytes))
+    else:
+        try:
+            body = await http.json()
+            val = CustomerIncidentCreate.model_validate(body)
+        except Exception as err:
+            raise HTTPException(422, str(err)) from err
+
+    case = CaseRecord(
+        id=f'CASE-{uuid4().hex[:8].upper()}',
+        customer_id=user['id'],
+        created_by=user['id'],
+        caller=user['name'],
+        channel='Self service',
+        transcript=[TranscriptTurn(speaker='Customer', text=val.description)],
+        issue_title=val.short_description,
+        handler_label='Human handling',
+        understanding=Understanding(
+            summary=val.description,
+            intent='Customer-reported incident',
+            product=val.service,
+            urgency='Medium',
+            sentiment='Unknown',
+        ),
+        routing=RoutingDecision(
+            handler='Human',
+            confidence=1,
+            risk='Medium',
+            rationale='Customer-reported incident awaiting technician assignment.',
+        ),
+        knowledge_matches=[],
+        next_question='',
+        recommended_action='Review and assign this incident.',
+        ticket=Ticket(
+            id=f'INC-{uuid4().hex[:8].upper()}',
+            short_description=val.short_description,
+            description=val.description,
+            service=val.service,
+            category='Incident',
+            subcategory='Unclassified',
+            priority='P3',
+            assignment_group='Service Desk',
+            attachments=[att for att, _ in attachments_with_content],
+        ),
+        qa_checks=[],
+    )
+
+    initial_notes = f'Short description : {val.short_description}\nDescription : {val.description}\nState : New'
+    if attachments_with_content:
+        initial_notes += f'\nAttachments : {len(attachments_with_content)} file(s) uploaded'
+
+    case.ticket.work_notes.append(WorkNote(
+        id=f'NOTE-{uuid4().hex[:8]}',
+        author='Ticket created',
+        author_type='System',
+        text=initial_notes,
+    ))
+
+    if attachments_with_content:
+        file_summary = ', '.join(att.filename for att, _ in attachments_with_content)
+        try:
+            visual = engine.analyze_visual(val.description, attachments_with_content)
+            analysis_note = (
+                f"Media analysis ({visual.analysis_source}) for {len(attachments_with_content)} file(s) [{file_summary}]:\n"
+                f"• Observations: {visual.visual_observations}\n• Assessment: {visual.technical_diagnosis}\n"
+                f"• Suggested classification: {visual.suggested_category} / {visual.suggested_subcategory} "
+                f"(Priority: {visual.suggested_priority}; Service: {visual.suggested_service})\n"
+                f"• Recommended action: {visual.recommended_action}"
+            )
+        except RuntimeError as exc:
+            analysis_note = f"Media analysis unavailable for {len(attachments_with_content)} file(s) [{file_summary}]: {exc}"
+        case.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8].upper()}', author='Media analysis', author_type='System', text=analysis_note))
+
+    return visible_case(store.save_case(case), user)
+
+
+@app.get('/api/attachments/{attachment_id}')
+def get_attachment(attachment_id: str, http: Request):
+    user = actor(http)
+    case = find_case_for_attachment(attachment_id, store)
+    if not case or not can_read(case, user):
+        raise HTTPException(404, 'Attachment not found.')
+    att = next(att for att in case.ticket.attachments if att.id == attachment_id)
+    data = get_attachment_data(attachment_id, att, settings)
+    if not data:
+        raise HTTPException(404, 'Attachment not found.')
+    att, content = data
+    return Response(
+        content=content,
+        media_type=att.content_type,
+        headers={
+            'Content-Disposition': f'inline; filename="{att.filename}"',
+            'Content-Type': att.content_type,
+            'Cache-Control': 'private, max-age=3600',
+            'X-Content-Type-Options': 'nosniff',
+        },
+    )
+
+
+@app.post('/api/cases/{case_id}/attachments', response_model=CaseRecord)
+async def add_case_attachment(case_id: str, http: Request):
+    user = actor(http)
+    case = require_case(store.get_case(case_id), user)
+    enforce_upload_request_limit(http)
+    form = await http.form(max_files=MAX_FILES_PER_REQUEST, max_fields=10, max_part_size=1024 * 1024)
+    uploads = form.getlist('attachments') or form.getlist('files')
+    if not uploads:
+        raise HTTPException(400, 'No files provided.')
+
+    new_attachments: list[tuple[Attachment, bytes]] = []
+    staged = []
+    total_size = 0
+    for upload in uploads:
+        if hasattr(upload, 'filename') and upload.filename:
+            content = await upload.read(MAX_TOTAL_SIZE + 1)
+            total_size += len(content)
+            if total_size > MAX_TOTAL_SIZE:
+                raise HTTPException(413, 'Attachments exceed the 20 MB total upload limit.')
+            validate_attachment(upload.filename, content, upload.content_type)
+            staged.append((upload, content))
+
+    for upload, content in staged:
+        att = save_attachment(upload.filename, content, upload.content_type, settings)
+        new_attachments.append((att, content))
+
+    if not new_attachments:
+        raise HTTPException(400, 'No valid files provided.')
+
+    for att, _ in new_attachments:
+        case.ticket.attachments.append(att)
+
+    file_summary = ', '.join(att.filename for att, _ in new_attachments)
+    try:
+        visual = engine.analyze_visual(case.ticket.description, new_attachments)
+        analysis = (f"Media analysis ({visual.analysis_source}): {visual.visual_observations}\n"
+                    f"Assessment: {visual.technical_diagnosis}\nRecommended action: {visual.recommended_action}")
+    except RuntimeError as exc:
+        analysis = f"Media analysis unavailable: {exc}"
+    author_type = 'Customer' if user.get('role') == 'customer' else 'Technician'
+    case.ticket.work_notes.append(WorkNote(
+        id=f'NOTE-{uuid4().hex[:8].upper()}',
+        author=user.get('name') or 'User',
+        author_type=author_type,
+        text=(
+            f"Added {len(new_attachments)} media attachment(s) [{file_summary}].\n{analysis}"
+        ),
+    ))
+
     return visible_case(store.save_case(case), user)
 
 

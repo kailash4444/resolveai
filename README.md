@@ -87,7 +87,7 @@ On Windows PowerShell:
 .\scripts\deploy-gcp.ps1 -ProjectId "your-project-id"
 ```
 
-Both scripts enable the required APIs and deploy with Google models, Firestore storage for incidents and accounts, and one continuously running instance for the current audio worker. Before deployment, create the Firestore Native database and grant the runtime service account `roles/aiplatform.user` and `roles/datastore.user`. Attach LiveKit credentials and a first-admin setup token through Secret Manager. See [GOOGLE_SETUP.md](GOOGLE_SETUP.md) and [CALLING_SETUP.md](CALLING_SETUP.md). Deployment files are prepared; configuring them does not itself deploy the application.
+Both scripts enable the required APIs and deploy with Google models, Firestore storage for incidents and accounts, and one continuously running instance for the current audio worker. To enable incident photo and video uploads, create a private Cloud Storage bucket and grant the Cloud Run service account `roles/storage.objectUser` on it, then pass its name as `ATTACHMENT_BUCKET` (or `-AttachmentBucket` in PowerShell). Before deployment, create the Firestore Native database and grant the runtime service account `roles/aiplatform.user` and `roles/datastore.user`. Attach LiveKit credentials and a first-admin setup token through Secret Manager. See [GOOGLE_SETUP.md](GOOGLE_SETUP.md) and [CALLING_SETUP.md](CALLING_SETUP.md). Deployment files are prepared; configuring them does not itself deploy the application.
 
 ## Configuration
 
@@ -104,6 +104,7 @@ Both scripts enable the required APIs and deploy with Google models, Firestore s
 | `GOOGLE_CLOUD_LOCATION` | `global` | Model endpoint, independent of Cloud Run region. |
 | `DEPLOY_REGION` | `asia-south1` | Cloud Run deployment region. |
 | `DATA_BACKEND`, `CALLING_BACKEND` | `sqlite` locally; `firestore` in deployment | Persistent records and accounts. |
+| `ATTACHMENT_BUCKET` | empty | Required for photo/video uploads when using Firestore. Set it to a private Cloud Storage bucket and grant the Cloud Run service account object read/write access. |
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | empty | LiveKit calling connection. |
 | `PUBLIC_BASE_URL` | empty | Public ResolveAI HTTPS origin. |
 

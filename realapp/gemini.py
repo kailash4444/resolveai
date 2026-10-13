@@ -15,6 +15,7 @@ from realapp.incident_context import audit_ticket_json, KNOWLEDGE_PROMPT, AUDIT_
 from realapp.models import (
     AnalysisPayload,
     AnalysisRequest,
+    Attachment,
     CaseRecord,
     KnowledgeArticle,
     KnowledgeContent,
@@ -24,6 +25,7 @@ from realapp.models import (
     QACheck,
     Ticket,
     TranscriptTurn,
+    VisualAnalysisPayload,
 )
 
 
@@ -263,4 +265,60 @@ class GeminiEngine:
             next_question="Can you confirm your identity using the approved verification method?" if routine else "What exact error and business impact are you seeing?",
             recommended_action="Follow the retrieved knowledge steps and verify the outcome.",
             ticket=TicketDraft(short_description=title, description=transcript[:500], category="Access" if routine else "Incident", subcategory="Account" if routine else "Investigation", service="Identity" if routine else "Enterprise IT", priority="P3", assignment_group="Service Desk", state="New"),
+        )
+
+    def analyze_visual(self, description: str, attachments: list[tuple[Attachment, bytes]]) -> VisualAnalysisPayload:
+        if not attachments:
+            return VisualAnalysisPayload(
+                visual_observations="No visual media attached.",
+                technical_diagnosis="Incident reported via text description only.",
+                recommended_action="Review incident details with customer.",
+            )
+
+        if self.settings.gemini_provider == "mock" or not self.settings.gemini_configured:
+            return self._mock_visual_analysis(description, attachments)
+
+        from google.genai import types
+
+        prompt = (
+            "You are the multimodal vision diagnostic engine for ResolveAI enterprise IT service desk.\n"
+            "A customer reported an incident and attached photos and/or video recordings of the issue.\n"
+            "Carefully examine all attached images and videos in detail along with the customer's text description.\n\n"
+            f"CUSTOMER DESCRIPTION:\n{description}\n\n"
+            "Instructions:\n"
+            "1. visual_observations: Describe the exact error messages, dialog boxes, UI glitch, system state, or physical indicators visible in the media.\n"
+            "2. technical_diagnosis: Provide a concise technical assessment of the underlying failure or root cause.\n"
+            "3. suggested_category: Enterprise IT category (e.g. Software, Hardware, Network, Access, Workstation).\n"
+            "4. suggested_subcategory: Specific subcategory (e.g. Application Crash, Display, Connectivity, Error Message).\n"
+            "5. suggested_service: The IT service or application affected (e.g. Google Workspace, VPN, Windows, Outlook, Hardware).\n"
+            "6. suggested_priority: Priority ('P1', 'P2', 'P3', or 'P4') based on impact shown.\n"
+            "7. recommended_action: The immediate, concrete next troubleshooting action the technician should take."
+        )
+
+        try:
+            media_parts = [types.Part.from_bytes(data=content, mime_type=att.content_type) for att, content in attachments]
+            response = self._client_or_raise().models.generate_content(
+                model=self.settings.gemini_model,
+                contents=[prompt, *media_parts],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=VisualAnalysisPayload,
+                    temperature=0.2,
+                ),
+            )
+            if getattr(response, "parsed", None):
+                result = VisualAnalysisPayload.model_validate(response.parsed)
+            else:
+                result = VisualAnalysisPayload.model_validate_json(response.text)
+            result.analysis_source = "Gemini"
+            return result
+        except Exception as exc:
+            raise RuntimeError("Gemini could not analyze the attached media. Check the model, file size, and Vertex AI or Gemini permissions.") from exc
+
+    def _mock_visual_analysis(self, description: str, attachments: list[tuple[Attachment, bytes]]) -> VisualAnalysisPayload:
+        return VisualAnalysisPayload(
+            analysis_source="Demo mode (media not analyzed)",
+            visual_observations="This demo configuration does not inspect attachment content.",
+            technical_diagnosis=f"No visual diagnosis was generated. Customer description: {description[:500]}",
+            recommended_action="Review the attachment and incident description manually.",
         )

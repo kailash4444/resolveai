@@ -77,7 +77,8 @@ def install_calling(app, settings, store, engine, update_ticket):
                         or (path == '/api/transcripts' or path.startswith('/api/transcripts/')) and request.method == 'GET'
                         or path.startswith('/api/support/')
                         or path == '/api/knowledge' and request.method == 'GET'
-                        or path.startswith('/api/cases/') and (request.method == 'GET' or path.endswith('/work-notes') and request.method == 'POST'))
+                        or path.startswith('/api/attachments/') and request.method == 'GET'
+                        or path.startswith('/api/cases/') and (request.method == 'GET' or (path.endswith('/work-notes') or path.endswith('/attachments')) and request.method == 'POST'))
                     if not allowed:
                         return JSONResponse({'detail':'This feature is available to support staff only.'},status_code=403)
         response = await next_handler(request)

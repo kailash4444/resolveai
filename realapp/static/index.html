@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/styles.css?v=attachments-2">
   <link rel="stylesheet" href="/static/overrides.css?v=16">
 <link rel="stylesheet" href="/static/microphone.css?v=1"></head>
 <body>
@@ -42,7 +42,7 @@
       <article class="panel"><p class="eyebrow">MY SUPPORT</p><h2>How can we help?</h2><p>Speak with support, report a problem, or find a solution in Knowledge.</p><div class="call-actions"><a class="primary" href="/support" target="_blank" rel="noopener">Call support</a><button class="secondary" data-view="customer-create">Create an incident</button><button class="text-button" data-view="knowledge">Browse knowledge</button></div></article>
       <article class="panel"><h3>Your recent calls</h3><div id="customerCalls" class="empty-list">No calls yet.</div></article>
     </section>
-    <section class="view" id="view-customer-create"><article class="panel intake-panel"><p class="eyebrow">REPORT A PROBLEM</p><h2>Create an incident</h2><form id="customerIncidentForm"><label>Short description<input name="short_description" required minlength="3" maxlength="200"></label><label>Description<textarea name="description" rows="7" required minlength="10" maxlength="8000" placeholder="What happened, and how is it affecting you?"></textarea></label><label>Service<input name="service" value="General" required minlength="2" maxlength="100"></label><button class="primary" type="submit">Create incident</button><p class="form-message" id="customerIncidentMessage"></p></form></article></section>
+    <section class="view" id="view-customer-create"><article class="panel intake-panel"><p class="eyebrow">REPORT A PROBLEM</p><h2>Create an incident</h2><form id="customerIncidentForm"><label>Short description<input name="short_description" required minlength="3" maxlength="200"></label><label>Description<textarea name="description" rows="7" required minlength="10" maxlength="8000" placeholder="What happened, and how is it affecting you?"></textarea></label><label>Service<input name="service" value="General" required minlength="2" maxlength="100"></label><label>Photos or videos (up to 10 files, 20 MB total)<input name="attachments" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/heic,video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-msvideo" multiple><small class="helper">Attach screenshots or short clips to help support understand the issue.</small></label><div id="attachmentSelection" class="helper" aria-live="polite"></div><button class="primary" type="submit">Create incident</button><p class="form-message" id="customerIncidentMessage" role="status" aria-live="polite"></p></form></article></section>
     <section class="view active" id="view-overview">
       <header class="overview-heading"><p class="eyebrow">AI-FIRST ENTERPRISE SUPPORT</p><h1>Operations overview</h1></header>
       <div class="hero">
@@ -68,6 +68,7 @@
           <p class="helper">Paste a transcript, upload an audio recording, or record directly in the browser. Audio is transcribed by the configured AI service before analysis.</p>
           <div class="form-row"><label>Caller<input id="callerInput" value="Customer"></label><label>Channel<select id="channelInput"><option>Voice</option><option>Chat</option><option>Email</option><option>Walk-up</option></select></label></div>
           <div class="audio-row"><label>Audio recording<input type="file" id="audioFile" accept="audio/*,.mp3,.mp4,.mpeg,.mpga,.m4a,.wav,.webm"></label><button class="secondary" id="transcribeFileButton">Transcribe file</button></div>
+          <label>Issue photos or video (up to 10 files, 20 MB total)<input type="file" id="caseMediaFiles" accept="image/png,image/jpeg,image/webp,image/gif,image/heic,video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-msvideo" multiple><small class="helper">These files will be attached to the incident after it is drafted.</small></label><div id="caseMediaSelection" class="helper" aria-live="polite"></div>
           <label>Conversation<textarea id="transcriptInput" rows="13" placeholder="Customer: I cannot access my account this morning.\nAgent: What message do you see?\nCustomer: It says my account is locked after too many attempts."></textarea></label>
           <div class="action-row"><button class="secondary" id="captureButton">● Record call</button><button class="primary" id="analyzeButton">Analyze with Gemini <span>→</span></button></div>
           <p class="form-message" id="analysisMessage"></p>
@@ -163,7 +164,7 @@
   <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="primary resume-audio" hidden>Enable call audio</button>
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=3"></script>
-  <script src="/static/app.js?v=14"></script>
+  <script src="/static/app.js?v=15"></script>
   <script src="/static/calling.js?v=11"></script>
   <script src="/static/transcripts.js?v=5"></script>
 </body>
