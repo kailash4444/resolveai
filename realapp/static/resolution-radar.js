@@ -3,7 +3,7 @@ const radarDate = value => value ? new Date(value).toLocaleString() : '—';
 const radarPercent = value => value == null ? 'Insufficient data' : `${Math.round(value * 100)}%`;
 const radarArray = value => (value || []).map(esc).join('<br>') || '<span class="helper">No evidence recorded.</span>';
 
-async function loadResolutionRadar() {
+async function loadResolutionRadarData() {
   const params = new URLSearchParams(Object.entries(radarState).filter(([key, value]) => key !== 'clusterId' && value));
   const data = await api(`/api/resolution-radar?${params}`);
   $('#radarOpen').textContent = data.summary.open_systemic_issues;
@@ -73,7 +73,7 @@ async function openResolutionCluster(clusterId) {
   catch (error) { $('#radarDetail').innerHTML = `<article class="panel form-message error">${esc(error.message)}</article>`; }
 }
 
-window.loadResolutionRadar = () => loadResolutionRadar().catch(error => toast(error.message));
+window.loadResolutionRadar = () => loadResolutionRadarData().catch(error => toast(error.message));
 window.loadCaseResolutionRadar = async caseId => {
   const panel = $('#ticketDurability');
   if (!panel || state.user?.role === 'customer') return;
@@ -88,14 +88,14 @@ window.loadCaseResolutionRadar = async caseId => {
 for (const id of ['radarWindow', 'radarService', 'radarPriority', 'radarStatus', 'radarSort']) {
   $(`#${id}`).addEventListener('change', async event => {
     radarState[{radarWindow:'window',radarService:'service',radarPriority:'priority',radarStatus:'status',radarSort:'sort'}[id]] = event.target.value;
-    await loadResolutionRadar().catch(error => toast(error.message));
+    await loadResolutionRadarData().catch(error => toast(error.message));
   });
 }
 let radarSearchTimer;
 $('#radarSearch').addEventListener('input', event => {
   radarState.search = event.target.value;
   clearTimeout(radarSearchTimer);
-  radarSearchTimer = setTimeout(() => loadResolutionRadar().catch(error => toast(error.message)), 250);
+  radarSearchTimer = setTimeout(() => loadResolutionRadarData().catch(error => toast(error.message)), 250);
 });
 $('#radarAnalyzeMissing').addEventListener('click', async event => {
   const button = event.currentTarget; button.disabled = true;
@@ -113,7 +113,7 @@ document.addEventListener('click', async event => {
   if (open) { await openResolutionCluster(open.dataset.radarOpen); return; }
   if (event.target.closest('[data-radar-back]')) {
     $('#radarDetail').hidden = true; $('#radarDashboard').hidden = false; radarState.clusterId = null;
-    await loadResolutionRadar().catch(error => toast(error.message)); return;
+    await loadResolutionRadarData().catch(error => toast(error.message)); return;
   }
   const detail = event.target.closest('[data-open-radar-cluster]');
   if (detail) { showView('resolution-radar'); await openResolutionCluster(detail.dataset.openRadarCluster); return; }
