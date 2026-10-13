@@ -265,6 +265,39 @@ body[data-shell="public"] .shell__main{max-width:none;padding:0}
 details > summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}
 .plain-steps{padding-left:20px;display:flex;flex-direction:column;gap:12px;font-size:15px}
 
+/* ---- Staff screens: stats, detail layout, calls, charts ---- */
+.dlg--wide{max-width:640px}
+.dlg form{margin-top:12px}
+.stats{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))}
+.metric{display:flex;flex-direction:column;gap:6px;padding:18px 20px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface)}
+.metric__label{font:700 14px var(--font);color:var(--text-2)}
+.metric__value{font:800 32px/1.1 var(--font);color:var(--text)}
+.panel-block{padding:16px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface-2)}
+.sources{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.source{display:flex;flex-direction:column;gap:4px}
+.source-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px;padding:16px;border:1px solid var(--border);border-radius:var(--r)}
+.detail-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start}
+.detail-aside{position:sticky;top:96px}
+.calls-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:24px;align-items:start}
+.list__row.is-selected{border-color:var(--text);box-shadow:inset 3px 0 0 var(--edge)}
+.inds li .field{margin:4px 0 0}
+.inds li > .badge{align-self:flex-start}
+.view > .alert{margin-bottom:20px}
+/* Toggle Pops (filters): selected = white border, edge shadow and a check mark, never colour alone. */
+.pop--quiet[aria-pressed="true"]{border-color:var(--text);box-shadow:4px 4px 0 var(--edge)}
+[data-call-filter][aria-pressed="true"]::before,[data-filter-chip][aria-pressed="true"]::before{content:"✓"}
+.filters .field{margin-bottom:8px}
+.chart{margin:0;display:flex;flex-direction:column;gap:12px}
+.bars{display:flex;flex-direction:column;gap:10px}
+.bars__row{display:grid;grid-template-columns:minmax(80px,1fr) minmax(80px,2fr) auto;gap:12px;align-items:center;font-size:14px}
+.bars__label{overflow-wrap:anywhere}
+.bars__track{height:10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);overflow:hidden}
+.bars__fill{display:block;height:100%;background:var(--edge)}
+.bars__value{color:var(--text-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.chart__table summary{font-size:14px}
+.tbl td,.tbl th{vertical-align:middle}
+.tbl td a{font-weight:700}
+
 /* ---- Customer home, report, voice ---- */
 .customer-hero{padding:24px 0 32px}
 .customer-hero .lede{margin:12px 0 28px}
@@ -299,6 +332,8 @@ details > summary{cursor:pointer;min-height:44px;display:flex;align-items:center
 @media (max-width:1280px){.shell__main,.shell__notices{padding-left:28px;padding-right:28px}}
 @media (max-width:1024px){
   :root{--side-w:224px}
+  .detail-grid,.calls-grid{grid-template-columns:1fr}
+  .detail-aside{position:static}
   .create-grid{grid-template-columns:1fr}
   .create-grid > #customerCreateResult{grid-column:auto}
   .create-aside{position:static}
@@ -308,6 +343,9 @@ details > summary{cursor:pointer;min-height:44px;display:flex;align-items:center
   .topbar__account{display:none}
 }
 @media (max-width:768px){
+  .col-opt{display:none}
+  .bars__row{grid-template-columns:1fr auto}
+  .bars__track{grid-column:1/-1;grid-row:2}
   .support .support__bar{padding:16px}
   .support__main{padding:8px 16px 48px}
   .support:not(.support--embedded) .support__card{padding:24px 20px}

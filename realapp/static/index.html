@@ -181,63 +181,122 @@
         </aside>
       </div>
     </section>
-    <section class="view" id="view-overview">
-      <header class="overview-heading"><p class="eyebrow">AI-FIRST ENTERPRISE SUPPORT</p><h1>Operations overview</h1></header>
-      <div id="overviewLoading" class="skeleton ticket-loading" role="status" aria-live="polite">Loading the work queue…</div>
-      <div id="overviewError" class="alert" role="alert" hidden><span id="overviewErrorMessage"></span><button class="pop pop--quiet pop--sm" id="retryOverview" type="button">Retry</button></div>
-      <div id="overviewContent" hidden>
-        <div class="hero">
-          <div><span class="pill">HUMAN-LED SUPPORT</span><h2>Review the queue. Resolve the issue.</h2><p>Prioritize open incidents, check evidence, and use AI suggestions when they help. Technicians verify and resolve each case.</p></div>
-          <button class="pop" data-open-case>Analyze a conversation <span>→</span></button>
-        </div>
-        <article class="panel card overview-queue"><div class="panel-head"><div><p class="eyebrow">PRIORITIZED WORK</p><h3>Work queue</h3><p class="helper">Open incidents are sorted by urgency. Review the ticket before taking action.</p></div><button class="pop pop--quiet pop--sm" data-view-target="tickets">View all tickets</button></div><div id="recentCases" class="empty-list" role="status">No open incidents right now.</div></article>
-        <div class="metrics">
-          <article><span>Total cases</span><strong id="metricTotal">0</strong><small>All cases in the current data set</small></article>
-          <article><span>Open work</span><strong id="metricOpen">0</strong><small>Incidents needing follow-up</small></article>
-          <article><span>AI-assisted</span><strong id="metricAI">0</strong><small>Cases analyzed with AI</small></article>
-          <article><span>Average QA</span><strong id="metricQA">0%</strong><small>Score across audited tickets</small></article>
-        </div>
-        <article class="panel card"><div class="panel-head"><div><p class="eyebrow">SIGNALS</p><h3>Issue themes</h3></div></div><div id="themeList" class="empty-list">Themes appear as conversations are analyzed.</div></article>
+    <section class="view" id="view-overview" aria-labelledby="overviewTitle">
+      <div class="page-head"><div><p class="kicker" id="overviewKicker">Technician workspace</p><h1 id="overviewTitle">Overview</h1><p class="sec" id="overviewScope">Open work first, most urgent at the top.</p></div><a class="pop pop--quiet" href="?view=case" data-view="case">Analyze a conversation</a></div>
+      <div id="overviewLoading" class="stack" role="status" aria-label="Loading overview"><div class="skeleton" style="height:180px"></div><div class="skeleton" style="height:96px"></div></div>
+      <div id="overviewError" class="alert" role="alert" hidden><strong>✕ Couldn’t load the overview.</strong><span class="sec" id="overviewErrorMessage"></span><button class="pop pop--quiet pop--sm" id="retryOverview" type="button">Retry</button></div>
+      <div id="overviewContent" class="stack stack--lg" hidden>
+        <section class="card card--lift stack" aria-labelledby="queueTitle">
+          <div class="section-head section-head--tight"><h2 id="queueTitle">Work queue</h2><span class="help" id="queueCount" aria-live="polite"></span></div>
+          <p class="help">Open incidents, P1 first, then oldest first. Open one to review the evidence before acting.</p>
+          <div id="recentCases"></div>
+          <div><a class="pop pop--quiet pop--sm" href="?view=tickets" data-view="tickets">All tickets</a></div>
+        </section>
+        <section aria-labelledby="metricsTitle" class="stack">
+          <div class="section-head section-head--tight"><h2 id="metricsTitle">Numbers at a glance</h2><span class="help" id="metricsScope"></span></div>
+          <div class="stats">
+            <article class="metric"><h3 class="metric__label">Open incidents</h3><p class="metric__value" id="metricOpen">—</p><p class="help">Count · not yet Resolved</p></article>
+            <article class="metric"><h3 class="metric__label">All incidents</h3><p class="metric__value" id="metricTotal">—</p><p class="help">Count · all time</p></article>
+            <article class="metric"><h3 class="metric__label">Routed to AI</h3><p class="metric__value" id="metricAI">—</p><p class="help">Count · AI handling chosen at intake, all time</p></article>
+            <article class="metric"><h3 class="metric__label">Average QA score</h3><p class="metric__value" id="metricQA">—</p><p class="help" id="metricQAHelp">Percent · mean of audited, resolved tickets</p></article>
+          </div>
+        </section>
+        <section class="card stack" aria-labelledby="recentTitle"><h2 class="h3" id="recentTitle">Recent incidents</h2><div id="recentIncidents"></div></section>
+        <section class="card stack" aria-labelledby="themesTitle" data-detail><h2 class="h3" id="themesTitle">Issue themes</h2><p class="help">Incident count by category, all time. Top 6.</p><div id="themeList"></div></section>
       </div>
     </section>
 
-    <section class="view" id="view-case">
-      <div class="case-layout">
-        <article class="panel card intake-panel">
-          <div class="panel-head"><div><p class="eyebrow">CONVERSATION INTAKE</p><h3>Describe the customer issue</h3></div><span class="connection" id="connectionBadge">Checking…</span></div>
-          <p class="helper">Paste a transcript, upload an audio recording, or record directly in the browser. Audio is transcribed by the configured AI service before analysis.</p>
-          <div class="form-row"><label>Caller<input id="callerInput" value="Customer"></label><label>Channel<select id="channelInput"><option>Voice</option><option>Chat</option><option>Email</option><option>Walk-up</option></select></label></div>
-          <div class="audio-row"><label>Audio recording<input type="file" id="audioFile" accept="audio/*,.mp3,.mp4,.mpeg,.mpga,.m4a,.wav,.webm"></label><button class="ghost" id="transcribeFileButton">Transcribe file</button></div>
-          <div class="media-field"><label class="media-drop-zone drop" data-drop-zone><span class="drop-icon" aria-hidden="true">↑</span><strong>Issue photos or video</strong><small>Drop images or video, or browse · up to 3 files · 20 MB total</small><input type="file" id="caseMediaFiles" accept="image/png,image/jpeg,image/webp,image/gif,image/heic,video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-msvideo,.mov,.mkv,.avi" multiple></label><div id="caseMediaSelection" class="media-selection" data-drop-status aria-live="polite"></div></div>
-          <label>Conversation<textarea id="transcriptInput" rows="13" placeholder="Customer: I cannot access my account this morning.\nAgent: What message do you see?\nCustomer: It says my account is locked after too many attempts."></textarea></label>
-          <div class="action-row"><button class="ghost" id="captureButton">● Record call</button><button class="pop" id="analyzeButton">Analyze with Gemini <span>→</span></button></div>
-          <p class="form-message" id="analysisMessage"></p>
-        </article>
-        <aside class="flow-card"><p class="eyebrow">WHAT HAPPENS</p><ol><li><b>Transcribe</b><span>Gemini converts call audio to text.</span></li><li><b>Understand</b><span>Gemini extracts intent, urgency, risk, and entities.</span></li><li><b>Retrieve & route</b><span>Embeddings rank knowledge; confidence and risk choose the handler.</span></li><li><b>Create, work & audit</b><span>The incident starts New. Technicians update it through resolution, then Gemini runs QA.</span></li></ol></aside>
+    <section class="view" id="view-case" aria-labelledby="caseTitle">
+      <div class="page-head"><div><p class="kicker">Conversation intake</p><h1 id="caseTitle">Analyze a conversation</h1><p class="sec">Paste, upload or record the conversation and add photos. AI drafts an incident; nothing is final until you review it.</p></div><span class="badge badge--low" id="connectionBadge">○ Checking AI provider</span></div>
+      <div class="alert alert--info" id="caseProviderNotice" role="status" hidden><strong>◆ The AI provider isn’t configured.</strong><span class="sec">Transcription and analysis are unavailable until an administrator connects it in Configuration.</span></div>
+      <div class="create-grid">
+        <form class="card" id="caseForm" novalidate>
+          <div class="fields">
+            <div class="field"><label for="callerInput">Caller</label><input class="input" id="callerInput" value="Customer" maxlength="100"></div>
+            <div class="field"><label for="channelInput">Channel</label><select class="input" id="channelInput"><option>Voice</option><option>Chat</option><option>Email</option><option>Walk-up</option></select></div>
+          </div>
+          <div class="field"><label for="transcriptInput">Conversation</label><textarea class="input" id="transcriptInput" rows="12" aria-describedby="transcriptHelp transcriptError" placeholder="Customer: I can’t access my account this morning.&#10;Agent: What message do you see?"></textarea><p class="help" id="transcriptHelp">Paste the conversation, or fill it from an audio file or a browser recording below. At least 20 characters.</p><p class="err" id="transcriptError" hidden></p></div>
+          <fieldset class="field">
+            <legend>Fill from audio</legend>
+            <div class="source-grid">
+              <div class="stack stack--sm"><label class="small" for="audioFile"><strong>Audio file</strong></label><input class="input" type="file" id="audioFile" accept="audio/*,.mp3,.mp4,.mpeg,.mpga,.m4a,.wav,.webm"><div><button class="pop pop--quiet pop--sm" id="transcribeFileButton" type="button">Transcribe file</button></div></div>
+              <div class="stack stack--sm"><span class="small"><strong>Record in this browser</strong></span><p class="help">Uses your microphone. Stop to transcribe.</p><div><button class="pop pop--quiet pop--sm" id="captureButton" type="button" aria-pressed="false">● Start recording</button></div></div>
+            </div>
+          </fieldset>
+          <fieldset class="field">
+            <legend>Photos <span class="muted">(optional)</span></legend>
+            <label class="drop" id="caseDrop"><strong>Drop images here or choose files</strong><span class="muted small">Up to 3 images · PNG, JPEG, WebP, GIF or HEIC · 20 MB total</span><input class="sr" type="file" id="caseMediaFiles" multiple accept="image/png,image/jpeg,image/webp,image/gif,image/heic" aria-describedby="caseMediaErrors"></label>
+            <ul class="files" id="caseMediaSelection" aria-label="Selected photos" hidden></ul>
+            <p class="err" id="caseMediaErrors" role="alert" hidden></p>
+          </fieldset>
+          <p class="form-status" id="analysisMessage" role="status" aria-live="polite"></p>
+          <div class="row form-actions"><button class="pop" id="analyzeButton" type="submit">Analyze <span aria-hidden="true">→</span></button></div>
+        </form>
+        <aside class="card stack create-aside" aria-labelledby="caseStepsTitle">
+          <h2 class="h3" id="caseStepsTitle">What happens</h2>
+          <ol class="plain-steps"><li><strong>Transcribe.</strong> <span class="sec">Audio only: the configured AI converts it to text you can edit.</span></li><li><strong>Analyze.</strong> <span class="sec">AI drafts a summary, urgency and routing, and matches knowledge articles.</span></li><li><strong>Review.</strong> <span class="sec">The incident is created as New. Accept, edit or reject the draft.</span></li><li><strong>Resolve.</strong> <span class="sec">AI QA checks the ticket against the conversation after you resolve it.</span></li></ol>
+        </aside>
       </div>
-      <div id="caseResult" hidden></div>
+      <div id="caseResult" class="section" hidden></div>
     </section>
 
-    <section class="view" id="view-tickets">
-      <div class="panel-head page-section-head"><div><p class="eyebrow">CASE MANAGEMENT</p><h2>Tickets</h2></div><button class="pop pop--sm" data-open-case>New case</button></div>
-      <div class="ticket-filters panel card"><label>Ticket number<input id="ticketSearch" type="search" placeholder="Search INC number" autocomplete="off"></label><label>Assigned name<select id="ticketAssignee"><option value="">All assigned names</option></select></label><label>State<select id="ticketStateFilter"><option value="">All states</option><option>New</option><option>In Progress</option><option>On Hold</option><option>Resolved</option></select></label><label>Priority<select id="ticketPriorityFilter"><option value="">All priorities</option><option>P1</option><option>P2</option><option>P3</option><option>P4</option></select></label><div class="queue-filters ticket-priority-pills" role="group" aria-label="Filter incidents by priority"><button type="button" class="ghost pop--sm" data-ticket-priority="" aria-pressed="true">All</button><button type="button" class="ghost pop--sm" data-ticket-priority="P1" aria-pressed="false">P1 critical</button><button type="button" class="ghost pop--sm" data-ticket-priority="P2" aria-pressed="false">P2 high</button><button type="button" class="ghost pop--sm" data-ticket-priority="P3" aria-pressed="false">P3 normal</button></div><button type="button" class="ghost" id="clearTicketFilters">Clear filters</button><span id="ticketResultCount" class="helper" aria-live="polite"></span></div>
-      <div id="ticketsLoading" class="skeleton ticket-loading" role="status" aria-live="polite" hidden>Loading tickets…</div><div id="ticketsLoadError" class="alert" role="alert" hidden><span id="ticketsLoadErrorMessage"></span><button type="button" class="pop pop--quiet pop--sm" id="retryTickets">Retry</button></div>
-      <div class="panel card table-wrap"><table><thead><tr><th>Ticket</th><th>Issue</th><th>Service</th><th>Priority</th><th>Assigned to</th><th>State</th></tr></thead><tbody id="ticketRows"></tbody></table><div id="ticketsEmpty" class="empty-list">No tickets yet. Analyze a conversation to create one.</div></div>
+    <section class="view" id="view-tickets" aria-labelledby="ticketsTitle">
+      <div class="page-head"><div><p class="kicker">Case management</p><h1 id="ticketsTitle">Tickets</h1></div><a class="pop" href="?view=case" data-view="case">New case</a></div>
+      <div class="card stack filters" role="search" aria-label="Filter tickets">
+        <div class="fields">
+          <div class="field"><label for="ticketSearch">Search</label><input class="input" id="ticketSearch" type="search" placeholder="INC number or words in the summary" autocomplete="off"></div>
+          <div class="field"><label for="ticketAssignee">Assigned to</label><select class="input" id="ticketAssignee"><option value="">Anyone</option></select></div>
+          <div class="field"><label for="ticketStateFilter">State</label><select class="input" id="ticketStateFilter"><option value="">Any state</option><option>New</option><option>In Progress</option><option>On Hold</option><option>Resolved</option></select></div>
+          <div class="field"><label for="ticketPriorityFilter">Priority</label><select class="input" id="ticketPriorityFilter"><option value="">Any priority</option><option value="P1">▲ Critical · P1</option><option value="P2">◆ High · P2</option><option value="P3">● Medium · P3</option><option value="P4">○ Low · P4</option></select></div>
+        </div>
+        <div class="row row--between"><div class="row row--sm" id="ticketChips" aria-label="Active filters"></div><div class="row row--sm"><span class="help" id="ticketResultCount" aria-live="polite"></span><button type="button" class="pop pop--quiet pop--sm" id="clearTicketFilters">Clear filters</button></div></div>
+      </div>
+      <div id="ticketsLoading" class="stack" role="status" aria-label="Loading tickets" hidden><div class="skeleton"></div><div class="skeleton" style="width:85%"></div><div class="skeleton" style="width:70%"></div></div>
+      <div id="ticketsLoadError" class="alert" role="alert" hidden><strong>✕ Couldn’t load tickets.</strong><span class="sec" id="ticketsLoadErrorMessage"></span><button type="button" class="pop pop--quiet pop--sm" id="retryTickets">Retry</button></div>
+      <div class="tbl-wrap" id="ticketsTable" role="region" aria-labelledby="ticketsTitle" tabindex="0"><table class="tbl"><caption class="sr">Tickets matching the filters</caption><thead><tr><th scope="col">Ticket</th><th scope="col">Issue</th><th scope="col" class="col-opt">Service</th><th scope="col">Priority</th><th scope="col" class="col-opt">Assigned to</th><th scope="col">State</th></tr></thead><tbody id="ticketRows"></tbody></table></div>
+      <div id="ticketsEmpty" class="empty stack" hidden></div>
     </section>
-
     <section class="view" id="view-ticket-detail" aria-labelledby="ticketDetailTitle">
       <a class="pop pop--quiet pop--sm back-link" id="ticketDetailBack" href="/console?view=tickets" data-view="tickets"><span aria-hidden="true">←</span> Back to tickets</a>
       <div id="ticketDetailPage"></div>
     </section>
 
-    <section class="view" id="view-calls">
-      <div class="panel-head page-section-head"><div><p class="eyebrow">VOICE OPERATIONS</p><h2>Calls & queue</h2><p class="helper">AI assistance and the right technician, in one conversation.</p></div><button class="ghost" id="routeRequestButton">Route a support request</button></div>
-      <ul class="inds call-indicators" aria-label="Call readiness"><li><strong>Presence</strong><span id="presenceIndicator" class="badge badge--low">○ Unknown</span><small>Technician availability for new assignments.</small></li><li><strong>Microphone</strong><span id="microphoneIndicator" class="badge badge--low">○ Not enabled</span><small>Browser audio readiness on this device.</small></li><li><strong>Call status</strong><span id="activeCallIndicator" class="badge badge--low">○ No active call</span><small>Current connected call or queue state.</small></li></ul>
-      <div class="panel card presence-panel"><div><strong id="technicianIdentity">Technician workspace</strong><p id="phoneConnection" class="helper" role="status" aria-live="polite">Sign in to receive assignments.</p><p id="callMicState" class="helper call-mic-state" role="status" aria-live="polite">Microphone readiness: not enabled</p></div><div class="call-actions"><button class="ghost" id="signInButton">Sign in</button><label id="callPreferenceControl" class="call-preference" hidden><input type="checkbox" id="receiveCallsToggle"> Enable calls</label><button class="ghost" id="enablePhoneButton" hidden>Enable microphone</button><label id="presenceControl" hidden>Availability<select id="presenceSelect"><option>Offline</option><option>Available</option><option>Away</option></select></label></div></div>
-      <div class="metrics call-metrics"><article><span>Waiting</span><strong id="callsQueued">0</strong><small>In technician queues</small></article><article><span>With AI</span><strong id="callsAI">0</strong><small>Guided support</small></article><article><span>Connected</span><strong id="callsConnected">0</strong><small>With technicians</small></article><article><span>Available</span><strong id="callsAvailable">0</strong><small>Ready for assignments</small></article></div>
-      <section class="microphone-panel" data-microphone-panel hidden></section><article class="panel card" id="sharedQueuePanel" hidden><h3>Incoming calls — available to answer</h3><div id="sharedQueue"></div></article><div class="calling-layout"><article class="panel card call-activity-panel"><div class="panel-head"><h3>Call activity</h3><span class="tag" id="callingSync">Live queue</span></div><input type="search" id="callSearch" class="call-search" aria-label="Search calls" placeholder="Search call ID, customer, technician or issue"><div class="queue-filters" role="group" aria-label="Filter calls by priority"><button type="button" class="ghost pop--sm" data-call-filter="All" aria-pressed="true">All</button><button type="button" class="ghost pop--sm" data-call-filter="P1" aria-pressed="false">P1 critical</button><button type="button" class="ghost pop--sm" data-call-filter="P2" aria-pressed="false">P2 high</button><button type="button" class="ghost pop--sm" data-call-filter="P3" aria-pressed="false">P3 normal</button></div><div id="callList" class="empty-list">Sign in to view calls and assignments.</div></article><article class="panel card" id="callWorkspace"><p class="eyebrow">CONVERSATION</p><h3>Ready when you are</h3><p class="helper">Choose a call to see the transcript, routing decision, and linked incident.</p></article><article class="panel card" id="callTicketPanel" hidden></article></div>
+    <section class="view" id="view-calls" aria-labelledby="callsTitle">
+      <div class="page-head"><div><p class="kicker">Browser voice</p><h1 id="callsTitle">Calls &amp; queue</h1><p class="sec" id="technicianIdentity">AI handles first contact; you join when a customer needs a person.</p></div><button class="pop pop--quiet" id="routeRequestButton" type="button">Route a support request</button></div>
+      <div class="alert" id="callsUnavailable" role="alert" hidden><strong>✕ Calls are unavailable.</strong><span class="sec" id="callsUnavailableMessage">We couldn’t reach the calling service.</span><button class="pop pop--quiet pop--sm" type="button" id="retryCalls">Retry</button></div>
+      <div class="alert alert--info" id="voiceNotConfigured" role="status" hidden><strong>◆ Browser calling isn’t configured.</strong><span class="sec" id="voiceNotConfiguredText">An administrator can connect LiveKit in Configuration. Desk requests still work.</span></div>
+      <ul class="inds" aria-label="Call readiness">
+        <li><span class="muted">Presence</span><span id="presenceIndicator" class="badge badge--low">○ Unknown</span>
+          <div class="field field--inline" id="presenceControl" hidden><label for="presenceSelect">Availability</label><select class="input" id="presenceSelect"><option>Offline</option><option>Available</option><option>Away</option></select></div>
+          <label class="check" id="callPreferenceControl" hidden><input type="checkbox" id="receiveCallsToggle"> Receive browser calls</label></li>
+        <li><span class="muted">Microphone</span><span id="microphoneIndicator" class="badge badge--low">○ Not enabled</span><p class="help" id="callMicState" aria-live="polite">Allow microphone access to take browser calls.</p><div><button class="pop pop--quiet pop--sm" id="enablePhoneButton" type="button" hidden>Enable microphone</button></div></li>
+        <li><span class="muted">Call</span><span id="activeCallIndicator" class="badge badge--low">○ No active call</span><p class="help" id="phoneConnection" role="status" aria-live="polite"></p><div><button class="pop pop--quiet pop--sm" id="signInButton" type="button" hidden>Sign in</button></div></li>
+      </ul>
+      <section class="mic-panel stack stack--sm section" data-microphone-panel hidden></section>
+      <section class="card card--lift stack section" id="sharedQueuePanel" aria-labelledby="sharedQueueTitle" hidden><h2 class="h3" id="sharedQueueTitle">Waiting for a technician</h2><ul class="list" id="sharedQueue"></ul></section>
+      <div class="calls-grid section">
+        <section class="card stack" aria-labelledby="callActivityTitle">
+          <div class="section-head section-head--tight"><h2 class="h3" id="callActivityTitle">Call activity</h2><span class="help" id="callingSync" aria-live="polite">Live queue</span></div>
+          <div class="field field--inline"><label for="callSearch">Search calls</label><input type="search" id="callSearch" class="input" placeholder="Call ID, customer, technician or issue"></div>
+          <div class="row row--sm" role="group" aria-label="Filter calls by priority"><button type="button" class="pop pop--quiet pop--sm" data-call-filter="All" aria-pressed="true">All</button><button type="button" class="pop pop--quiet pop--sm" data-call-filter="P1" aria-pressed="false">▲ P1</button><button type="button" class="pop pop--quiet pop--sm" data-call-filter="P2" aria-pressed="false">◆ P2</button><button type="button" class="pop pop--quiet pop--sm" data-call-filter="P3" aria-pressed="false">● P3</button></div>
+          <div id="callList" aria-live="polite"><div class="skeleton"></div></div>
+        </section>
+        <div class="stack">
+          <section class="card stack" id="callWorkspace" aria-label="Selected call"><h2 class="h3">No call selected</h2><p class="sec">Choose a call to see the transcript, routing and linked incident.</p></section>
+          <section class="card stack" id="callTicketPanel" aria-label="Linked incident" hidden></section>
+        </div>
+      </div>
+      <section class="section stack" aria-labelledby="callNumbersTitle" data-detail>
+        <h2 class="h3" id="callNumbersTitle">Queue numbers</h2>
+        <div class="stats call-metrics">
+          <article class="metric"><h3 class="metric__label">Waiting</h3><p class="metric__value" id="callsQueued">0</p><p class="help">Calls · in technician queues now</p></article>
+          <article class="metric"><h3 class="metric__label">With AI</h3><p class="metric__value" id="callsAI">0</p><p class="help">Calls · AI assistant handling now</p></article>
+          <article class="metric"><h3 class="metric__label">Connected</h3><p class="metric__value" id="callsConnected">0</p><p class="help">Calls · with a technician now</p></article>
+          <article class="metric"><h3 class="metric__label">Available</h3><p class="metric__value" id="callsAvailable">0</p><p class="help">Technicians · ready for calls now</p></article>
+        </div>
+        <p class="help" id="callPerformance"></p>
+      </section>
     </section>
-
     <section class="view" id="view-technicians">
       <div class="panel-head page-section-head"><div><p class="eyebrow">SERVICE TEAM</p><h2>Users</h2><p class="helper">Create technician and customer accounts. All users share the AI connection configured by the administrator.</p></div><button class="pop pop--sm" id="addTechnicianButton" hidden>Add user</button></div>
       <div class="panel card table-wrap"><table><thead><tr><th>User</th><th>Skills</th><th>Languages</th><th>Availability</th><th>Phone</th><th>Current call</th></tr></thead><tbody id="technicianRows"></tbody></table><div class="empty-list" id="techniciansEmpty">Open Calls & queue and sign in to manage your team.</div></div>
@@ -312,6 +371,11 @@
       <button class="pop full" id="generateIncidentKnowledge" type="submit">Generate draft</button><p class="form-message" id="incidentKnowledgeMessage" role="status"></p></form>
     </section>
   </div>
+  <dialog class="dlg" id="rejectDraftDialog" aria-labelledby="rejectDraftTitle" aria-describedby="rejectDraftText">
+    <h2 id="rejectDraftTitle">Reject this AI draft?</h2>
+    <p class="sec" id="rejectDraftText">The incident already exists as New, and ResolveAI can’t delete incidents. To reject the draft, correct the fields yourself, or resolve the incident with a note that it was raised in error.</p>
+    <div class="row"><button type="button" class="pop pop--quiet" data-close>Cancel</button><button type="button" class="pop pop--quiet" id="rejectEdit">Correct the fields</button><button type="button" class="pop pop--danger" id="rejectResolve">Resolve as raised in error</button></div>
+  </dialog>
   <div class="toasts" id="toastHost" aria-live="polite"></div>
   <dialog class="dlg" id="leaveDialog" aria-labelledby="leaveTitle" aria-describedby="leaveText">
     <h2 id="leaveTitle">Discard unsaved changes?</h2>
@@ -324,18 +388,28 @@
     <div class="row"><button type="button" class="pop pop--quiet" data-close>Stay on this page</button><button type="button" class="pop" id="sessionSignIn">Sign in again</button></div>
   </dialog>
   <div class="modal-backdrop" id="technicianModal" hidden><section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="technicianTitle"><button class="modal-close" data-close-call-modal="technicianModal" aria-label="Close">×</button><p class="eyebrow">YOUR TEAM</p><h2 id="technicianTitle">Add user</h2><form id="technicianForm"><label>Role<select name="role"><option value="technician">Technician</option><option value="customer">Customer</option></select></label><label>Name<input name="name" required minlength="2" maxlength="80"></label><label>Username<input name="username" required minlength="3" pattern="[a-zA-Z0-9_.@-]+" autocomplete="off"></label><label>Password<input name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label><label id="userSkillsField">Services or skills, separated by commas<input name="skills" value="general" required></label><p class="helper">Use the service name to match specialist work. “general” receives work when no specialist is available.</p><label id="userLanguagesField">Languages, separated by commas<input name="languages" value="en" required></label><button class="pop full">Create user</button><p class="form-message" id="technicianMessage"></p></form></section></div>
-  <div class="modal-backdrop" id="requestModal" hidden><section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="requestTitle"><button class="modal-close" data-close-call-modal="requestModal" aria-label="Close">×</button><p class="eyebrow">SERVICE DESK INTAKE</p><h2 id="requestTitle">Route a support request</h2><p class="helper">Create an incident from a customer request and send it through the same AI and technician routing used for browser voice calls.</p><form id="routeRequestForm"><label>Customer<input name="caller" required maxlength="100"></label><label>Problem description<textarea name="description" rows="5" required minlength="20" maxlength="8000"></textarea></label><label>Language<input name="language" value="en" required maxlength="10"></label><button class="pop full">Create and route</button><p class="form-message" id="requestMessage"></p></form></section></div>
+  <dialog class="dlg dlg--wide" id="requestModal" aria-labelledby="requestTitle">
+    <h2 id="requestTitle">Route a support request</h2>
+    <p class="sec">Creates an incident from a customer request and sends it through the same AI and technician routing used for browser voice calls.</p>
+    <form id="routeRequestForm" class="stack stack--sm" novalidate>
+      <div class="field"><label for="requestCaller">Customer</label><input class="input" id="requestCaller" name="caller" required maxlength="100" aria-describedby="requestMessage"></div>
+      <div class="field"><label for="requestDescription">Problem description</label><textarea class="input" id="requestDescription" name="description" rows="5" required minlength="20" maxlength="8000" aria-describedby="requestDescriptionHelp requestMessage"></textarea><p class="help" id="requestDescriptionHelp">At least 20 characters.</p></div>
+      <div class="field"><label for="requestLanguage">Language</label><input class="input" id="requestLanguage" name="language" value="en" required maxlength="10"></div>
+      <p class="form-status" id="requestMessage" role="status"></p>
+      <div class="row"><button type="button" class="pop pop--quiet" data-close>Cancel</button><button type="submit" class="pop">Create and route</button></div>
+    </form>
+  </dialog>
   <div class="modal-backdrop" id="livekitModal" hidden><section class="key-modal livekit-modal" role="dialog" aria-modal="true" aria-labelledby="livekitTitle"><button class="modal-close" data-close-call-modal="livekitModal" aria-label="Close">×</button><p class="eyebrow">BROWSER CALLING</p><h2 id="livekitTitle">Connect LiveKit</h2><p class="helper">Use the local LiveKit server or your LiveKit Cloud project. Credentials are protected in your Windows profile and retained after restarts.</p><form id="livekitForm"><label>LiveKit server address<input name="url" required placeholder="ws://127.0.0.1:7880" autocomplete="off" spellcheck="false"></label><label>API key<input name="api_key" required autocomplete="off" spellcheck="false"></label><label>API secret<input name="api_secret" type="password" autocomplete="off" spellcheck="false" placeholder="Enter your API secret"></label><p class="helper">Cloud credentials are available in <a href="https://cloud.livekit.io/" target="_blank" rel="noopener noreferrer">LiveKit Cloud</a>. For local calls, run start-livekit-local.ps1 in the project.</p><button type="submit" class="pop full">Verify and save connection</button><p id="livekitMessage" class="form-message" role="status"></p></form></section></div>
-  <dialog class="dlg" id="callActionDialog" aria-labelledby="callActionTitle" aria-describedby="callActionDescription"><h2 id="callActionTitle">Confirm call action</h2><p id="callActionDescription"></p><div class="row"><button type="button" class="pop pop--quiet" data-close>Cancel</button><button type="button" class="pop pop--danger" id="confirmCallAction">Confirm</button></div></dialog>
-  <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="pop resume-audio" hidden>Enable call audio</button>
+  <dialog class="dlg" id="callActionDialog" aria-labelledby="callActionTitle" aria-describedby="callActionDescription"><h2 id="callActionTitle">Confirm call action</h2><p class="sec" id="callActionDescription"></p><div class="row"><button type="button" class="pop pop--quiet" data-close>Cancel</button><button type="button" class="pop pop--danger" id="confirmCallAction">Confirm</button></div></dialog>
+  <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="pop resume-audio" type="button" hidden>Turn on call audio</button>
   <script src="/static/resolveai-components.js?v=1"></script>
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=4"></script>
   <script src="/static/shell.js?v=1"></script>
-  <script src="/static/app.js?v=18"></script>
+  <script src="/static/uploader.js?v=2"></script>
+  <script src="/static/app.js?v=19"></script>
   <script src="/static/auth.js?v=1"></script>
-  <script src="/static/uploader.js?v=1"></script>
-  <script src="/static/calling.js?v=14"></script>
+  <script src="/static/calling.js?v=15"></script>
   <script src="/static/transcripts.js?v=6"></script>
 </body>
 </html>
