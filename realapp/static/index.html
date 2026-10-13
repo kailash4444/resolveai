@@ -15,7 +15,7 @@
   <aside class="shell__side" id="appSidebar" aria-label="Workspace navigation" hidden>
     <div class="shell__brand">
       <a class="brand" href="/" aria-label="ResolveAI home"><span class="brand__mark" aria-hidden="true">R</span>ResolveAI</a>
-      <button class="pop pop--quiet pop--sm shell__close" id="closeNav" type="button">Close<span class="sr"> navigation</span></button>
+      <button class="pop pop--quiet pop--sm shell__close" id="closeNav" type="button"><span>Close<span class="sr"> navigation</span></span></button>
     </div>
     <p class="kicker shell__label" id="workspaceLabel"></p>
     <nav class="side" id="appNav" aria-label="Workspace"></nav>
@@ -134,26 +134,53 @@
         </div>
       </div>
     </section>
-    <section class="view pop-customer-home" id="view-customer-home">
-      <header class="customer-topbar">
-        <a class="landing-brand" href="/" aria-label="ResolveAI home"><span class="brand-mark">R</span><span class="brand-name">ResolveAI</span></a>
-        <nav aria-label="Customer navigation"><button class="ghost pop--sm" data-view="customer-home" aria-current="page">My support</button><button class="ghost pop--sm" data-view="customer-create">Report an issue</button><button class="ghost pop--sm" data-view="knowledge">Help articles</button><button class="ghost pop--sm" data-sign-out>Sign out</button></nav>
-      </header>
-      <section class="customer-welcome"><h1>How can we help today?</h1><p class="sec">Describe the problem, add a screenshot or clip, and follow it here.</p><div class="customer-actions"><button class="pop" data-view="customer-create">Report an issue <span aria-hidden="true">→</span></button><button class="ghost" data-view="knowledge">Browse help articles</button></div></section>
-      <div class="customer-dashboard">
-        <section class="customer-incidents-section" aria-labelledby="customer-incidents-title">
-          <div class="customer-section-heading"><h2 id="customer-incidents-title">Your incidents</h2><span class="muted">Updates from your service team</span></div>
-          <div id="customerIncidents" class="customer-incident-list"><p class="empty-list" role="status">Loading your incidents…</p></div>
+    <section class="view" id="view-customer-home" aria-labelledby="customerHomeTitle">
+      <div class="customer-hero">
+        <h1 id="customerHomeTitle">How can we help today?</h1>
+        <p class="lede">Describe the problem, add a screenshot or photo, and follow it here.</p>
+        <div class="row customer-hero__actions"><a class="pop" href="/portal?view=customer-create" data-view="customer-create">Report an issue <span aria-hidden="true">→</span></a><a class="pop pop--quiet" href="/portal?view=knowledge" data-view="knowledge">Browse help articles</a></div>
+      </div>
+      <div class="customer-grid">
+        <section class="customer-grid__main stack" aria-labelledby="customerIncidentsTitle">
+          <div class="section-head section-head--tight"><h2 id="customerIncidentsTitle">Your incidents</h2><span class="help" id="customerIncidentCount" aria-live="polite"></span></div>
+          <div id="customerIncidents" class="stack" aria-live="polite"></div>
         </section>
-        <aside class="card card--lift customer-voice-card" id="portalVoice">
-          <h2>Talk to support</h2><p class="sec">Start a private call in your browser. You can ask for a technician during the call.</p>
-          <span class="badge badge--medium">● Browser voice support</span>
-          <iframe class="portal-voice-frame" src="/support?embed=1" title="Start a browser voice support call" allow="microphone; autoplay" loading="lazy"></iframe>
+        <aside class="card card--lift voice-card" id="portalVoice" aria-labelledby="voiceTitle">
+          <h2 id="voiceTitle">Talk to support</h2>
+          <p class="sec">Start a private call in your browser. You can ask for a technician during the call.</p>
+          <iframe class="voice-frame" id="voiceFrame" src="/support?embed=1" title="Browser voice support call" allow="microphone; autoplay"></iframe>
         </aside>
       </div>
-      <section class="customer-recent-calls" aria-labelledby="customer-calls-title"><h2 id="customer-calls-title">Your recent calls</h2><div id="customerCalls" class="customer-call-list"><p class="empty-list" role="status">Loading your calls…</p></div></section>
+      <section class="section" aria-labelledby="customerCallsTitle"><div class="section-head section-head--tight"><h2 id="customerCallsTitle">Your recent calls</h2></div><div id="customerCalls" aria-live="polite"></div></section>
     </section>
-    <section class="view" id="view-customer-create"><article class="panel card intake-panel"><p class="eyebrow">REPORT A PROBLEM</p><h1>Create an incident</h1><p class="helper">Add a short summary and enough detail for the service team to get started.</p><form id="customerIncidentForm"><label class="field">Short description<input class="input" name="short_description" required minlength="3" maxlength="200" placeholder="For example: I can’t sign in to my account"></label><label class="field">What happened?<textarea class="input" name="description" rows="6" required minlength="10" maxlength="8000" placeholder="Describe the issue, what you already tried, and what changed. You may also paste a conversation transcript."></textarea></label><label class="field">Service<input class="input" name="service" value="General" required minlength="2" maxlength="100"></label><div class="media-field"><label class="media-drop-zone drop" data-drop-zone><span class="drop-icon" aria-hidden="true">↑</span><strong>Add screenshots or photos</strong><small>Choose PNG, JPEG, WebP, GIF, or HEIC · up to 3 images · 20 MB total</small><input name="attachments" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/heic" multiple aria-describedby="customerAttachmentHelp"></label><p id="customerAttachmentHelp" class="helper">Files are attached to your incident. AI visual analysis may be unavailable if the service is not configured.</p><div id="attachmentSelection" class="media-selection" data-drop-status aria-live="polite"></div><div id="customerAttachmentErrors" class="form-message error" role="alert" hidden></div><div id="customerAttachmentProgress" class="upload-progress" role="status" aria-live="polite" hidden><progress max="100" value="0" aria-label="Incident upload progress"></progress><span>Preparing upload…</span></div></div><button class="pop" type="submit">Submit incident <span>→</span></button><p class="form-message" id="customerIncidentMessage" role="alert" aria-live="polite"></p><button type="button" class="ghost" id="customerIncidentRetry" hidden>Retry submission</button></form></article></section>
+    <section class="view" id="view-customer-create" aria-labelledby="customerCreateTitle">
+      <div class="page-head"><div><p class="kicker">Report an issue</p><h1 id="customerCreateTitle">Tell us what’s wrong</h1><p class="sec">A short summary and a few details help the service team start straight away. You’ll follow progress on My support.</p></div></div>
+      <div class="create-grid">
+        <div id="customerCreateForm">
+          <form id="customerIncidentForm" class="card" novalidate aria-describedby="customerIncidentMessage">
+            <div class="field"><label for="customerShortDescription">Short description</label><input class="input" id="customerShortDescription" name="short_description" required minlength="3" maxlength="200" autocomplete="off" aria-describedby="customerShortDescriptionHelp customerShortDescriptionError"><div class="row row--between"><p class="help" id="customerShortDescriptionHelp">For example: I can’t sign in to my work account. 3–200 characters.</p><span class="help" id="shortDescriptionCount" aria-hidden="true">0 / 200</span></div><p class="err" id="customerShortDescriptionError" hidden></p></div>
+            <div class="field"><label for="customerDescription">What happened?</label><textarea class="input" id="customerDescription" name="description" rows="6" required minlength="10" maxlength="8000" aria-describedby="customerDescriptionHelp customerDescriptionError"></textarea><p class="help" id="customerDescriptionHelp">What you were doing, what you saw, and anything you already tried. 10–8,000 characters.</p><p class="err" id="customerDescriptionError" hidden></p></div>
+            <div class="field"><label for="customerService">Service</label><input class="input" id="customerService" name="service" value="General" required minlength="2" maxlength="100" list="serviceSuggestions" aria-describedby="customerServiceHelp customerServiceError"><datalist id="serviceSuggestions"><option value="General"><option value="Email"><option value="Microsoft 365"><option value="Corporate VPN"><option value="Identity"><option value="Windows"><option value="Printing"></datalist><p class="help" id="customerServiceHelp">The system or app affected. Leave as General if you’re not sure.</p><p class="err" id="customerServiceError" hidden></p></div>
+            <fieldset class="field">
+              <legend>Screenshots or photos <span class="muted">(optional)</span></legend>
+              <label class="drop" id="customerDrop"><strong>Drop images here or choose files</strong><span class="muted small">Up to 3 images · PNG, JPEG, WebP, GIF or HEIC · 20 MB total</span><input class="sr" type="file" name="attachments" multiple accept="image/png,image/jpeg,image/webp,image/gif,image/heic" aria-describedby="customerAttachmentHelp customerAttachmentErrors"></label>
+              <p class="help" id="customerAttachmentHelp">Images are attached to your incident. Automatic image checking may not be available; your technician sees them either way.</p>
+              <ul class="files" id="attachmentSelection" aria-label="Selected images" hidden></ul>
+              <p class="err" id="customerAttachmentErrors" role="alert" hidden></p>
+            </fieldset>
+            <div class="upload-progress" id="customerAttachmentProgress" hidden><progress class="meter" max="100" value="0" aria-label="Upload progress"></progress><span class="help" aria-live="polite"></span></div>
+            <div id="customerIncidentMessage" class="alert alert--info" role="status" hidden></div>
+            <div class="row form-actions"><button class="pop" type="submit" id="customerIncidentSubmit">Submit incident <span aria-hidden="true">→</span></button><button type="button" class="pop pop--quiet" id="customerIncidentRetry" hidden>Try again</button></div>
+          </form>
+        </div>
+        <div id="customerCreateResult" hidden></div>
+        <aside class="card stack create-aside" aria-labelledby="whatNextTitle">
+          <h2 class="h3" id="whatNextTitle">What happens next</h2>
+          <ol class="plain-steps"><li><strong>Received.</strong> <span class="sec">Your incident gets a number straight away.</span></li><li><strong>Assigned.</strong> <span class="sec">A technician picks it up. AI may suggest a starting point; a person decides.</span></li><li><strong>Resolved.</strong> <span class="sec">You’ll see the fix and can reply in comments.</span></li></ol>
+          <p class="help">Need help right now? Use Talk to support on <a href="/portal" data-view="customer-home">My support</a>.</p>
+        </aside>
+      </div>
+    </section>
     <section class="view" id="view-overview">
       <header class="overview-heading"><p class="eyebrow">AI-FIRST ENTERPRISE SUPPORT</p><h1>Operations overview</h1></header>
       <div id="overviewLoading" class="skeleton ticket-loading" role="status" aria-live="polite">Loading the work queue…</div>
@@ -198,9 +225,9 @@
       <div class="panel card table-wrap"><table><thead><tr><th>Ticket</th><th>Issue</th><th>Service</th><th>Priority</th><th>Assigned to</th><th>State</th></tr></thead><tbody id="ticketRows"></tbody></table><div id="ticketsEmpty" class="empty-list">No tickets yet. Analyze a conversation to create one.</div></div>
     </section>
 
-    <section class="view" id="view-ticket-detail">
-      <div class="panel-head page-section-head"><div><p class="eyebrow">CASE MANAGEMENT</p><h2>Ticket details</h2></div><button class="ghost" data-view="tickets">← Back to tickets</button></div>
-      <div id="ticketDetailPage" class="panel card empty-list">Select a ticket to open its details.</div>
+    <section class="view" id="view-ticket-detail" aria-labelledby="ticketDetailTitle">
+      <a class="pop pop--quiet pop--sm back-link" id="ticketDetailBack" href="/console?view=tickets" data-view="tickets"><span aria-hidden="true">←</span> Back to tickets</a>
+      <div id="ticketDetailPage"></div>
     </section>
 
     <section class="view" id="view-calls">
@@ -286,6 +313,11 @@
     </section>
   </div>
   <div class="toasts" id="toastHost" aria-live="polite"></div>
+  <dialog class="dlg" id="leaveDialog" aria-labelledby="leaveTitle" aria-describedby="leaveText">
+    <h2 id="leaveTitle">Discard unsaved changes?</h2>
+    <p class="sec" id="leaveText">You’ve edited this ticket without saving. If you leave now, those edits are lost.</p>
+    <div class="row"><button type="button" class="pop pop--quiet" data-close>Keep editing</button><button type="button" class="pop pop--danger" id="confirmLeave">Discard changes</button></div>
+  </dialog>
   <dialog class="dlg" id="sessionDialog" aria-labelledby="sessionTitle" aria-describedby="sessionText">
     <h2 id="sessionTitle">Your session has ended</h2>
     <p class="sec" id="sessionText">For your security you were signed out. Sign in again to continue. Anything you typed on this page is still here until you leave it.</p>
@@ -300,9 +332,9 @@
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=4"></script>
   <script src="/static/shell.js?v=1"></script>
-  <script src="/static/customer-flow.js?v=2"></script>
   <script src="/static/app.js?v=18"></script>
   <script src="/static/auth.js?v=1"></script>
+  <script src="/static/uploader.js?v=1"></script>
   <script src="/static/calling.js?v=14"></script>
   <script src="/static/transcripts.js?v=6"></script>
 </body>

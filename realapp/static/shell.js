@@ -134,6 +134,26 @@
   }
   byId('sessionSignIn').addEventListener('click', () => { location.assign(`/login?role=${role === 'customer' ? 'customer' : 'technician'}`); });
 
+  // ---- Unsaved changes. "unload" keys only guard leaving the page; "all" keys also guard in-app navigation. ----
+  const dirty = new Map();
+  let retryLeave = null;
+  window.ResolveDirty = {
+    mark(key, on, scope = 'unload') { if (on) dirty.set(key, scope); else dirty.delete(key); },
+    clear() { dirty.clear(); },
+  };
+  window.confirmLeave = retry => {
+    if (![...dirty.values()].includes('all')) return true;
+    retryLeave = retry;
+    byId('leaveDialog').showModal();
+    return false;
+  };
+  byId('confirmLeave').addEventListener('click', () => {
+    [...dirty].forEach(([key, scope]) => { if (scope === 'all') dirty.delete(key); });
+    byId('leaveDialog').close();
+    const retry = retryLeave; retryLeave = null; retry?.();
+  });
+  window.addEventListener('beforeunload', event => { if (dirty.size) { event.preventDefault(); event.returnValue = ''; } });
+
   window.Shell = {render, setCurrent, closeDrawer, requestStarted, requestFinished, sessionExpired, home: r => HOME[r] || '/'};
   render(null);
 })();

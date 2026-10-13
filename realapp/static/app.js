@@ -245,9 +245,16 @@ function formatActivityFields(text) {
 }
 
 function activityPanel(item) {
-  const enabled = item.ticket.state !== "New";
-  const notes = item.ticket.work_notes.slice().sort((left, right) => new Date(right.created_at) - new Date(left.created_at)).map(note => `<div class="activity-item activity-${esc(note.author_type.toLowerCase())}"><div><strong>${esc(note.author)}</strong><span class="tag">${esc(note.author_type)}</span></div><small>${new Date(note.created_at).toLocaleString()}</small><p>${note.author_type === "System" ? formatActivityFields(note.text) : esc(note.text)}</p></div>`).join("") || `<p class="helper">No activity yet.</p>`;
-  return `<section class="activity-panel"><div class="panel-head"><div><p class="eyebrow">ACTIVITY</p></div></div><div class="activity-list">${notes}</div><form id="workNoteForm" class="activity-form"><label>Comment<textarea name="text" rows="3" required ${enabled ? "" : "disabled"} placeholder="Add progress, troubleshooting details, or customer feedback"></textarea></label><div class="action-row"><span class="helper">${enabled ? "Technicians and customers can add activity while work is underway." : "Save the ticket as In Progress before adding activity."}</span><button class="ghost" type="submit" ${enabled ? "" : "disabled"}>Add activity</button></div><p class="form-message" data-activity-message></p></form></section>`;
+  const customer = state.user?.role === 'customer', enabled = item.ticket.state !== "New";
+  const tone = {Customer: 'badge--medium', Technician: 'badge--ok', System: 'badge--low'};
+  // Customers see the conversation with their technician; system logs and AI analysis notes are for staff.
+  const notes = item.ticket.work_notes.filter(note => !customer || note.author_type !== 'System').slice().sort((left, right) => new Date(right.created_at) - new Date(left.created_at)).map(note => `<li class="note"><div class="note__head"><strong>${esc(note.author)}</strong><span class="badge ${tone[note.author_type] || 'badge--low'}">${esc(note.author_type)}</span><time class="help" datetime="${esc(note.created_at)}">${esc(when(note.created_at))}</time></div><p class="pre">${note.author_type === "System" ? formatActivityFields(note.text) : esc(note.text)}</p></li>`).join("");
+  const title = customer ? 'Comments' : 'Activity and work notes';
+  const lockedText = customer ? 'You can add comments once a technician starts work on this incident.' : 'Save the ticket as In Progress before adding work notes.';
+  return `<section class="card stack" aria-labelledby="activityTitle"><h2 class="h3" id="activityTitle">${title}</h2>
+    <form id="workNoteForm" class="stack stack--sm" novalidate><div class="field field--inline"><label for="workNoteText">${customer ? 'Add a comment' : 'Add a work note'}</label><textarea class="input" id="workNoteText" name="text" rows="3" maxlength="4000" required ${enabled ? "" : "disabled"} aria-describedby="workNoteHelp workNoteMessage" placeholder="${customer ? 'Add details, answer a question, or tell us what changed' : 'Progress, troubleshooting steps, or customer feedback'}"></textarea><p class="help" id="workNoteHelp">${enabled ? (customer ? 'Your technician is notified in the incident.' : 'Visible to the customer and the service team.') : lockedText}</p></div>
+    <div class="row"><button class="pop${customer ? '' : ' pop--quiet'}" type="submit" ${enabled ? "" : "disabled"}>${customer ? 'Add comment' : 'Add work note'}</button><p class="form-status" id="workNoteMessage" data-activity-message role="status"></p></div></form>
+    ${notes ? `<ol class="notes" aria-label="${title}, newest first">${notes}</ol>` : `<p class="sec">${customer ? 'No comments yet.' : 'No activity yet.'}</p>`}</section>`;
 }
 
 function transcriptPanel(item) {
@@ -278,12 +285,15 @@ async function saveTicket(form) {
 async function addWorkNote(form) {
   const editingTicketDetails = $("#view-ticket-detail").classList.contains("active");
   const values = Object.fromEntries(new FormData(form).entries());
-  const message = form.querySelector("[data-activity-message]"); message.className = "form-message"; message.textContent = "Adding activity…";
+  const message = form.querySelector("[data-activity-message]"), button = form.querySelector('[type=submit]');
+  if (!values.text?.trim()) { message.className = "form-status err"; message.textContent = "✕ Write something before adding it."; form.elements.text.setAttribute('aria-invalid', 'true'); form.elements.text.focus(); return; }
+  message.className = "form-status"; message.textContent = "Adding…"; button.disabled = true; button.setAttribute('aria-busy', 'true');
   try {
     state.current = await api(`/api/cases/${state.current.id}/work-notes`, { method: "POST", body: JSON.stringify(values) });
-    if (editingTicketDetails) await openTicketDetails(state.current.id); else renderCase(state.current);
-    toast("Activity added.");
-  } catch (error) { message.className = "form-message error"; message.textContent = error.message; }
+    if (editingTicketDetails) await openTicketDetails(state.current.id, {keepScroll: true}); else renderCase(state.current);
+    toast(state.user?.role === 'customer' ? "Comment added." : "Work note added.");
+    $('#workNoteText')?.focus();
+  } catch (error) { message.className = "form-status err"; message.textContent = `✕ ${error.message}`; button.disabled = false; button.removeAttribute('aria-busy'); }
 }
 
 async function saveResolution(form) {
@@ -442,13 +452,27 @@ $('#clearTicketFilters').addEventListener('click', () => {
   renderTickets();
 });
 
-async function openTicketDetails(caseId) {
-  if (state.user?.role === 'admin') state.users = await api('/api/users');
-  state.current = await api(`/api/cases/${caseId}`);
+function staffTicketDetails(item) {
+  return `<div class="page-head"><div><p class="kicker"><span class="mono">${esc(item.ticket.id)}</span></p><h1 id="ticketDetailTitle" tabindex="-1">${esc(item.ticket.short_description)}</h1></div>${stateBadge(item.ticket.state)}</div>` + renderAttachments(item.ticket.attachments, false, item.ticket) + renderVisualAnalysis(item.ticket) + ticketForm(item) + followupPanels(item) + transcriptPanel(item);
+}
+
+async function openTicketDetails(caseId, {keepScroll = false} = {}) {
+  const customer = state.user?.role === 'customer';
+  try {
+    if (state.user?.role === 'admin') state.users = await api('/api/users');
+    state.current = await api(`/api/cases/${encodeURIComponent(caseId)}`);
+  } catch (error) {
+    if ([403, 404].includes(error.status)) { $('#notFoundMessage').textContent = 'This incident doesn’t exist, or it isn’t visible to your account.'; showView('notfound'); return; }
+    throw error;
+  }
   showView("ticket-detail");
-  const detail = $("#ticketDetailPage"); detail.className = "panel card ticket-detail-panel";
-  detail.innerHTML = `<div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h2>${esc(state.current.ticket.id)}</h2><p class="helper">${state.user?.role === "customer" ? "Track progress and add comments." : "Edit the incident fields and save your changes."}</p></div>${stateBadge(state.current.ticket.state)}</div>${state.user?.role === "customer" ? customerTicketDetails(state.current) : renderAttachments(state.current.ticket.attachments) + renderVisualAnalysis(state.current.ticket) + ticketForm(state.current) + followupPanels(state.current)}${transcriptPanel(state.current)}`;
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  const detail = $("#ticketDetailPage");
+  $('#ticketDetailBack').dataset.view = customer ? 'customer-home' : 'tickets';
+  $('#ticketDetailBack').setAttribute('href', customer ? '/portal' : `${window.Shell.home(state.user.role)}?view=tickets`);
+  $('#ticketDetailBack').lastChild.textContent = customer ? ' Back to My support' : ' Back to tickets';
+  detail.innerHTML = customer ? customerTicketDetails(state.current) : staffTicketDetails(state.current);
+  document.title = `${state.current.ticket.id} · ResolveAI`;
+  if (!keepScroll) { window.scrollTo({top: 0}); $('#ticketDetailTitle')?.focus({preventScroll: true}); }
 }
 
 async function openCase(caseId, target = "case") {
@@ -617,7 +641,15 @@ document.addEventListener("click", event => {
     container.querySelectorAll("[data-followup-tab]").forEach(button => button.classList.toggle("active", button.dataset.followupTab === selected));
     container.querySelectorAll("[data-followup-pane]").forEach(pane => pane.hidden = pane.dataset.followupPane !== selected);
   }
-  const ticketLink = event.target.closest('[data-ticket-link]'); if (ticketLink) { event.preventDefault(); openTicketDetails(ticketLink.dataset.ticketLink).catch(error => showFeedback(error.message, true)); return; }
+  const ticketLink = event.target.closest('[data-ticket-link]');
+  if (ticketLink) {
+    if (ticketLink.tagName === 'A' && (event.metaKey || event.ctrlKey || event.shiftKey || event.button)) return;
+    event.preventDefault();
+    if (window.confirmLeave && !window.confirmLeave(() => ticketLink.click())) return;
+    history.pushState({}, '', ticketLink.getAttribute('href') || location.href);
+    openTicketDetails(ticketLink.dataset.ticketLink).then(() => { if (ticketLink.hasAttribute('data-focus-comment')) $('#workNoteText')?.focus(); }).catch(error => showFeedback(error.message, true));
+    return;
+  }
   const nav = event.target.closest("[data-view]");
   if (nav) {
     if (nav.tagName === 'A' && (event.metaKey || event.ctrlKey || event.shiftKey || event.button)) return;
@@ -706,77 +738,96 @@ window.applyAccountRole = user => {
   $('#openKnowledgePanel').hidden = $('#openIncidentKnowledgePanel').hidden = !user || customer;
 };
 
+// ---- Shared incident building blocks ----
+const CUSTOMER_STATUS = {New:['badge--medium','● Received'],'In Progress':['badge--high','◆ In progress'],'On Hold':['badge--low','○ Waiting'],Resolved:['badge--ok','✓ Resolved'],Closed:['badge--ok','✓ Resolved']};
+function customerStatusBadge(state) { const [tone,label] = CUSTOMER_STATUS[state] || ['badge--low', `○ ${state || 'Unknown'}`]; return `<span class="badge ${tone}">${esc(label)}</span>`; }
+function progressSteps(ticket) {
+  const resolved = ['Resolved','Closed'].includes(ticket.state), working = ['In Progress','On Hold'].includes(ticket.state);
+  const done = [true, !!ticket.assigned_to || working || resolved, resolved, resolved];
+  let current = done.indexOf(false); if (current < 0) current = 3;
+  const names = ['Received', 'Assigned', ticket.state === 'On Hold' ? 'Waiting' : 'In progress', 'Resolved'];
+  return `<ol class="steps" aria-label="Incident progress">${names.map((name, index) => `<li${index === current ? ' aria-current="step"' : ''}>${done[index] ? '✓' : index === current ? '●' : '○'} ${name}</li>`).join('')}</ol>`;
+}
+function customerNextStep(ticket) {
+  const who = ticket.assigned_to ? esc(ticket.assigned_to) : 'A technician';
+  if (['Resolved','Closed'].includes(ticket.state)) return 'Resolved. Open the incident to read what was done.';
+  if (ticket.state === 'On Hold') return `Waiting on more information. Open the incident to see the latest comments and reply.`;
+  if (ticket.state === 'In Progress') return `${who} is working on it. Updates will appear here.`;
+  return ticket.assigned_to ? `${who} has your case. Next: they’ll start work and update you here.` : 'We’ve received your report. Next: a technician will be assigned.';
+}
+const when = value => value ? new Date(value).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'}) : '';
+
+// Visual analysis provenance. Only Gemini/OpenAI results are AI image analysis; the server's local fallback
+// is a keyword estimate, and demo mode does not inspect images at all.
+function analysisState(ticket) {
+  const va = ticket?.visual_analysis, source = va?.analysis_source || '';
+  const failed = !va && ticket?.work_notes?.find(note => /media analysis unavailable/i.test(note.text));
+  if (va && /gemini|openai/i.test(source) && !/local extraction|demo/i.test(source)) return {kind: 'ai', badge: '<span class="badge badge--ok">✓ AI analysed</span>', source};
+  if (va && /local extraction/i.test(source)) return {kind: 'estimate', badge: '<span class="badge badge--high">◆ Rule-based estimate</span>', source};
+  if (va && /demo/i.test(source)) return {kind: 'demo', badge: '<span class="badge badge--low">○ Not analysed (demo mode)</span>', source};
+  if (failed) return {kind: 'unavailable', badge: '<span class="badge badge--err">✕ Analysis unavailable</span>', note: failed.text};
+  if (va) return {kind: 'estimate', badge: '<span class="badge badge--high">◆ Unverified source</span>', source};
+  return {kind: 'none'};
+}
+
+function renderAttachments(attachments = [], customer = false, ticket = null) {
+  if (!attachments.length) return '';
+  const state = analysisState(ticket);
+  const summary = !customer ? '' : state.kind === 'ai' ? '<p class="help">✓ Your images were checked automatically to help your technician.</p>'
+    : state.kind === 'none' ? '' : '<p class="help">○ Automatic image checking wasn’t available. Your technician will review the images themselves.</p>';
+  return `<section class="card stack" aria-labelledby="attachmentsTitle"><div class="section-head"><h2 id="attachmentsTitle" class="h3">Attachments <span class="muted">(${attachments.length})</span></h2>${customer ? '<span class="badge badge--ok">✓ Attached</span>' : ''}</div>${summary}<ul class="thumbs">${attachments.map(att => {
+    const url = `/api/attachments/${encodeURIComponent(att.id)}`;
+    const media = att.content_type.startsWith('image/') ? `<img src="${url}" alt="" loading="lazy">`
+      : att.content_type.startsWith('video/') ? `<video controls preload="metadata"><source src="${url}" type="${esc(att.content_type)}">Your browser can’t play this video. <a href="${url}">Download it</a>.</video>` : '';
+    const action = att.content_type.startsWith('image/') ? `<button type="button" class="pop pop--quiet pop--sm" data-image-preview="${url}" data-image-alt="${esc(att.filename)}"><span>View<span class="sr"> ${esc(att.filename)}</span> full size</span></button>` : `<a class="pop pop--quiet pop--sm" href="${url}" target="_blank" rel="noopener"><span>Open<span class="sr"> ${esc(att.filename)}</span></span></a>`;
+    return `<li class="thumb">${media}<span class="thumb__name">${esc(att.filename)}</span><span class="help">${ResolveUploader.size(att.size_bytes)}</span>${action}</li>`;
+  }).join('')}</ul></section>`;
+}
+
 function renderVisualAnalysis(ticket) {
-  if (!ticket) return '';
-  const va = ticket.visual_analysis;
-  const mediaNote = !va ? ticket.work_notes?.find(note => /media analysis/i.test(note.text)) : null;
-  if (!va && !mediaNote) return '';
-
-  if (va) {
-    const priority = (va.suggested_priority || 'P3').toUpperCase();
-    return `<section class="visual-analysis-card spotlight-card">
-      <div class="panel-head">
-        <div>
-          <p class="eyebrow">AI MULTIMODAL VISION</p>
-          <h4>Extracted Image Intelligence</h4>
-        </div>
-        <span class="status-pill" data-tone="ai">${esc(va.analysis_source || 'AI Multimodal Vision')}</span>
-      </div>
-      <div class="visual-meta-tags">
-        <span class="visual-meta-tag"><strong>Suggested Service:</strong> ${esc(va.suggested_service)}</span>
-        <span class="visual-meta-tag"><strong>Priority:</strong> ${priorityBadge(priority)}</span>
-        <span class="visual-meta-tag"><strong>Category:</strong> ${esc(va.suggested_category)} · ${esc(va.suggested_subcategory)}</span>
-      </div>
-      <div class="visual-detail-block">
-        <h5>Visual Observations & Detected Text</h5>
-        <p class="visual-text">${esc(va.visual_observations)}</p>
-      </div>
-      <div class="visual-detail-block">
-        <h5>Technical Assessment & Root Cause</h5>
-        <p class="visual-text">${esc(va.technical_diagnosis)}</p>
-      </div>
-      <div class="visual-detail-block recommended-action-block">
-        <h5>Recommended Remediation</h5>
-        <p class="visual-text">${esc(va.recommended_action)}</p>
-      </div>
-      <small class="helper">Automated visual extraction synthesized from submitted images. Technicians verify findings prior to resolution.</small>
-    </section>`;
-  }
-
-  return `<section class="visual-analysis-card spotlight-card">
-    <div class="panel-head">
-      <div>
-        <p class="eyebrow">AI MULTIMODAL VISION</p>
-        <h4>Visual media analysis</h4>
-      </div>
-      <span class="status-pill" data-tone="ai">AI assisted</span>
-    </div>
-    <div class="visual-detail-block">
-      <p class="visual-text" style="white-space:pre-wrap">${esc(mediaNote.text)}</p>
-    </div>
-    <small class="helper">Recommendations are for technician review. The service team confirms the cause and resolution.</small>
-  </section>`;
+  const state = analysisState(ticket), va = ticket?.visual_analysis;
+  if (state.kind === 'none') return '';
+  const head = `<div class="section-head"><h2 class="h3" id="visualTitle">Image analysis</h2>${state.badge}</div>`;
+  if (state.kind === 'unavailable') return `<section class="card stack" aria-labelledby="visualTitle">${head}<p class="sec">The images are attached, but analysis didn’t run. Review them yourself.</p><p class="help pre" data-detail>${esc(state.note)}</p></section>`;
+  if (state.kind === 'demo') return `<section class="card stack" aria-labelledby="visualTitle">${head}<p class="sec">This server runs in demo mode, so the images were attached but not inspected. Review them yourself.</p></section>`;
+  const caveat = state.kind === 'ai'
+    ? `AI suggestion from ${esc(state.source)}. Verify against the images before acting.`
+    : 'AI image analysis wasn’t available. These suggestions come from keywords in the description and image file details, not from the image content.';
+  return `<section class="card stack" aria-labelledby="visualTitle">${head}<p class="help">${caveat}</p>
+    <dl class="kv"><div><dt>Suggested service</dt><dd>${esc(va.suggested_service)}</dd></div><div><dt>Suggested priority</dt><dd>${priorityBadge((va.suggested_priority || 'P3').toUpperCase())}</dd></div><div><dt>Suggested category</dt><dd>${esc(va.suggested_category)} · ${esc(va.suggested_subcategory)}</dd></div></dl>
+    <div class="stack stack--sm"><h3 class="h4">What’s visible</h3><p class="sec pre">${esc(va.visual_observations)}</p></div>
+    <div class="stack stack--sm" data-detail><h3 class="h4">Assessment</h3><p class="sec pre">${esc(va.technical_diagnosis)}</p></div>
+    <div class="stack stack--sm"><h3 class="h4">Suggested next action</h3><p class="sec pre">${esc(va.recommended_action)}</p></div></section>`;
 }
 
 function customerTicketDetails(item) {
-  const state = item.ticket.state, labels = ['Received', 'Assigned', 'In progress', 'Resolved'];
-  const active = state === 'Resolved' || state === 'Closed' ? 3 : state === 'In Progress' || state === 'On Hold' ? 2 : item.ticket.assigned_to ? 1 : 0;
-  const timeline = `<ol class="steps customer-ticket-steps" aria-label="Incident progress">${labels.map((label,index) => `<li ${index === active ? 'aria-current="step"' : ''}><span aria-hidden="true">${index < active ? '✓' : index === active ? '●' : '○'}</span> ${label}</li>`).join('')}</ol>`;
-  return `<div class="customer-ticket"><h3>${esc(item.ticket.short_description)}</h3>${timeline}<p style="white-space:pre-wrap">${esc(item.ticket.description)}</p><p><b>State:</b> ${stateBadge(state)} · <b>Service:</b> ${esc(item.ticket.service)} · <b>Assigned to:</b> ${esc(item.ticket.assigned_to || 'Awaiting assignment')}</p>${renderAttachments(item.ticket.attachments)}${renderVisualAnalysis(item.ticket)}${item.ticket.resolution ? `<h4>Resolution</h4><p>${esc(item.ticket.resolution)}</p>` : ''}</div>${activityPanel(item)}`;
+  const t = item.ticket;
+  return `<div class="page-head"><div><p class="kicker"><span class="mono">${esc(t.id)}</span></p><h1 id="ticketDetailTitle" tabindex="-1">${esc(t.short_description)}</h1></div>${customerStatusBadge(t.state)}</div>
+  <div class="stack stack--lg">
+    <section class="card card--lift stack" aria-labelledby="progressTitle"><h2 class="h3" id="progressTitle">Progress</h2>${progressSteps(t)}<p class="sec">${customerNextStep(t)}</p></section>
+    ${t.resolution ? `<section class="card stack" aria-labelledby="resolutionTitle"><h2 class="h3" id="resolutionTitle">How it was resolved</h2><p class="pre">${esc(t.resolution)}</p></section>` : ''}
+    <section class="card stack" aria-labelledby="reportedTitle"><h2 class="h3" id="reportedTitle">What you reported</h2><p class="pre sec">${esc(t.description)}</p>
+      <dl class="kv"><div><dt>Service</dt><dd>${esc(t.service)}</dd></div><div><dt>Assigned to</dt><dd>${esc(t.assigned_to || 'Awaiting assignment')}</dd></div><div><dt>Reported</dt><dd>${esc(when(item.created_at))}</dd></div></dl></section>
+    ${renderAttachments(t.attachments, true, t)}
+    ${activityPanel(item)}
+  </div>`;
 }
 
-function renderAttachments(attachments = []) {
-  if (!attachments.length) return '';
-  return `<section class="incident-attachments"><h4>Attachments</h4><div class="attachment-grid">${attachments.map(att => {
-    const url = `/api/attachments/${encodeURIComponent(att.id)}`;
-    const preview = att.content_type.startsWith('image/')
-      ? `<button type="button" class="image-preview-button" data-image-preview="${url}" data-image-alt="${esc(att.filename)}" aria-label="Inspect ${esc(att.filename)} at full size"><img class="attachment-preview" src="${url}" alt="" loading="lazy"></button>`
-      : att.content_type.startsWith('video/')
-        ? `<video class="attachment-preview" controls preload="metadata"><source src="${url}" type="${esc(att.content_type)}">Your browser cannot play this video.</video>`
-        : '';
-    return `<article class="attachment-card">${preview}<a href="${url}" target="_blank" rel="noopener">${esc(att.filename)}</a><small>${(att.size_bytes / 1024 / 1024).toFixed(1)} MB</small></article>`;
-  }).join('')}</div></section>`;
-}
+window.showCustomerCreateResult = (item, fileCount) => {
+  const t = item.ticket, state = analysisState(t);
+  const files = (t.attachments || []).map(att => `<li class="file"><span class="file__name">${esc(att.filename)}</span><span class="row row--sm"><span class="badge badge--ok">✓ Attached</span>${state.kind === 'ai' ? '<span class="badge badge--ok">✓ Checked</span>' : '<span class="badge badge--low">○ Analysis unavailable</span>'}</span></li>`).join('');
+  const box = $('#customerCreateResult');
+  box.innerHTML = `<div class="card card--lift stack"><p class="kicker">Incident created</p><h2 id="createResultTitle" tabindex="-1">✓ ${esc(t.id)} is with the service team</h2><p class="sec">${esc(t.short_description)}. You’ll see updates on My support.</p>
+    ${fileCount ? `<div class="stack stack--sm"><h3 class="h4">Your images</h3><ul class="files">${files}</ul>${state.kind === 'ai' ? '' : '<p class="help">Your images are attached to the incident. Automatic checking wasn’t available, so your technician will review them.</p>'}</div>` : ''}
+    <div class="row"><a class="pop" href="/portal?ticket=${encodeURIComponent(item.id)}" data-ticket-link="${esc(item.id)}">View incident <span aria-hidden="true">→</span></a><button type="button" class="pop pop--quiet" id="reportAnother">Report another issue</button></div></div>`;
+  box.hidden = false; $('#customerCreateForm').hidden = true;
+  $('#createResultTitle').focus();
+  toast(`Incident ${t.id} created.`);
+};
+document.addEventListener('click', event => {
+  if (!event.target.closest('#reportAnother')) return;
+  $('#customerCreateResult').hidden = true; $('#customerCreateForm').hidden = false; $('#customerShortDescription').focus();
+});
 
 document.addEventListener('click', event => {
   const trigger = event.target.closest('[data-image-preview]');
@@ -791,68 +842,58 @@ document.addEventListener('click', event => {
 $('#closeMediaPreview').addEventListener('click', () => $('#mediaPreviewDialog').close());
 $('#mediaPreviewDialog').addEventListener('click', event => { if (event.target === event.currentTarget) event.currentTarget.close(); });
 
+const CALL_STATUS = {Completed:['badge--ok','✓ Completed'],Failed:['badge--err','✕ Failed'],'Callback requested':['badge--high','◆ Callback requested']};
+function loadError(what, retry) {
+  return `<div class="alert" role="alert"><strong>✕ Couldn’t load your ${what}.</strong><span class="sec">Check your connection and try again.</span><button type="button" class="pop pop--quiet pop--sm" data-customer-retry="${retry}">Retry</button></div>`;
+}
+const skeletonCards = n => `<div class="stack" aria-hidden="true">${Array.from({length: n}, () => '<div class="card stack stack--sm"><div class="skeleton" style="width:55%"></div><div class="skeleton"></div><div class="skeleton" style="width:70%"></div></div>').join('')}</div>`;
+
+// The embedded voice page reports its height so the portal card grows with the call instead of scrolling inside.
+window.addEventListener('message', event => {
+  if (event.origin !== location.origin || event.data?.type !== 'resolveai-support-height') return;
+  const frame = $('#voiceFrame');
+  if (frame && event.source === frame.contentWindow) frame.style.height = `${Math.max(160, Math.min(1400, event.data.height))}px`;
+});
+
 async function loadCustomerCalls() {
   const target = $('#customerCalls');
-  if (!target) return;
   target.setAttribute('aria-busy', 'true');
+  if (!target.querySelector('.list')) target.innerHTML = skeletonCards(1);
   try {
     const calls = await api('/api/customer/calls');
-    target.innerHTML = calls.length ? calls.map(call=>`<div class="case-row"><div><strong>${esc(call.id)}</strong><small>${new Date(call.created_at*1000).toLocaleString()} · <span class="badge ${call.status === 'Completed' ? 'badge--ok' : call.status === 'Failed' ? 'badge--critical' : 'badge--medium'}">${call.status === 'Completed' ? '✓' : call.status === 'Failed' ? '✕' : '●'} ${esc(call.status)}</span></small></div>${call.case_id ? `<button class="ghost pop--sm" data-customer-ticket="${esc(call.case_id)}">View incident</button>` : ''}</div>`).join('') : '<p class="empty-list">No calls yet. Your support calls will appear here.</p>';
-  } catch (error) {
-    target.innerHTML = `<div class="empty-state inline-error" role="alert"><p>We couldn’t load your calls. ${esc(error.message)}</p><button class="ghost pop--sm" data-customer-retry="calls">Try again</button></div>`;
-  } finally { target.removeAttribute('aria-busy'); }
+    target.innerHTML = calls.length ? `<ul class="list">${calls.map(call => {
+      const [tone, label] = CALL_STATUS[call.status] || ['badge--medium', `● ${call.status}`];
+      return `<li class="list__row"><span class="list__main"><span class="mono">${esc(call.id)}</span><span class="help">${esc(new Date(call.created_at * 1000).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'}))}</span></span><span class="badge ${tone}">${esc(label)}</span>${call.case_id ? `<a class="pop pop--quiet pop--sm" href="/portal?ticket=${encodeURIComponent(call.case_id)}" data-ticket-link="${esc(call.case_id)}"><span>View incident<span class="sr"> for ${esc(call.id)}</span></span></a>` : '<span class="help">No incident created</span>'}</li>`;
+    }).join('')}</ul>` : '<p class="sec">No calls yet. Calls you make from Talk to support appear here.</p>';
+  } catch (error) { target.innerHTML = loadError('calls', 'calls'); }
+  finally { target.removeAttribute('aria-busy'); }
 }
 
 async function loadCustomerIncidents() {
-  const target = $('#customerIncidents');
-  if (!target) return;
+  const target = $('#customerIncidents'), count = $('#customerIncidentCount');
   target.setAttribute('aria-busy', 'true');
+  if (!target.querySelector('.incident-card')) target.innerHTML = skeletonCards(2);
   let items;
   try { items = await api('/api/cases'); }
-  catch (error) {
-    target.innerHTML = `<div class="empty-state inline-error" role="alert"><p>We couldn’t load your incidents. ${esc(error.message)}</p><button class="ghost pop--sm" data-customer-retry="incidents">Try again</button></div>`;
-    target.removeAttribute('aria-busy');
-    return;
-  }
-  if (!items.length) {
-    target.innerHTML = '<p class="empty-list">No incidents yet. Your submitted incidents will appear here.</p>';
-    target.removeAttribute('aria-busy');
-    return;
-  }
-  target.innerHTML = items.map(item => {
-    const ticket = item.ticket;
-    const state = ticket.state;
-    const step = state === 'Resolved' ? 3 : state === 'In Progress' ? 2 : ticket.assigned_to ? 1 : 0;
-    const labels = ['Received', 'Assigned', 'In progress', 'Resolved'];
-    const stateIcon = state === 'Resolved' ? '✓' : state === 'In Progress' ? '◆' : '●';
-    const badgeTone = state === 'Resolved' ? 'badge--ok' : state === 'In Progress' ? 'badge--high' : 'badge--medium';
-    return `<article class="customer-incident-card spotlight-card card">
-      <div class="customer-incident-heading"><div><p class="eyebrow">${esc(ticket.id)}</p>${priorityBadge(ticket.priority)}<h3>${esc(ticket.short_description)}</h3></div><span class="badge ${badgeTone}" data-status="${esc(state)}">${stateIcon} ${esc(state)}</span></div>
-      <p class="helper">${esc(ticket.service)} · ${esc(ticket.assigned_to || 'Awaiting assignment')}</p>
-      <ol class="incident-stepper" aria-label="Incident progress">${labels.map((label, index) => `<li class="${index < step ? 'complete' : ''} ${index === step ? 'current' : ''}"><span>${index < step ? '✓' : String(index + 1).padStart(2, '0')}</span><small>${label}</small></li>`).join('')}</ol>
-      <button class="ghost pop--sm" data-customer-ticket="${esc(item.id)}">View incident details →</button>
-    </article>`;
-  }).join('');
+  catch (error) { target.innerHTML = loadError('incidents', 'incidents'); target.removeAttribute('aria-busy'); count.textContent = ''; return; }
   target.removeAttribute('aria-busy');
+  const open = items.filter(item => !['Resolved','Closed'].includes(item.ticket.state)).length;
+  count.textContent = items.length ? `${open} open · ${items.length - open} resolved` : '';
+  if (!items.length) {
+    target.innerHTML = '<div class="empty stack"><h3>No incidents yet</h3><p class="sec">Report a problem and follow it here.</p><div><a class="pop" href="/portal?view=customer-create" data-view="customer-create">Report an issue</a></div></div>';
+    return;
+  }
+  const rank = item => ['Resolved','Closed'].includes(item.ticket.state) ? 1 : 0;
+  items.sort((a, b) => rank(a) - rank(b) || new Date(b.created_at) - new Date(a.created_at));
+  target.innerHTML = items.map(item => {
+    const t = item.ticket, href = `/portal?ticket=${encodeURIComponent(item.id)}`;
+    return `<article class="card incident-card"><div class="incident-card__head"><h3><a href="${href}" data-ticket-link="${esc(item.id)}">${esc(t.short_description)}</a></h3>${customerStatusBadge(t.state)}</div>
+      <p class="help"><span class="mono">${esc(t.id)}</span> · ${esc(t.service)} · Reported ${esc(when(item.created_at))}</p>
+      <p class="sec">${customerNextStep(t)}</p>${progressSteps(t)}
+      ${t.state === 'On Hold' ? `<a class="pop pop--quiet pop--sm" href="${href}" data-ticket-link="${esc(item.id)}" data-focus-comment><span>Add details<span class="sr"> to ${esc(t.id)}</span></span></a>` : ''}</article>`;
+  }).join('');
 }
 
-$('#customerIncidentForm').addEventListener('submit', async event => {
-  event.preventDefault(); const form=event.target,button=form.querySelector('button'),message=$('#customerIncidentMessage');
-  button.disabled=true;message.textContent='Creating your incident…';
-  try {const item=await api('/api/customer/incidents',{method:'POST',body:new FormData(form)});form.reset();$('#attachmentSelection').textContent='';$('#attachmentSelection').className='media-selection';message.textContent='';await openTicketDetails(item.id);}
-  catch(error){message.textContent=error.message;}finally{button.disabled=false;}
-});
-$('#customerIncidentForm [name="attachments"]').addEventListener('change', event => {
-  const files = [...event.target.files];
-  const status = $('#attachmentSelection');
-  const unsupported = files.some(file => !/\.(png|jpe?g|webp|gif|heic)$/i.test(file.name));
-  if (unsupported || files.length > 3 || files.reduce((sum, file) => sum + file.size, 0) > 20 * 1024 * 1024) {
-    event.target.value = ''; status.textContent = unsupported ? 'Only image files (PNG, JPEG, WebP, GIF, HEIC) are supported.' : 'Choose up to 3 images with 20 MB total size or less.'; status.className = 'media-selection form-message error'; return;
-  }
-  status.className = 'media-selection';
-  status.textContent = files.length ? files.map(file => `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`).join(' · ') : '';
-});
-document.addEventListener('click',event=>{const source=event.target.closest('[data-customer-ticket]');if(source)openTicketDetails(source.dataset.customerTicket);});
 window.loadApplication = async () => {
   try {
     const auth=await api('/api/auth/status');applyAccountRole(auth.user);
@@ -876,8 +917,9 @@ window.loadApplication = async () => {
 };
 window.addEventListener('popstate', () => {
   if (!state.user) return;
-  const view = new URLSearchParams(location.search).get('view');
-  showView(view || homeView());
+  const params = new URLSearchParams(location.search);
+  if (params.get('ticket')) openTicketDetails(params.get('ticket')).catch(error => showFeedback(error.message, true));
+  else showView(params.get('view') || homeView());
 });
 applyAccountRole(null);
 window.loadApplication();
