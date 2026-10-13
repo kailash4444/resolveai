@@ -137,6 +137,21 @@ class AnalysisPayload(BaseModel):
     attempted_steps: list[str] = Field(default_factory=list, max_length=6)
 
 
+class CounterfactualStep(BaseModel):
+    action: str = Field(min_length=3, max_length=300)
+    possible_outcome: str = Field(min_length=3, max_length=500)
+    evidence_ids: list[str] = Field(default_factory=list, max_length=8)
+
+
+class CounterfactualDraft(BaseModel):
+    summary: str = Field(min_length=10, max_length=800)
+    steps: list[CounterfactualStep] = Field(min_length=1, max_length=8)
+    assumptions: list[str] = Field(default_factory=list, max_length=8)
+    supporting_evidence_ids: list[str] = Field(default_factory=list, max_length=12)
+    contradicting_evidence_ids: list[str] = Field(default_factory=list, max_length=12)
+    unknowns: list[str] = Field(default_factory=list, max_length=8)
+
+
 class QAAuditPayload(BaseModel):
     checks: list[QACheck]
     quality_score: int = Field(ge=0, le=100)

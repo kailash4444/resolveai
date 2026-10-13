@@ -55,7 +55,7 @@ function showView(name) {
   else if (state.user.role === 'technician' && name === 'technicians') name = 'calls';
   $$(".view").forEach(el => el.classList.toggle("active", el.id === `view-${name}`));
   $$(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.view === name));
-  const titles = { overview: "Operations overview", case: "New support case", tickets: "Tickets", "ticket-detail": "Ticket details", analytics: "Analytics", "resolution-radar": "Resolution Debt Radar", knowledge: "Knowledge management", qa: "Quality audit", calls: "Calls & queue", technicians: "Technicians" };
+  const titles = { overview: "Operations overview", case: "New support case", tickets: "Tickets", "ticket-detail": "Ticket details", "time-machine": "Incident Time Machine", analytics: "Analytics", "resolution-radar": "Resolution Debt Radar", knowledge: "Knowledge management", qa: "Quality audit", calls: "Calls & queue", technicians: "Technicians" };
   document.title = ({"transcripts":"Transcripts","call-analytics":"Call analytics","customer-home":"My support","customer-create":"Create an incident","signin":"Welcome","technicians":"User management"})[name] || titles[name] || "ResolveAI";
 
   if (name === "customer-home") loadCustomerCalls();
@@ -371,7 +371,7 @@ async function openTicketDetails(caseId) {
   state.current = await api(`/api/cases/${caseId}`);
   showView("ticket-detail");
   const detail = $("#ticketDetailPage"); detail.className = "panel ticket-detail-panel";
-  detail.innerHTML = `<div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h2>${esc(state.current.ticket.id)}</h2><p class="helper">${state.user?.role === "customer" ? "Track progress and add comments." : "Edit the incident fields and save your changes."}</p></div><span class="tag">${esc(state.current.ticket.state)}</span></div>${state.user?.role === "customer" ? customerTicketDetails(state.current) : renderAttachments(state.current.ticket.attachments) + ticketForm(state.current) + followupPanels(state.current)}${transcriptPanel(state.current)}`;
+  detail.innerHTML = `<div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h2>${esc(state.current.ticket.id)}</h2><p class="helper">${state.user?.role === "customer" ? "Track progress and add comments." : "Edit the incident fields and save your changes."}</p></div><div class="tm-ticket-actions">${state.user?.role === "customer" ? "" : `<button class="primary small" data-enter-time-machine="${esc(state.current.id)}">Enter Time Machine →</button>`}<span class="tag">${esc(state.current.ticket.state)}</span></div></div>${state.user?.role === "customer" ? customerTicketDetails(state.current) : renderAttachments(state.current.ticket.attachments) + ticketForm(state.current) + followupPanels(state.current)}${transcriptPanel(state.current)}`;
   $('#ticketDurability').hidden = state.user?.role === 'customer';
   if (state.user?.role !== 'customer') window.loadCaseResolutionRadar?.(state.current.id);
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -547,6 +547,7 @@ document.addEventListener("click", event => {
   if (event.target.closest("[data-open-case]")) startNewCase();
   const direct = event.target.closest("[data-view-target]"); if (direct) showView(direct.dataset.viewTarget);
   const caseRow = event.target.closest("[data-case-id]"); if (caseRow) caseRow.tagName === "TR" ? openTicketDetails(caseRow.dataset.caseId) : openCase(caseRow.dataset.caseId, "case");
+  const timeMachine = event.target.closest('[data-enter-time-machine]'); if (timeMachine) window.enterIncidentTimeMachine?.(timeMachine.dataset.enterTimeMachine);
   const qaRow = event.target.closest("[data-qa-case-id]"); if (qaRow) openCase(qaRow.dataset.qaCaseId, "qa");
   if (event.target.closest("[data-open-qa]") && state.current) renderQA(state.current);
   if (event.target.closest("#rerunQa")) rerunQA();
