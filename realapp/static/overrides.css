@@ -68,3 +68,10 @@ body[data-role="customer"] #callPreferenceControl{display:none!important}
 .report-tabs button:focus-visible{outline:3px solid #85bca9;outline-offset:3px}
 [role="tabpanel"][hidden]{display:none!important}
 #qa-calls-panel>.panel-head{flex-wrap:wrap;gap:16px}#callQaList{margin-top:18px}
+
+.analytics-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:16px;align-items:end;margin-bottom:24px}
+.analytics-filters label{min-width:0}.analytics-filters .filter-count{grid-column:1/-1;margin:0}
+.call-overall{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:24px}
+.call-overall strong,.overall-score{font-size:24px;font-weight:800;color:#147054}
+@media(max-width:800px){.analytics-filters{grid-template-columns:1fr 1fr}.call-overall{align-items:flex-start;flex-direction:column}}
+@media(max-width:480px){.analytics-filters{grid-template-columns:1fr}}

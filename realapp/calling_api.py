@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.responses import PlainTextResponse
-from realapp.call_analytics import CallQuality, analytics, visible_call, audit_current
+from realapp.call_analytics import CallQuality, filtered_analytics, overall_quality, visible_call, audit_current
 
 from realapp.calling import CallingService, TechnicianCreate, Login, Presence, Heartbeat, CallSettings, SupportRequest, CustomerMessage, TERMINAL
 from realapp.calling_store import create_calling_store
@@ -143,6 +143,7 @@ def install_calling(app, settings, store, engine, update_ticket):
             result.append(dict(source_id=call['id'],call_id=call['id'],case_id=call.get('case_id'),
                 ticket_number=case.ticket.id if case else '',customer=call['caller'],technician=call.get('technician_name') or 'AI assistant',
                 service=call.get('service','General'),status=call['status'],created_at=call['created_at'],
+                overall_quality=overall_quality(call) if actor['role']!='customer' else None,
                 transcript=call['transcript'],quality_audit=call.get('quality_audit') if actor['role']!='customer' and audit_current(call) else None))
         for case in cases.values():
             own = actor['role']=='admin' or (case.ticket.assigned_user_id==actor['id'] if actor['role']=='technician' else case.customer_id==actor['id'])
@@ -175,9 +176,9 @@ def install_calling(app, settings, store, engine, update_ticket):
         return PlainTextResponse(text,headers={'Content-Disposition':'attachment; filename="transcript.txt"'})
 
     @router.get('/api/call-analytics')
-    def call_analytics(request: Request):
+    def call_analytics(request: Request, call_id: str = '', technician: str = '', service_name: str = ''):
         actor=user(request,staff=True)
-        return analytics([call for call in service.snapshot()['calls'] if visible_call(call,actor)])
+        return filtered_analytics([call for call in service.snapshot()['calls'] if visible_call(call,actor)],call_id,technician,service_name)
 
     @router.get('/api/call-analytics/audit-job')
     def call_quality_status(request: Request):

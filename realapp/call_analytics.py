@@ -46,6 +46,35 @@ def visible_call(call, actor):
     return actor['role']=='admin' or (call.get('technician_id')==actor['id'] if actor['role']=='technician' else call.get('customer_id')==actor['id'])
 
 
+def overall_quality(call):
+    metrics = call['quality_audit']['metrics'] if audit_current(call) else {}
+    scores = [metrics.get(key, {}).get('score') for key, _, _ in METRICS]
+    count = sum(score is not None for score in scores)
+    total = sum(scores) if count == len(METRICS) else None
+    return dict(score=total, maximum=600, percentage=round(total / 6, 1) if total is not None else None,
+                scored_metrics=count, status='complete' if total is not None else 'incomplete' if metrics else 'pending')
+
+
+def quality_average(calls):
+    scores = [overall_quality(call)['score'] for call in calls]
+    scores = [score for score in scores if score is not None]
+    average = sum(scores) / len(scores) if scores else None
+    return dict(score=round(average, 1) if average is not None else None, maximum=600,
+                percentage=round(average / 6, 1) if average is not None else None, evaluated_count=len(scores))
+
+
+def filtered_analytics(calls, call_id='', technician='', service=''):
+    selected = [call for call in calls if
+                (not call_id.strip() or call_id.strip().casefold() in call['id'].casefold()) and
+                (not technician or (call.get('technician_name') or 'AI / Unassigned') == technician) and
+                (not service or (call.get('service') or 'General') == service)]
+    result = analytics(selected)
+    result.update(available_total=len(calls), filters=dict(
+        technicians=sorted({call.get('technician_name') or 'AI / Unassigned' for call in calls}),
+        services=sorted({call.get('service') or 'General' for call in calls})))
+    return result
+
+
 class CallQuality:
     def __init__(self,service):
         self.service=service
@@ -134,11 +163,13 @@ def analytics(calls):
     for call in calls: grouped[call.get('technician_name') or 'AI / Unassigned'].append(call)
     technician_summary=[]
     for name,items in grouped.items():
-        values=[m['score'] for c in items if audit_current(c) for m in c['quality_audit']['metrics'].values() if m['score'] is not None]
-        technician_summary.append(dict(name=name,total=len(items),completed=sum(c['status']=='Completed' for c in items),average_score=round(sum(values)/len(values)) if values else None))
+        overall = quality_average(items)
+        technician_summary.append(dict(name=name,total=len(items),completed=sum(c['status']=='Completed' for c in items),average_score=overall['percentage'],overall=overall))
     return dict(total=len(calls),completed=len(completed),completion_rate=round(len(completed)*100/len(calls)) if calls else 0,
         average_duration_seconds=round(sum(durations)/len(durations)) if durations else 0,
         average_wait_seconds=round(sum(waits)/len(waits)) if waits else 0,audited=len(assessed),metrics=metrics,
         services=dict(Counter(c.get('service') or 'General' for c in calls)),states=dict(Counter(c['status'] for c in calls)),
         daily=dict(sorted(Counter(datetime.fromtimestamp(c['created_at'],timezone.utc).strftime('%Y-%m-%d') for c in calls).items())),
-        technicians=sorted(technician_summary,key=lambda t:(-t['total'],t['name'])))
+        technicians=sorted(technician_summary,key=lambda t:(-t['total'],t['name'])),overall=quality_average(calls),
+        calls=[dict(id=c['id'],technician=c.get('technician_name') or 'AI / Unassigned',service=c.get('service') or 'General',
+                    status=c['status'],overall=overall_quality(c)) for c in sorted(calls,key=lambda c:c['created_at'],reverse=True)])

@@ -354,11 +354,25 @@ function renderAnalyticsBars(target, counts, total) {
   $(target).innerHTML = entries.length ? entries.map(([label, count]) => `<div class="analytics-bar"><div><span>${esc(label)}</span><b>${count}</b></div><div class="bar"><i style="width:${Math.round(count / Math.max(1, total) * 100)}%"></i></div></div>`).join("") : "No incident data yet.";
 }
 
+function analyticsOptions(selector, values, label) {
+  const select=$(selector), selected=select.value;
+  select.innerHTML=`<option value="">${esc(label)}</option>`+[...new Set(values)].sort().map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join('');
+  select.value=[...select.options].some(option=>option.value===selected)?selected:'';
+}
+let analyticsCases=[];
 async function loadAnalytics() {
-  const cases = await api("/api/cases");
+  const userId=state.user?.id, cases=await api('/api/cases');
+  if(state.user?.id!==userId) return;
+  analyticsCases=cases;
+  analyticsOptions('#ticketAnalyticsTechnicianFilter',cases.map(item=>item.ticket.assigned_to || 'Unassigned'),'All technicians');
+  analyticsOptions('#ticketAnalyticsServiceFilter',cases.map(item=>item.ticket.service || 'Unspecified'),'All services');
+  renderTicketAnalytics();
+}
+function renderTicketAnalytics() {
+  const number=$('#ticketAnalyticsIdFilter').value.trim().toLowerCase(), technician=$('#ticketAnalyticsTechnicianFilter').value, service=$('#ticketAnalyticsServiceFilter').value;
+  const cases=analyticsCases.filter(item=>(!number || item.ticket.id.toLowerCase().includes(number)) && (!technician || (item.ticket.assigned_to || 'Unassigned')===technician) && (!service || (item.ticket.service || 'Unspecified')===service));
+  $('#ticketAnalyticsFilterCount').textContent=`${cases.length} of ${analyticsCases.length} tickets`;
   const resolved = cases.filter(item => item.ticket.state === "Resolved");
-  state.qaResolvedCount = resolved.length;
-  refreshBulkQA();
   const scored = resolved.map(item => item.quality_score).filter(value => value != null);
   const serviceCounts = groupedCounts(cases.map(item => item.ticket.service));
   $("#analyticsTotal").textContent = cases.length;
@@ -371,11 +385,15 @@ async function loadAnalytics() {
   renderAnalyticsBars("#routingDistribution", groupedCounts(cases.map(item => `${item.routing.handler} handled`)), cases.length);
   const services = Object.keys(serviceCounts).sort((left, right) => serviceCounts[right] - serviceCounts[left]);
   $("#serviceAnalyticsEmpty").hidden = services.length > 0;
+  $("#serviceAnalyticsEmpty").textContent = "No tickets match these filters.";
   $("#serviceAnalyticsRows").innerHTML = services.map(service => {
     const items = cases.filter(item => (item.ticket.service || "Unspecified") === service); const serviceResolved = items.filter(item => item.ticket.state === "Resolved"); const serviceScores = serviceResolved.map(item => item.quality_score).filter(value => value != null);
     return `<tr><td><strong>${esc(service)}</strong></td><td>${items.length}</td><td>${items.length - serviceResolved.length}</td><td>${serviceResolved.length}</td><td>${items.filter(item => item.routing.handler === "AI").length}</td><td>${serviceScores.length ? `${Math.round(serviceScores.reduce((sum, value) => sum + value, 0) / serviceScores.length)}%` : "—"}</td></tr>`;
   }).join("");
 }
+
+['Id','Technician','Service'].forEach(field=>$('#ticketAnalytics'+field+'Filter').addEventListener(field==='Id'?'input':'change',renderTicketAnalytics));
+$('#ticketAnalyticsResetFilters').addEventListener('click',()=>{['Id','Technician','Service'].forEach(field=>$('#ticketAnalytics'+field+'Filter').value='');renderTicketAnalytics();});
 
 function renderKnowledge(query = "") {
   const term = query.trim().toLowerCase();
