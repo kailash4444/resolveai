@@ -1,0 +1,93 @@
+let transcriptSources=[], transcriptSelected=null, callAnalyticsTimer;
+
+window.loadTranscripts = async () => {
+  try {
+    transcriptSources=await api('/api/transcripts');
+    $('#transcriptScope').textContent=state.user.role==='admin' ? 'All recorded calls and incident conversations.' : state.user.role==='technician' ? 'Conversations assigned to you.' : 'Your own support conversations.';
+    renderTranscripts();
+    if (!transcriptSources.some(source=>source.source_id===transcriptSelected)) {transcriptSelected=null;$('#transcriptDetail').hidden=true;}
+  } catch(error) {$('#transcriptList').textContent=error.message;}
+};
+
+function renderTranscripts() {
+  const query=$('#transcriptSearch').value.trim().toLowerCase();
+  const sources=transcriptSources.filter(source=>!query || [source.source_id,source.ticket_number,source.customer,source.technician,source.service].join(' ').toLowerCase().includes(query));
+  $('#transcriptCount').textContent=`${sources.length} of ${transcriptSources.length} conversations`;
+  $('#transcriptList').className=sources.length?'table-wrap':'empty-list';
+  $('#transcriptList').innerHTML=sources.length?`<table><thead><tr><th>Call / Source ID</th><th>Incident</th><th>Customer</th><th>Technician</th><th>Service</th><th></th></tr></thead><tbody>${sources.map(source=>`<tr class="transcript-list-row" data-transcript="${esc(source.source_id)}"><td>${esc(source.call_id || source.source_id)}</td><td>${esc(source.ticket_number || 'Pending')}</td><td>${esc(source.customer)}</td><td>${esc(source.technician)}</td><td>${esc(source.service)}</td><td><button class="text-button" data-transcript="${esc(source.source_id)}">View transcript</button></td></tr>`).join('')}</tbody></table>`:'No conversations match this search.';
+}
+
+async function openTranscript(id) {
+  transcriptSelected=id;
+  const source=await api(`/api/transcripts/${encodeURIComponent(id)}`);
+  if (transcriptSelected!==id) return;
+  const detail=$('#transcriptDetail');detail.hidden=false;
+  detail.innerHTML=`<div class="panel-head"><div><p class="eyebrow">${esc(source.call_id || 'INCIDENT CONVERSATION')}</p><h3>${esc(source.ticket_number || source.source_id)}</h3><p class="helper">Customer: ${esc(source.customer)} · Technician: ${esc(source.technician)}</p></div><a class="secondary transcript-download" href="/api/transcripts/${encodeURIComponent(id)}/download">Download transcript</a></div><div class="live-transcript">${source.transcript.map(turn=>`<div class="transcript-turn"><b>${esc(turn.speaker)} · ${esc(turn.speaker_name || (turn.speaker==='AI Agent'?'ResolveAI':turn.speaker==='Customer'?source.customer:source.technician))}</b><small>${turn.timestamp?esc(new Date(turn.timestamp).toLocaleTimeString()):''}</small><p>${esc(turn.text)}</p></div>`).join('')}</div>${source.quality_audit?`<section class="transcript-assessment"><h4>Call quality assessment</h4><p class="helper">${esc(source.quality_audit.model)} · ${new Date(source.quality_audit.assessed_at).toLocaleString()}</p>${Object.entries(source.quality_audit.metrics).map(([key,metric])=>`<details><summary>${esc(key.replaceAll('_',' '))} · ${metric.score===null?'Not enough evidence':metric.score+'/100'}</summary><blockquote>${esc(metric.evidence)}</blockquote><p>${esc(metric.explanation)}</p><p><b>Improvement:</b> ${esc(metric.improvement)}</p></details>`).join('')}</section>`:''}`;
+  detail.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+window.loadCallAnalytics=async () => {
+  try {
+    const data=await api('/api/call-analytics');
+    $('#callTotal').textContent=data.total;$('#callCompletion').textContent=`${data.completion_rate}% completed`;
+    $('#callDuration').textContent=`${Math.round(data.average_duration_seconds/60)} min`;
+    $('#callWait').textContent=`${data.average_wait_seconds}s`;$('#callAssessed').textContent=data.audited;
+    $('#callQualityMetrics').innerHTML=data.metrics.map(metric=>`<article class="quality-metric"><h4>${esc(metric.label)}</h4><strong>${metric.score===null?'Pending':metric.score+'%'}</strong><p class="helper">${esc(metric.definition)}</p><small>${metric.evaluated_count} scored calls</small></article>`).join('');
+    renderAnalyticsBars('#callServiceChart',data.services,data.total);renderAnalyticsBars('#callStateChart',data.states,data.total);renderAnalyticsBars('#callDailyChart',data.daily,data.total);
+    $('#callTechnicianRows').innerHTML=data.technicians.map(t=>`<tr><td>${esc(t.name)}</td><td>${t.total}</td><td>${t.completed}</td><td>${t.average_score===null?'Pending':t.average_score+'%'}</td></tr>`).join('');
+    $('#callAnalyticsStatus').textContent='';
+  } catch(error) {$('#callAnalyticsStatus').textContent=error.message;}
+};
+
+let callQaSources=[], callQaSelected=null;
+window.loadCallQA=async () => {
+  try {
+    const userId=state.user?.id;
+    const sources=await api('/api/transcripts');
+    if(state.user?.id!==userId) return;
+    callQaSources=sources.filter(source=>source.call_id && ['Completed','Callback requested','Failed'].includes(source.status));
+    renderCallQA();
+    if(!callQaSources.some(source=>source.source_id===callQaSelected)) {callQaSelected=null;$('#callQaDetail').hidden=true;}
+    await refreshCallAudit();
+  } catch(error) {$('#callAuditStatus').textContent=error.message;}
+};
+function renderCallQA() {
+  const query=$('#callQaSearch').value.trim().toLowerCase();
+  const sources=callQaSources.filter(source=>!query || [source.call_id,source.ticket_number,source.customer,source.technician].join(' ').toLowerCase().includes(query));
+  $('#callQaList').innerHTML=sources.length?`<table><thead><tr><th>Call ID</th><th>Incident</th><th>Customer</th><th>Technician</th><th>Call status</th><th></th></tr></thead><tbody>${sources.map(source=>`<tr><td>${esc(source.call_id)}</td><td>${esc(source.ticket_number || 'Pending')}</td><td>${esc(source.customer)}</td><td>${esc(source.technician)}</td><td>${esc(source.status)}</td><td><button class="text-button" data-call-qa="${esc(source.source_id)}">Review audit</button></td></tr>`).join('')}</tbody></table>`:'No completed call conversations match this search.';
+}
+async function openCallQA(id, scroll=true) {
+  callQaSelected=id;
+  const userId=state.user?.id,source=await api(`/api/transcripts/${encodeURIComponent(id)}`);
+  if(callQaSelected!==id || state.user?.id!==userId) return;
+  const audit=source.quality_audit,detail=$('#callQaDetail');detail.hidden=false;
+  detail.innerHTML=`<div class="panel-head"><div><p class="eyebrow">CALL QUALITY AUDIT</p><h3>${esc(source.call_id)}</h3><p class="helper">Incident: ${esc(source.ticket_number || 'Pending')} · Customer: ${esc(source.customer)} · Technician: ${esc(source.technician)}</p></div></div>${audit?`<div class="transcript-assessment"><p class="helper">${esc(audit.model)} · ${new Date(audit.assessed_at).toLocaleString()}</p>${Object.entries(audit.metrics).map(([key,metric])=>`<details open><summary>${esc(key.replaceAll('_',' '))} · ${metric.score===null?'Not enough evidence':metric.score+'/100'}</summary><blockquote>${esc(metric.evidence)}</blockquote><p>${esc(metric.explanation)}</p><p><b>Improvement:</b> ${esc(metric.improvement)}</p></details>`).join('')}</div>`:'<h4>QA pending</h4><p>Call quality is assessed in the background. Use Evaluate completed calls to assess existing conversations.</p>'}<details class="incident-transcript"><summary>View transcript</summary><div class="live-transcript">${source.transcript.map(turn=>`<div class="transcript-turn"><b>${esc(turn.speaker)} · ${esc(turn.speaker_name || (turn.speaker==='AI Agent'?'ResolveAI':turn.speaker==='Customer'?source.customer:source.technician))}</b><p>${esc(turn.text)}</p></div>`).join('')}</div></details>`;
+  if(scroll) detail.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+async function refreshCallAudit() {
+  clearTimeout(callAnalyticsTimer);
+  if (state.user?.role==='customer' || !state.user) return;
+  const job=await api('/api/call-analytics/audit-job'),running=job.status==='running';
+  $('#evaluateCalls').disabled=running;
+  $('#evaluateCalls').textContent=running?'Evaluating calls…':'Evaluate completed calls';
+  $('#callAuditStatus').textContent=job.status==='idle'?'Completed calls are assessed in the background. Use Evaluate completed calls to assess existing conversations.':`${running?'Evaluating':'Finished'}: ${job.completed} completed, ${job.failed} failed, ${job.skipped} skipped · ${job.total} calls`;
+  if($('#view-qa').classList.contains('active') && reportTabs.qa==='calls') {
+    if(callQaSelected) await openCallQA(callQaSelected,false);
+    if(running) callAnalyticsTimer=setTimeout(window.loadCallQA,3000);
+  }
+}
+
+$('#transcriptSearch').addEventListener('input',renderTranscripts);
+$('#callQaSearch').addEventListener('input',renderCallQA);
+document.addEventListener('click',async event=>{
+  const target=event.target.closest('[data-transcript]');
+  if(target) {try{await openTranscript(target.dataset.transcript);}catch(error){toast(error.message);}}
+  const audit=event.target.closest('[data-call-qa]');
+  if(audit) {try{await openCallQA(audit.dataset.callQa);}catch(error){toast(error.message);}}
+});
+$('#evaluateCalls').addEventListener('click',async () => {
+  $('#evaluateCalls').disabled=true;
+  try {await api('/api/call-analytics/evaluate',{method:'POST',body:'{}'});await window.loadCallQA();}
+  catch(error){toast(error.message);$('#evaluateCalls').disabled=false;}
+});

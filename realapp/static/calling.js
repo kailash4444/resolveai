@@ -39,6 +39,7 @@ window.loadCalling = async () => {
     if (calling.user.role === 'customer') { calling.data = null; calling.selected = null; return; }
     calling.data = await api('/api/calling');
     calling.user = calling.data.user;
+    if (calling.user.role === 'admin' && $('#view-technicians').classList.contains('active')) calling.data.users = await api('/api/users');
     await restorePhone();
     renderCalling();
     if (new URLSearchParams(location.search).get('connect') === 'livekit' && !calling.livekitShown && calling.user.role === 'admin') {
@@ -50,7 +51,9 @@ window.loadCalling = async () => {
 };
 
 function renderCalling() {
-  const { calls, metrics, voice: telephony } = calling.data;
+  const { metrics, voice: telephony } = calling.data;
+  const query = $('#callSearch').value.trim().toLowerCase();
+  const calls = calling.data.calls.filter(call => !query || [call.id,call.caller,call.technician_name,call.service,call.summary].join(' ').toLowerCase().includes(query));
   const technicians = calling.data.technicians.filter(t=>t.role !== 'customer');
   $('#signInButton').hidden = true;
   $('#presenceControl').hidden = false;
@@ -75,9 +78,10 @@ function renderCalling() {
   $('#callList').innerHTML = calls.length ? calls.map(c => `<button class="call-row ${c.id === calling.selected ? 'selected' : ''}" data-call-select="${esc(c.id)}"><div><strong>${esc(c.caller)}</strong>${callBadge(c.status)}</div><p>${esc(c.service)} · ${esc(c.priority)} · ${c.origin === 'browser' ? 'Browser call' : 'Desk request'}</p><small>${esc(c.technician_name || (c.status === 'AI' ? 'AI assistant' : c.id))} · ${elapsed(c.created_at)} ago</small></button>`).join('') : 'No calls yet. Incoming calls and routed support requests appear here.';
   $('#sharedQueuePanel').hidden = !(calling.data.incoming_calls || []).length;
   $('#sharedQueue').innerHTML = (calling.data.incoming_calls || []).map(call=>`<div class="case-row"><div><strong>${esc(call.origin === 'browser' ? 'Incoming call' : 'Support request')}</strong><small>${esc(call.service)} · ${esc(call.priority)}</small></div><button class="primary small" data-pickup-call="${esc(call.id)}">Answer</button></div>`).join('');
-  $('#technicianRows').innerHTML = technicians.map(t => `<tr><td><strong>${esc(t.name)}</strong><br><small>${esc(t.role)}</small></td><td>${esc(t.skills.join(', '))}</td><td>${esc(t.languages.join(', '))}</td><td>${callBadge(t.status)}</td><td>${t.voice_ready ? 'Connected' : 'Not connected'}</td><td>${esc(t.current_call_id || '—')}</td></tr>`).join('');
-  $('#techniciansEmpty').hidden = technicians.length > 0;
-  const offer = calls.find(c => c.technician_id === calling.user.id && c.status === 'Ringing');
+  const users = calling.data.users || technicians;
+  $('#technicianRows').innerHTML = users.map(t => `<tr><td><strong>${esc(t.name)}</strong><br><small>${esc(t.role)} · ${esc(t.username)}</small></td><td>${t.role === 'customer' ? '—' : esc(t.skills.join(', '))}</td><td>${esc(t.languages.join(', '))}</td><td>${t.role === 'customer' ? '—' : callBadge(t.status)}</td><td>${t.role === 'customer' ? '—' : t.voice_ready ? 'Connected' : 'Not connected'}</td><td>${esc(t.current_call_id || '—')}</td></tr>`).join('');
+  $('#techniciansEmpty').hidden = users.length > 0;
+  const offer = calling.data.calls.find(c => c.technician_id === calling.user.id && c.status === 'Ringing');
   $('#incomingCallBanner').hidden = !offer;
   if (offer) {
     $('#incomingCallBanner').innerHTML = `<div><strong>Incoming ${offer.origin === 'browser' ? 'call' : 'support request'} · ${esc(offer.caller)}</strong><small>${esc(offer.service)} · ${Math.max(0, Math.ceil(offer.reserved_until - Date.now()/1000))} seconds to answer</small></div><button class="primary small" data-call-select="${esc(offer.id)}">View request</button>`;
@@ -107,7 +111,7 @@ function renderCallDetail() {
   if (c.status === 'Connected' && own && calling.room) controls.push(`<button class="secondary" id="muteCallButton">${!calling.room.localParticipant.isMicrophoneEnabled ? 'Unmute' : 'Mute'}</button>`);
   if (c.status === 'AI' || c.status === 'Connected' && canManage) controls.push('<button class="secondary" data-call-action="transfer">Transfer to queue</button>');
   if ((c.status === 'Connected' || c.status === 'AI') && canManage) controls.push('<button class="secondary danger" data-call-action="finish">End call</button>');
-  $('#callWorkspace').innerHTML = `<div class="panel-head"><div><p class="eyebrow">${esc(c.id)}</p><h3>${esc(c.caller)}</h3></div>${callBadge(c.status)}</div><p>${esc(c.summary)}</p><div class="call-context"><span>${esc(c.service)} · ${esc(c.priority)}</span><span>${esc(c.technician_name || 'Not assigned')}</span></div><p class="helper">${esc(c.reason)}</p>${c.last_error ? `<p class="form-message error">${esc(c.last_error)}</p>` : ''}<div class="call-actions">${controls.join('')}</div><h4 class="call-section-label">Conversation</h4><div class="live-transcript">${c.transcript.map(t => `<div class="transcript-turn"><b>${esc(t.speaker)}</b><small>${t.timestamp ? new Date(t.timestamp).toLocaleTimeString() : ''}</small><p>${esc(t.text)}</p></div>`).join('') || '<p class="helper">The transcript will appear as participants speak.</p>'}</div><div id="callKnowledge"></div><details class="routing-history"><summary>Routing history</summary>${c.events.slice().reverse().map(e => `<p><small>${new Date(e.at).toLocaleTimeString()}</small> ${esc(e.text)}</p>`).join('')}</details>`;
+  $('#callWorkspace').innerHTML = `<div class="panel-head"><div><p class="eyebrow">${esc(c.id)}</p><h3>${esc(c.caller)}</h3></div>${callBadge(c.status)}</div><p>${esc(c.summary)}</p><div class="call-context"><span>${esc(c.service)} · ${esc(c.priority)}</span><span>${esc(c.technician_name || 'Not assigned')}</span></div><p class="helper">${esc(c.reason)}</p>${c.last_error ? `<p class="form-message error">${esc(c.last_error)}</p>` : ''}<div class="call-actions">${controls.join('')}</div><h4 class="call-section-label">Conversation</h4><div class="live-transcript">${c.transcript.map(t => `<div class="transcript-turn"><b>${esc(t.speaker)}${t.speaker_name ? ` · ${esc(t.speaker_name)}` : ''}</b><small>${t.timestamp ? new Date(t.timestamp).toLocaleTimeString() : ''}</small><p>${esc(t.text)}</p></div>`).join('') || '<p class="helper">The transcript will appear as participants speak.</p>'}</div><div id="callKnowledge"></div><details class="routing-history"><summary>Routing history</summary>${c.events.slice().reverse().map(e => `<p><small>${new Date(e.at).toLocaleTimeString()}</small> ${esc(e.text)}</p>`).join('')}</details>`;
   if (c.origin === 'desk' && c.status === 'AI') $('#callWorkspace').insertAdjacentHTML('beforeend', '<form id="callReplyForm"><label>Customer reply<textarea name="text" rows="2" required maxlength="4000"></textarea></label><button class="primary small">Send reply</button><p class="form-message" id="callReplyMessage"></p></form>');
   const guidance = c.knowledge_matches || [];
   const status = c.knowledge_status;
@@ -284,4 +288,5 @@ $('#livekitForm').addEventListener('submit', async event=>{
 
 setInterval(() => { if (calling.user && calling.user.role !== 'customer') loadCalling(); }, 4000);
 setInterval(heartbeat, 10000);
+$('#callSearch').addEventListener('input', () => { if (calling.data) renderCalling(); });
 loadCalling();

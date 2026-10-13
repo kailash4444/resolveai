@@ -1,0 +1,1024 @@
+[
+  {
+    "id": "tech_404f7f6a12d94e8a",
+    "name": "Kailash",
+    "username": "kailash4444",
+    "role": "admin",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Available",
+    "voice_ready": false,
+    "last_seen": 1791899811.25068,
+    "last_assigned": 1791819077.1810718,
+    "current_call_id": null,
+    "availability": "Available",
+    "calls_enabled": true
+  },
+  {
+    "id": "tech_aa6bf6bd73204235",
+    "name": "Bharani",
+    "username": "bunny1269",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Available",
+    "voice_ready": false,
+    "last_seen": 1791899672.1681309,
+    "last_assigned": 1791819121.2573068,
+    "current_call_id": null,
+    "availability": "Available",
+    "calls_enabled": true
+  },
+  {
+    "id": "tech_a3cd3113e65d45c0",
+    "name": "Bharath",
+    "username": "duglus",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "voice_ready": false,
+    "last_seen": 1791814193.1055198,
+    "last_assigned": 1791722409.053602,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_12e9513151004b1d",
+    "name": "Rajesh",
+    "username": "rajesh123",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_2cdc0160383441bd",
+    "name": "Arjun Reddy",
+    "username": "demo.tech.01",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Available",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_a8cd046adad74564",
+    "name": "Priya Sharma",
+    "username": "demo.tech.02",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_c1d5592651fb4f3e",
+    "name": "Rahul Verma",
+    "username": "demo.tech.03",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_d6c56235dd1944aa",
+    "name": "Sneha Iyer",
+    "username": "demo.tech.04",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_6e2c5451b4d441bc",
+    "name": "Vikram Rao",
+    "username": "demo.tech.05",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_8c7968a936c04a7e",
+    "name": "Ananya Nair",
+    "username": "demo.tech.06",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_b7773023a1054345",
+    "name": "Karthik Menon",
+    "username": "demo.tech.07",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_4bb6babb3f92462c",
+    "name": "Pooja Deshmukh",
+    "username": "demo.tech.08",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_dadde161a79845b0",
+    "name": "Rohit Patel",
+    "username": "demo.tech.09",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_64e9e78ad65a4eef",
+    "name": "Divya Krishnan",
+    "username": "demo.tech.10",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_f224e7883f7649cd",
+    "name": "Siddharth Gupta",
+    "username": "demo.tech.11",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_54409e5cd77c4634",
+    "name": "Meera Joshi",
+    "username": "demo.tech.12",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_7dc18ed2099a40c4",
+    "name": "Aditya Kulkarni",
+    "username": "demo.tech.13",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_26690298eb114cd5",
+    "name": "Kavya Srinivasan",
+    "username": "demo.tech.14",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_447e04bf44924bbc",
+    "name": "Nikhil Das",
+    "username": "demo.tech.15",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_656a511eb73543c3",
+    "name": "Shreya Banerjee",
+    "username": "demo.tech.16",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_867eb692f89748dd",
+    "name": "Harish Kumar",
+    "username": "demo.tech.17",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_2cf0e57cbc94454a",
+    "name": "Aishwarya Shetty",
+    "username": "demo.tech.18",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_f174cac6b3c74c16",
+    "name": "Manoj Yadav",
+    "username": "demo.tech.19",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_670f2338c25d4f04",
+    "name": "Lakshmi Narayanan",
+    "username": "demo.tech.20",
+    "role": "technician",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": true,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_45b3f69a09114244",
+    "name": "Aarav Mehta",
+    "username": "demo.customer.01",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_59cf4ff1df97457c",
+    "name": "Ishita Reddy",
+    "username": "demo.customer.02",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_2a3960eb94d94ccf",
+    "name": "Rohan Kapoor",
+    "username": "demo.customer.03",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_9b214685083e42c0",
+    "name": "Neha Singh",
+    "username": "demo.customer.04",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_67c444b1b8b44f5c",
+    "name": "Sanjay Malhotra",
+    "username": "demo.customer.05",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_e2141b1c82314d7e",
+    "name": "Nandini Rao",
+    "username": "demo.customer.06",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_cd0af3b5aac54bb8",
+    "name": "Pranav Nair",
+    "username": "demo.customer.07",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_1a024b8973e64d40",
+    "name": "Swati Kulkarni",
+    "username": "demo.customer.08",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_61d50660a7414e4d",
+    "name": "Deepak Chauhan",
+    "username": "demo.customer.09",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_68910ad193854282",
+    "name": "Tanvi Shah",
+    "username": "demo.customer.10",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_7e4916e01d3d4481",
+    "name": "Suresh Pillai",
+    "username": "demo.customer.11",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_4240d11480e24fe2",
+    "name": "Ritika Jain",
+    "username": "demo.customer.12",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_8b91cbbb020d4895",
+    "name": "Varun Bhat",
+    "username": "demo.customer.13",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_24e6e125ba454a36",
+    "name": "Aditi Desai",
+    "username": "demo.customer.14",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_fff2fa5bcab140a9",
+    "name": "Ganesh Iyer",
+    "username": "demo.customer.15",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_e40479028c434791",
+    "name": "Madhavi Rao",
+    "username": "demo.customer.16",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_7c79f074154048de",
+    "name": "Abhishek Mishra",
+    "username": "demo.customer.17",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_4fd405c477ac4142",
+    "name": "Sakshi Agarwal",
+    "username": "demo.customer.18",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_b51655778fd84f8e",
+    "name": "Chirag Patel",
+    "username": "demo.customer.19",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_45e45d44726f43fd",
+    "name": "Bhavana Menon",
+    "username": "demo.customer.20",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_9dfe5fecbb4c4a4d",
+    "name": "Ashwin Raj",
+    "username": "demo.customer.21",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_b60df4710fad4db0",
+    "name": "Keerthi Reddy",
+    "username": "demo.customer.22",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_212e83eb4fb54ff2",
+    "name": "Yash Sinha",
+    "username": "demo.customer.23",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_e0dc18b57a8e4653",
+    "name": "Rashmi Pandey",
+    "username": "demo.customer.24",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_c7fc3b382d1d4e3b",
+    "name": "Vivek Saxena",
+    "username": "demo.customer.25",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_68e1465487a243eb",
+    "name": "Sowmya Krishnan",
+    "username": "demo.customer.26",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_bf4e7bb0523448f0",
+    "name": "Akash Chatterjee",
+    "username": "demo.customer.27",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_4659e39f363e46d6",
+    "name": "Sonal Bansal",
+    "username": "demo.customer.28",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_725b910bca6d4a4e",
+    "name": "Tarun Arora",
+    "username": "demo.customer.29",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  },
+  {
+    "id": "tech_a8f26d24ee95408a",
+    "name": "Geetha Nair",
+    "username": "demo.customer.30",
+    "role": "customer",
+    "skills": [
+      "general"
+    ],
+    "languages": [
+      "en"
+    ],
+    "status": "Offline",
+    "availability": "Available",
+    "calls_enabled": false,
+    "voice_ready": false,
+    "last_seen": 0,
+    "last_assigned": 0,
+    "current_call_id": null
+  }
+]

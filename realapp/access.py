@@ -24,9 +24,10 @@ def require_case(case, user):
 
 
 def visible_case(case, user):
-    if user['role'] != 'customer':
-        return case
     value = case.model_copy(deep=True)
-    value.qa_checks = []
-    value.quality_score = None
+    if user['role'] == 'customer':
+        value.qa_checks = []
+        value.quality_score = None
+    if user['role'] == 'technician' and value.ticket.assigned_user_id != user['id']:
+        value.transcript = []
     return value

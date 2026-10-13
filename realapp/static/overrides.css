@@ -42,3 +42,29 @@ main{padding-top:30px}.sidebar{overflow-y:auto}.sidebar-footer{margin-top:auto;p
 .call-ticket-description{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}
 body[data-role="customer"] #callPreferenceControl{display:none!important}
 @media(max-width:680px){.call-ticket-fields{grid-template-columns:1fr 1fr}.call-activity-panel .call-row{flex-basis:260px}}
+
+.call-search{width:100%;margin:8px 0 0}.incident-transcript{margin-top:24px;border-top:1px solid #dee6e1;padding-top:18px}.incident-transcript>summary{font-weight:700;cursor:pointer}
+
+.activity-item p strong.activity-field-name{font-weight:800}
+.quality-metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:18px 0 24px}
+.quality-metric{border:1px solid #dce7e1;background:white;border-radius:16px;padding:20px}
+.quality-metric strong{display:block;font-size:30px;margin:12px 0;color:#147054}
+.quality-metric h4{margin:0}.quality-metric p{line-height:1.6}
+.transcript-detail{margin-top:22px}.transcript-detail .live-transcript{max-height:650px}
+.transcript-detail .panel-head{gap:18px}.transcript-list-row{cursor:pointer}
+.transcript-assessment details{border:1px solid #dce7e1;border-radius:10px;padding:14px;margin-top:12px}
+.transcript-assessment summary{cursor:pointer;font-weight:700}.transcript-assessment blockquote{margin:12px 0;border-left:3px solid #81b299;padding-left:14px}
+@media(max-width:800px){.quality-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.quality-metric-grid{grid-template-columns:1fr}.transcript-detail .panel-head{align-items:flex-start;flex-direction:column}}
+
+.analytics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.analytics-grid>*{min-width:0}
+@media(max-width:680px){.analytics-grid{grid-template-columns:1fr}#analytics-calls-panel .page-section-head{flex-wrap:wrap}}
+
+#analytics-calls-panel table{min-width:0}
+
+.report-tabs{display:flex;gap:8px;border-bottom:1px solid #dce7e1;margin:0 0 24px;padding-bottom:12px}
+.report-tabs button{border:1px solid #dce7e1;border-radius:10px;background:white;color:#426358;padding:12px 26px;font:inherit;font-weight:700;cursor:pointer}
+.report-tabs button[aria-selected="true"]{background:#16745b;color:white;border-color:#16745b}
+.report-tabs button:focus-visible{outline:3px solid #85bca9;outline-offset:3px}
+[role="tabpanel"][hidden]{display:none!important}
+#qa-calls-panel>.panel-head{flex-wrap:wrap;gap:16px}#callQaList{margin-top:18px}

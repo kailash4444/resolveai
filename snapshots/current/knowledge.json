@@ -1,0 +1,201 @@
+[
+  {
+    "title": "Reset an enterprise account password",
+    "product": "Identity and Access Management",
+    "symptoms": "A user cannot sign in because a password is forgotten, expired, or rejected.",
+    "steps": [
+      "Verify the caller with the approved identity check.",
+      "Confirm the account is active and not under a security hold.",
+      "Issue a one-time password reset link.",
+      "Ask the user to set a new password and verify sign-in."
+    ],
+    "resolution": "Password reset completed and sign-in confirmed.",
+    "tags": [
+      "password",
+      "login",
+      "identity"
+    ],
+    "id": "KB00001",
+    "source_ticket_ids": []
+  },
+  {
+    "title": "Unlock a locked enterprise account",
+    "product": "Identity and Access Management",
+    "symptoms": "A user receives an account locked or too many attempts message.",
+    "steps": [
+      "Verify the caller's identity.",
+      "Check the directory lock state and recent failed attempts.",
+      "Unlock the account if no security hold is present.",
+      "Have the user retry and confirm successful sign-in."
+    ],
+    "resolution": "Account unlocked after verification and access restored.",
+    "tags": [
+      "locked",
+      "account",
+      "login"
+    ],
+    "id": "KB00002",
+    "source_ticket_ids": []
+  },
+  {
+    "title": "Diagnose remote access connection failures",
+    "product": "Remote Access",
+    "symptoms": "A remote worker cannot establish a secure connection or the connection drops.",
+    "steps": [
+      "Capture the exact error, device, network, and client version.",
+      "Check service status and the user's entitlement.",
+      "Verify device time, certificate validity, and multi-factor authentication.",
+      "Collect client diagnostics and escalate if the failure persists."
+    ],
+    "resolution": "Remote access restored or diagnostic evidence attached for network escalation.",
+    "tags": [
+      "remote access",
+      "network",
+      "certificate",
+      "mfa"
+    ],
+    "id": "KB00003",
+    "source_ticket_ids": []
+  },
+  {
+    "title": "Triage an enterprise application outage",
+    "product": "Business Applications",
+    "symptoms": "Multiple users cannot open or use a business-critical application.",
+    "steps": [
+      "Confirm scope, affected locations, start time, and business impact.",
+      "Check service health and recent releases.",
+      "Link the ticket to an active incident if one exists.",
+      "Escalate with evidence and impact."
+    ],
+    "resolution": "Incident linked or application team engaged with scope and impact documented.",
+    "tags": [
+      "outage",
+      "application",
+      "incident",
+      "availability"
+    ],
+    "id": "KB00004",
+    "source_ticket_ids": []
+  },
+  {
+    "title": "Troubleshooting Monitor Power and Blank Display",
+    "product": "Desktop Monitor",
+    "symptoms": "The monitor screen is completely blank, does not display any video output, and appears powered off.",
+    "steps": [
+      "Verify that the monitor power cable is securely connected to both the monitor and an active power outlet.",
+      "Locate the control buttons on the underside or bezel of the monitor, specifically checking the far right side.",
+      "Press the rightmost power button to power on the unit.",
+      "Check if the power indicator light turns on and video appears on the screen.",
+      "If the screen still does not turn on after pressing the button, verify the display cable connection or escalate the ticket to Desktop Services for hardware inspection."
+    ],
+    "resolution": "The monitor powers on and normal display function is restored by pressing the physical power button located on the bottom right of the monitor.",
+    "tags": [
+      "monitor",
+      "hardware",
+      "display",
+      "power",
+      "desktop services"
+    ],
+    "id": "KB00005",
+    "source_ticket_ids": [
+      "INC0000094"
+    ]
+  },
+  {
+    "title": "Connecting a Workstation to a Network Printer Using MyPrint App",
+    "product": "MyPrint Application / Workstation Printing Services",
+    "symptoms": "User cannot connect their workstation or laptop to an office network printer.",
+    "steps": [
+      "Open the MyPrint (or My Print Services) application on the workstation.",
+      "Select the option to connect to a printer.",
+      "Locate and select the desired printer from the available printer list.",
+      "Confirm the connection establishes successfully.",
+      "If the printer does not appear or fails to connect, verify network connectivity and printer IP reachability, then escalate to Tier 2 support if necessary."
+    ],
+    "resolution": "The workstation successfully connects to the selected printer through the MyPrint application.",
+    "tags": [
+      "printer",
+      "myprint",
+      "workstation",
+      "connectivity",
+      "print services"
+    ],
+    "id": "KB00006",
+    "source_ticket_ids": [
+      "INC0000093"
+    ]
+  },
+  {
+    "title": "Unlocking Active Directory Account After Failed Self-Service Password Reset",
+    "product": "Active Directory",
+    "symptoms": "User reports being unable to reset their Active Directory password and is unable to log in due to an account block or lockout status.",
+    "steps": [
+      "Verify caller identity using standard security verification questions.",
+      "Open identity management console (such as SailPoint) or Active Directory management tools to inspect the target user account.",
+      "Review account status to confirm if the account is flagged as blocked or locked out.",
+      "Execute the unlock or unblock action on the user account in the identity management tool.",
+      "Prompt the user to attempt authentication or initiate the password reset process again to confirm resolution.",
+      "If the account remains locked or authentication fails after unblocking, escalate the incident to Tier 2 Identity and Access Management."
+    ],
+    "resolution": "The user account is unlocked in the identity management system, enabling the user to authenticate successfully.",
+    "tags": [
+      "Active Directory",
+      "SailPoint",
+      "Account Lockout",
+      "Password Reset",
+      "Identity Management"
+    ],
+    "id": "KB00007",
+    "source_ticket_ids": [
+      "INC0000091"
+    ]
+  },
+  {
+    "title": "Troubleshooting Laptop Blue Screen of Death (BSOD) Associated with Vendor Security Software",
+    "product": "WorkStation Laptop",
+    "symptoms": "User laptop encounters a Blue Screen of Death (BSOD) preventing normal system boot and workstation use, reportedly linked to third-party endpoint protection software (e.g., CrowdStrike).",
+    "steps": [
+      "Identify and document the exact BSOD error code and failing driver or system file if visible on screen.",
+      "Check internal IT bulletins and vendor status pages for known issues, outages, or pending agent/BIOS updates.",
+      "Confirm whether the issue is isolated to a specific machine or part of a wider third-party vendor incident.",
+      "Communicate vendor status and expected recovery timelines to the user if a vendor-side patch is required.",
+      "Escalate unresolved or critical devices to Endpoint Engineering if official safe mode workarounds or recovery media become available."
+    ],
+    "resolution": "No local fix was verified in the incident; recovery is pending official vendor update or formal remediation guidance from Endpoint Engineering.",
+    "tags": [
+      "BSOD",
+      "Blue Screen",
+      "CrowdStrike",
+      "Laptop",
+      "WorkStation",
+      "Endpoint Security"
+    ],
+    "id": "KB00008",
+    "source_ticket_ids": [
+      "INC0000092"
+    ]
+  },
+  {
+    "title": "Clear the browser cache",
+    "product": "Web browsers (Chrome reported in the call; exact browser steps were not documented)",
+    "symptoms": "A user asks how to clear a browser’s cached data. The ticket description says the browser was not identified, but the call transcript records Chrome. The technician’s instructions were generic rather than browser-specific.",
+    "steps": [
+      "Confirm which browser the user is using; the call in this incident identified Chrome.",
+      "In the browser’s Settings, select the option to clear the cache. The incident does not document the exact menu path or other options to select.",
+      "If the cache-clearing option is not apparent, or the user needs browser-specific guidance, consult the approved instructions for that browser or escalate to the service desk. The recorded guidance does not establish steps beyond Settings > clear cache."
+    ],
+    "resolution": "The ticket records that the customer was able to clear the browser cache after receiving instructions. The transcript does not confirm completion, and the exact Chrome steps were not recorded; treat the outcome as reported in the ticket, not as a verified browser-specific procedure.",
+    "tags": [
+      "browser",
+      "cache",
+      "clear cache",
+      "Chrome",
+      "how-to",
+      "browser settings"
+    ],
+    "id": "KB00009",
+    "source_ticket_ids": [
+      "INC0000081"
+    ]
+  }
+]

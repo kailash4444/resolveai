@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
+from fastapi.responses import PlainTextResponse
+from realapp.call_analytics import CallQuality, analytics, visible_call, audit_current
 
 from realapp.calling import CallingService, TechnicianCreate, Login, Presence, Heartbeat, CallSettings, SupportRequest, CustomerMessage, TERMINAL
 from realapp.calling_store import create_calling_store
@@ -24,6 +26,9 @@ def install_calling(app, settings, store, engine, update_ticket):
     setup_service = LiveKitSetup(settings, service)
     app.state.livekit_setup = setup_service
     app.state.calling = service
+    quality = CallQuality(service)
+    app.state.call_quality = quality
+    service.on_finished = quality.submit
     app.state.voice = transport
     app.state.calling_task = None
     app.state.qa_tasks = set()
@@ -69,6 +74,7 @@ def install_calling(app, settings, store, engine, update_ticket):
                     return JSONResponse({'detail':'Administrator access is required.'},status_code=403)
                 if actor['role'] == 'customer':
                     allowed = (path in {'/api/config','/api/auth/logout','/api/cases','/api/customer/incidents','/api/customer/calls'}
+                        or (path == '/api/transcripts' or path.startswith('/api/transcripts/')) and request.method == 'GET'
                         or path.startswith('/api/support/')
                         or path == '/api/knowledge' and request.method == 'GET'
                         or path.startswith('/api/cases/') and (request.method == 'GET' or path.endswith('/work-notes') and request.method == 'POST'))
@@ -125,6 +131,62 @@ def install_calling(app, settings, store, engine, update_ticket):
         actor = user(request)
         return [{key:call.get(key) for key in ('id','status','created_at','case_id','technician_name')}
                 for call in service.snapshot()['calls'] if call.get('customer_id') == actor['id']]
+
+    def transcript_sources(actor):
+        cases = {case.id:case for case in service.case_store.list_cases()}
+        result=[]
+        calls=service.snapshot()['calls']
+        linked={call.get('case_id') for call in calls}
+        for call in calls:
+            if not visible_call(call,actor) or not call.get('transcript'): continue
+            case=cases.get(call.get('case_id'))
+            result.append(dict(source_id=call['id'],call_id=call['id'],case_id=call.get('case_id'),
+                ticket_number=case.ticket.id if case else '',customer=call['caller'],technician=call.get('technician_name') or 'AI assistant',
+                service=call.get('service','General'),status=call['status'],created_at=call['created_at'],
+                transcript=call['transcript'],quality_audit=call.get('quality_audit') if actor['role']!='customer' and audit_current(call) else None))
+        for case in cases.values():
+            own = actor['role']=='admin' or (case.ticket.assigned_user_id==actor['id'] if actor['role']=='technician' else case.customer_id==actor['id'])
+            if case.id in linked or not own or not case.transcript: continue
+            result.append(dict(source_id=case.id,call_id=case.ticket.call_id,case_id=case.id,ticket_number=case.ticket.id,
+                customer=case.caller,technician=case.ticket.assigned_to or 'Not assigned',service=case.ticket.service,
+                status=case.ticket.state,created_at=case.created_at.timestamp(),transcript=[t.model_dump(mode='json') for t in case.transcript],quality_audit=None))
+        return sorted(result,key=lambda item:item['created_at'],reverse=True)
+
+    @router.get('/api/transcripts')
+    def transcript_list(request: Request):
+        return [{k:v for k,v in source.items() if k not in {'transcript','quality_audit'}} for source in transcript_sources(user(request))]
+
+    def transcript_for(source_id,request):
+        source=next((s for s in transcript_sources(user(request)) if s['source_id']==source_id),None)
+        if not source: raise HTTPException(404,'Transcript not found.')
+        return source
+
+    @router.get('/api/transcripts/{source_id}')
+    def transcript_detail(source_id: str, request: Request):
+        return transcript_for(source_id,request)
+
+    @router.get('/api/transcripts/{source_id}/download')
+    def transcript_download(source_id: str, request: Request):
+        source=transcript_for(source_id,request)
+        text=f"Call ID: {source['call_id'] or 'Not a call'}\nIncident: {source['ticket_number']}\nTechnician: {source['technician']}\nCustomer: {source['customer']}\n\n"
+        for turn in source['transcript']:
+            name=turn.get('speaker_name') or ('ResolveAI' if turn['speaker']=='AI Agent' else source['customer'] if turn['speaker']=='Customer' else source['technician'])
+            text+=f"{turn['speaker']} ({name}): {turn['text']}\n\n"
+        return PlainTextResponse(text,headers={'Content-Disposition':'attachment; filename="transcript.txt"'})
+
+    @router.get('/api/call-analytics')
+    def call_analytics(request: Request):
+        actor=user(request,staff=True)
+        return analytics([call for call in service.snapshot()['calls'] if visible_call(call,actor)])
+
+    @router.get('/api/call-analytics/audit-job')
+    def call_quality_status(request: Request):
+        return quality.status(user(request,staff=True)['id'])
+
+    @router.post('/api/call-analytics/evaluate',status_code=202)
+    def evaluate_calls(request: Request):
+        actor=user(request,staff=True)
+        return quality.start(actor['id'],[call for call in service.snapshot()['calls'] if visible_call(call,actor)])
 
     @router.get('/api/users')
     def list_users(request: Request):

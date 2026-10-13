@@ -81,6 +81,7 @@ class CallingService:
         from realapp.gemini import GeminiEngine
         self.knowledge_engine = GeminiEngine(settings, case_store.list_knowledge)
         self._ticket_lock = RLock()
+        self.on_finished = None
 
     def has_users(self):
         return self.repository.mutate(lambda db: bool(db["technicians"]))
@@ -494,6 +495,8 @@ class CallingService:
         call = self.repository.mutate(update)
         if call['origin'] == 'browser' and not call['case_id']:
             self.finalize_ticket(call_id)
+        if self.on_finished:
+            self.on_finished(call_id)
         return self.get(call_id)
 
     def finalize_ticket(self, call_id):

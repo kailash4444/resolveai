@@ -273,7 +273,7 @@ def update_ticket(case_id: str, update: TicketUpdate, background_tasks: Backgrou
     if case.ticket.state == "Resolved" and changed_fields:
         background_tasks.add_task(run_background_qa, case.id)
         background_tasks.add_task(run_background_knowledge, case.id)
-    return saved
+    return visible_case(saved,user) if user else saved
 
 
 @app.post("/api/cases/{case_id}/work-notes", response_model=CaseRecord)
@@ -323,7 +323,8 @@ def rerun_qa(case_id: str, http: Request):
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"LLM QA failed: {exc}") from exc
-    return require_case(store.save_audit(case, audit), actor(http))
+    user = actor(http)
+    return visible_case(require_case(store.save_audit(case, audit), user),user)
 
 
 @app.get("/api/knowledge", response_model=list[KnowledgeArticle])
@@ -347,7 +348,7 @@ def add_knowledge(article: KnowledgeArticleInput, http: Request):
 def find_incidents(ticket_numbers, user):
     numbers = list(dict.fromkeys(number.strip().upper() for number in ticket_numbers))
     if not numbers or any(not number or len(number) > 80 for number in numbers):
-        raise HTTPException(422, 'Enter valid incident numbers, such as INC-12345678.')
+        raise HTTPException(422, 'Enter valid incident numbers, such as INC0000001.')
     by_number = {case.ticket.id.upper(): case for case in store.list_cases() if can_read(case, user)}
     missing = [number for number in numbers if number not in by_number]
     if missing:
@@ -401,3 +402,11 @@ def overview(http: Request):
 from realapp.calling_api import install_calling
 
 calling = install_calling(app, settings, store, engine, update_ticket)
+
+# Convert public numbers and all call-side references together on startup.
+from realapp.numbering import rewrite
+number_aliases = store.migrate_numbers()
+if number_aliases:
+    def migrate_call_references(db):
+        db['calls'] = rewrite(db['calls'],number_aliases)
+    calling.repository.mutate(migrate_call_references)

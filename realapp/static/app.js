@@ -16,21 +16,47 @@ async function api(path, options = {}) {
   return response.json();
 }
 
+const reportTabs = {analytics: 'tickets', qa: 'tickets'};
+function selectReportTab(group, tab, load = true) {
+  if (!['analytics','qa'].includes(group) || !['tickets','calls'].includes(tab)) return;
+  reportTabs[group] = tab;
+  $$(`[data-report="${group}"]`).forEach(button => {
+    const selected = button.dataset.reportTab === tab;
+    button.setAttribute('aria-selected', String(selected)); button.tabIndex = selected ? 0 : -1;
+    $(`#${group}-${button.dataset.reportTab}-panel`).hidden = !selected;
+  });
+  if (!load) return;
+  if (group === 'analytics') tab === 'tickets' ? loadAnalytics() : window.loadCallAnalytics?.();
+  else tab === 'tickets' ? loadQA() : window.loadCallQA?.();
+}
+document.addEventListener('click', event => {
+  const tab = event.target.closest('[data-report]');
+  if (tab) selectReportTab(tab.dataset.report, tab.dataset.reportTab);
+});
+document.addEventListener('keydown', event => {
+  const tab = event.target.closest('[data-report]');
+  if (!tab || !['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+  event.preventDefault();
+  const target = event.key === 'Home' ? 'tickets' : event.key === 'End' ? 'calls' : tab.dataset.reportTab === 'tickets' ? 'calls' : 'tickets';
+  selectReportTab(tab.dataset.report, target); $(`#${tab.dataset.report}-${target}-tab`).focus();
+});
 function showView(name) {
+  if (name === 'call-analytics') {name = 'analytics'; reportTabs.analytics = 'calls';}
   if (!state.user) name = 'signin';
-  else if (state.user.role === 'customer' && !['customer-home','customer-create','tickets','ticket-detail','knowledge'].includes(name)) name = 'customer-home';
+  else if (state.user.role === 'customer' && !['customer-home','customer-create','tickets','ticket-detail','knowledge','transcripts'].includes(name)) name = 'customer-home';
   else if (state.user.role === 'technician' && name === 'technicians') name = 'calls';
   $$(".view").forEach(el => el.classList.toggle("active", el.id === `view-${name}`));
   $$(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.view === name));
-  const titles = { overview: "Operations overview", case: "New support case", tickets: "Tickets", "ticket-detail": "Ticket details", analytics: "Incident analytics", knowledge: "Knowledge management", qa: "Quality audit", calls: "Calls & queue", technicians: "Technicians" };
-  document.title = ({"customer-home":"My support","customer-create":"Create an incident","signin":"Welcome","technicians":"User management"})[name] || titles[name] || "ResolveAI";
+  const titles = { overview: "Operations overview", case: "New support case", tickets: "Tickets", "ticket-detail": "Ticket details", analytics: "Analytics", knowledge: "Knowledge management", qa: "Quality audit", calls: "Calls & queue", technicians: "Technicians" };
+  document.title = ({"transcripts":"Transcripts","call-analytics":"Call analytics","customer-home":"My support","customer-create":"Create an incident","signin":"Welcome","technicians":"User management"})[name] || titles[name] || "ResolveAI";
 
   if (name === "customer-home") loadCustomerCalls();
   if (name === "tickets") loadCases();
   if (name === "knowledge") loadKnowledge();
-  if (name === "analytics") loadAnalytics();
+  if (name === "analytics") selectReportTab("analytics", reportTabs.analytics);
+  if (name === "transcripts") window.loadTranscripts?.();
   if (name === "overview") loadOverview();
-  if (name === "qa") loadQA();
+  if (name === "qa") selectReportTab("qa", reportTabs.qa);
   if (name === "calls" || name === "technicians") window.loadCalling?.();
 }
 
@@ -128,10 +154,20 @@ function followupPanels(item) {
   return `<div class="ticket-followup"><div class="followup-tabs" role="tablist"><button type="button" class="followup-tab active" data-followup-tab="activity">Activity</button><button type="button" class="followup-tab" data-followup-tab="resolution">Resolution notes</button></div><div class="followup-pane" data-followup-pane="activity">${activityPanel(item)}</div><div class="followup-pane" data-followup-pane="resolution" hidden>${resolutionPanel(item)}</div></div>`;
 }
 
+function formatActivityFields(text) {
+  const fields = /^(Short description|Description|Category|Subcategory|Service|Priority|Assignment group|Assigned to|State|Resolution notes|Resolution)(\s*:.*)$/i;
+  return text.split('\n').map(line => { const match=line.match(fields); return match ? `<strong class="activity-field-name">${esc(match[1])}</strong>${esc(match[2])}` : esc(line); }).join('\n');
+}
+
 function activityPanel(item) {
   const enabled = item.ticket.state !== "New";
-  const notes = item.ticket.work_notes.slice().sort((left, right) => new Date(right.created_at) - new Date(left.created_at)).map(note => `<div class="activity-item activity-${esc(note.author_type.toLowerCase())}"><div><strong>${esc(note.author)}</strong><span class="tag">${esc(note.author_type)}</span></div><small>${new Date(note.created_at).toLocaleString()}</small><p>${esc(note.text)}</p></div>`).join("") || `<p class="helper">No activity yet.</p>`;
+  const notes = item.ticket.work_notes.slice().sort((left, right) => new Date(right.created_at) - new Date(left.created_at)).map(note => `<div class="activity-item activity-${esc(note.author_type.toLowerCase())}"><div><strong>${esc(note.author)}</strong><span class="tag">${esc(note.author_type)}</span></div><small>${new Date(note.created_at).toLocaleString()}</small><p>${note.author_type === "System" ? formatActivityFields(note.text) : esc(note.text)}</p></div>`).join("") || `<p class="helper">No activity yet.</p>`;
   return `<section class="activity-panel"><div class="panel-head"><div><p class="eyebrow">ACTIVITY</p></div></div><div class="activity-list">${notes}</div><form id="workNoteForm" class="activity-form"><label>Comment<textarea name="text" rows="3" required ${enabled ? "" : "disabled"} placeholder="Add progress, troubleshooting details, or customer feedback"></textarea></label><div class="action-row"><span class="helper">${enabled ? "Technicians and customers can add activity while work is underway." : "Save the ticket as In Progress before adding activity."}</span><button class="secondary" type="submit" ${enabled ? "" : "disabled"}>Add activity</button></div><p class="form-message" data-activity-message></p></form></section>`;
+}
+
+function transcriptPanel(item) {
+  if (!item.transcript.length) return '';
+  return `<details class="incident-transcript"><summary>Call conversation · ${esc(item.ticket.call_id || 'Recorded intake')}</summary><p class="helper">Technician: ${esc(item.ticket.assigned_to || 'Not assigned')} · Customer: ${esc(item.caller)}</p><div class="live-transcript">${item.transcript.map(turn=>`<div class="transcript-turn"><b>${esc(turn.speaker)}${turn.speaker_name ? ` · ${esc(turn.speaker_name)}` : ''}</b><small>${turn.timestamp ? esc(new Date(turn.timestamp).toLocaleTimeString()) : ''}</small><p>${esc(turn.text)}</p></div>`).join('')}</div></details>`;
 }
 
 function resolutionPanel(item) {
@@ -203,6 +239,7 @@ function visibleAuditChecks(checks) {
 }
 
 function renderQA(item) {
+  selectReportTab("qa", "tickets", false);
   refreshBulkQA();
   state.current = item;
   $$(".view").forEach(el => el.classList.toggle("active", el.id === "view-qa"));
@@ -293,7 +330,7 @@ async function openTicketDetails(caseId) {
   state.current = await api(`/api/cases/${caseId}`);
   showView("ticket-detail");
   const detail = $("#ticketDetailPage"); detail.className = "panel ticket-detail-panel";
-  detail.innerHTML = `<div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h2>${esc(state.current.ticket.id)}</h2><p class="helper">${state.user?.role === "customer" ? "Track progress and add comments." : "Edit the incident fields and save your changes."}</p></div><span class="tag">${esc(state.current.ticket.state)}</span></div>${state.user?.role === "customer" ? customerTicketDetails(state.current) : ticketForm(state.current) + followupPanels(state.current)}`;
+  detail.innerHTML = `<div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h2>${esc(state.current.ticket.id)}</h2><p class="helper">${state.user?.role === "customer" ? "Track progress and add comments." : "Edit the incident fields and save your changes."}</p></div><span class="tag">${esc(state.current.ticket.state)}</span></div>${state.user?.role === "customer" ? customerTicketDetails(state.current) : ticketForm(state.current) + followupPanels(state.current)}${transcriptPanel(state.current)}`;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -482,7 +519,7 @@ window.applyAccountRole = user => {
   state.user = user;
   document.body.dataset.role = user?.role || 'guest';
   const customer = user?.role === 'customer', admin = user?.role === 'admin';
-  $$('.nav-item').forEach(nav => {nav.hidden = !user || (customer ? !['customer-home','tickets','knowledge'].includes(nav.dataset.view) : nav.dataset.view === 'customer-home' || nav.dataset.view === 'technicians' && !admin);});
+  $$('.nav-item').forEach(nav => {nav.hidden = !user || (customer ? !['customer-home','tickets','knowledge','transcripts'].includes(nav.dataset.view) : nav.dataset.view === 'customer-home' || nav.dataset.view === 'technicians' && !admin);});
   $('#accountIdentity').textContent = user ? `${user.name} · ${user.role === 'admin' ? 'Admin' : customer ? 'Customer' : 'Technician'}` : '';
   $('#accountSignOut').hidden = !user;
   $('#sidebarAccount').hidden = !user;

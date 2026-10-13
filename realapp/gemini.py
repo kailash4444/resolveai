@@ -33,7 +33,10 @@ def parse_transcript(raw: str) -> list[TranscriptTurn]:
         match = re.match(r"(?:\[([^]]+)\]\s*)?([^:]{1,40}):\s*(.+)", line)
         if match:
             stamp, speaker, text = match.groups()
-            turns.append(TranscriptTurn(speaker=speaker.strip(), text=text.strip(), timestamp=stamp))
+            named = re.fullmatch(r"(Technician|Customer)\s*\(([^)]+)\)", speaker.strip(), re.IGNORECASE)
+            role = named.group(1).capitalize() if named else speaker.strip()
+            name = named.group(2).strip() if named else ''
+            turns.append(TranscriptTurn(speaker=role, speaker_name=name, text=text.strip(), timestamp=stamp))
         elif turns:
             turns[-1].text += f" {line}"
         else:

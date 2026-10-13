@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css">
-  <link rel="stylesheet" href="/static/overrides.css?v=8">
+  <link rel="stylesheet" href="/static/overrides.css?v=11">
 <link rel="stylesheet" href="/static/microphone.css?v=1"></head>
 <body>
   <aside class="sidebar">
@@ -19,6 +19,7 @@
       <button class="nav-item" data-view="case"><span>＋</span>New case</button>
       <button class="nav-item" data-view="tickets"><span>▤</span>Tickets</button>
       <button class="nav-item" data-view="calls"><span>◉</span>Calls & queue</button>
+      <button class="nav-item" data-view="transcripts"><span>≡</span>Transcripts</button>
       <button class="nav-item" data-view="technicians"><span>♧</span>Users</button>
       <button class="nav-item" data-view="analytics"><span>◫</span>Analytics</button>
       <button class="nav-item" data-view="knowledge"><span>◇</span>Knowledge</button>
@@ -92,7 +93,7 @@
       <div class="panel-head page-section-head"><div><p class="eyebrow">VOICE OPERATIONS</p><h2>Calls & queue</h2><p class="helper">AI assistance and the right technician, in one conversation.</p></div><button class="secondary" id="routeRequestButton">Route a support request</button></div>
       <div class="panel presence-panel"><div><strong id="technicianIdentity">Technician workspace</strong><p id="phoneConnection" class="helper">Sign in to receive assignments.</p></div><div class="call-actions"><button class="secondary" id="signInButton">Sign in</button><label id="callPreferenceControl" class="call-preference" hidden><input type="checkbox" id="receiveCallsToggle"> Enable calls</label><button class="secondary" id="enablePhoneButton" hidden>Enable microphone</button><label id="presenceControl" hidden>Availability<select id="presenceSelect"><option>Offline</option><option>Available</option><option>Away</option></select></label></div></div>
       <div class="metrics call-metrics"><article><span>Waiting</span><strong id="callsQueued">0</strong><small>In technician queues</small></article><article><span>With AI</span><strong id="callsAI">0</strong><small>Guided support</small></article><article><span>Connected</span><strong id="callsConnected">0</strong><small>With technicians</small></article><article><span>Available</span><strong id="callsAvailable">0</strong><small>Ready for assignments</small></article></div>
-      <section class="microphone-panel" data-microphone-panel hidden></section><article class="panel" id="sharedQueuePanel" hidden><h3>Incoming calls — available to answer</h3><div id="sharedQueue"></div></article><div class="calling-layout"><article class="panel call-activity-panel"><div class="panel-head"><h3>Call activity</h3><span class="tag" id="callingSync">Live queue</span></div><div id="callList" class="empty-list">Sign in to view calls and assignments.</div></article><article class="panel" id="callWorkspace"><p class="eyebrow">CONVERSATION</p><h3>Ready when you are</h3><p class="helper">Choose a call to see the transcript, routing decision, and linked incident.</p></article><article class="panel" id="callTicketPanel" hidden></article></div>
+      <section class="microphone-panel" data-microphone-panel hidden></section><article class="panel" id="sharedQueuePanel" hidden><h3>Incoming calls — available to answer</h3><div id="sharedQueue"></div></article><div class="calling-layout"><article class="panel call-activity-panel"><div class="panel-head"><h3>Call activity</h3><span class="tag" id="callingSync">Live queue</span></div><input type="search" id="callSearch" class="call-search" aria-label="Search calls" placeholder="Search call ID, customer, technician or issue"><div id="callList" class="empty-list">Sign in to view calls and assignments.</div></article><article class="panel" id="callWorkspace"><p class="eyebrow">CONVERSATION</p><h3>Ready when you are</h3><p class="helper">Choose a call to see the transcript, routing decision, and linked incident.</p></article><article class="panel" id="callTicketPanel" hidden></article></div>
     </section>
 
     <section class="view" id="view-technicians">
@@ -105,16 +106,29 @@
     </section>
 
     <section class="view" id="view-analytics">
-      <div class="panel-head page-section-head"><div><p class="eyebrow">SERVICE INTELLIGENCE</p><h2>Incident analytics</h2><p class="helper">Operational trends calculated from every created incident.</p></div></div>
+      <div class="panel-head page-section-head"><div><p class="eyebrow">SERVICE INTELLIGENCE</p><h2>Analytics</h2><p class="helper">Explore ticket and call performance.</p></div></div>
+<div class="report-tabs" role="tablist" aria-label="Analytics type"><button type="button" role="tab" id="analytics-tickets-tab" aria-controls="analytics-tickets-panel" aria-selected="true" tabindex="0" data-report="analytics" data-report-tab="tickets">Tickets</button><button type="button" role="tab" id="analytics-calls-tab" aria-controls="analytics-calls-panel" aria-selected="false" tabindex="-1" data-report="analytics" data-report-tab="calls">Calls</button></div><div id="analytics-tickets-panel" role="tabpanel" aria-labelledby="analytics-tickets-tab">
       <div class="metrics analytics-metrics"><article><span>Total incidents</span><strong id="analyticsTotal">0</strong><small>Across all services</small></article><article><span>Active services</span><strong id="analyticsServices">0</strong><small>Services with incidents</small></article><article><span>Resolved</span><strong id="analyticsResolved">0%</strong><small>Resolution rate</small></article><article><span>Average QA</span><strong id="analyticsQA">—</strong><small>Resolved tickets</small></article></div>
       <div class="analytics-grid"><article class="panel"><div class="panel-head"><div><p class="eyebrow">SERVICE VOLUME</p><h3>Incidents by service</h3></div></div><div id="serviceVolume" class="empty-list">Analytics appear after an incident is created.</div></article><article class="panel"><div class="panel-head"><div><p class="eyebrow">WORKFLOW</p><h3>State distribution</h3></div></div><div id="stateDistribution" class="empty-list">No incident data yet.</div></article><article class="panel"><div class="panel-head"><div><p class="eyebrow">URGENCY</p><h3>Priority distribution</h3></div></div><div id="priorityDistribution" class="empty-list">No incident data yet.</div></article><article class="panel"><div class="panel-head"><div><p class="eyebrow">ROUTING</p><h3>Handling model</h3></div></div><div id="routingDistribution" class="empty-list">No incident data yet.</div></article></div>
-      <article class="panel analytics-table"><div class="panel-head"><div><p class="eyebrow">SERVICE PERFORMANCE</p><h3>Service-level incident summary</h3></div></div><div class="table-wrap"><table><thead><tr><th>Service</th><th>Total</th><th>Open</th><th>Resolved</th><th>AI handled</th><th>Average QA</th></tr></thead><tbody id="serviceAnalyticsRows"></tbody></table><div id="serviceAnalyticsEmpty" class="empty-list">Create an incident to begin service analytics.</div></div></article>
+      <article class="panel analytics-table"><div class="panel-head"><div><p class="eyebrow">SERVICE PERFORMANCE</p><h3>Service-level incident summary</h3></div></div><div class="table-wrap"><table><thead><tr><th>Service</th><th>Total</th><th>Open</th><th>Resolved</th><th>AI handled</th><th>Average QA</th></tr></thead><tbody id="serviceAnalyticsRows"></tbody></table><div id="serviceAnalyticsEmpty" class="empty-list">Create an incident to begin service analytics.</div></div></article></div><div id="analytics-calls-panel" role="tabpanel" aria-labelledby="analytics-calls-tab" hidden>
+<p class="helper" id="callAnalyticsStatus" role="status"></p>      <div class="metrics"><article><span>Total calls</span><strong id="callTotal">0</strong><small id="callCompletion">Completion rate</small></article><article><span>Average duration</span><strong id="callDuration">—</strong><small>Ended calls</small></article><article><span>Average queue wait</span><strong id="callWait">—</strong><small>Connected calls</small></article><article><span>Quality assessed</span><strong id="callAssessed">0</strong><small>Evidence from conversations</small></article></div>
+      <h3>Conversation quality · 0–100</h3><p class="helper">Gemini scores each metric using transcript evidence. Insufficient evidence remains unscored. Open a transcript to inspect its assessment.</p><div class="quality-metric-grid" id="callQualityMetrics"></div>
+      <div class="analytics-grid"><article class="panel"><h3>Calls by service</h3><div id="callServiceChart"></div></article><article class="panel"><h3>Call status</h3><div id="callStateChart"></div></article><article class="panel"><h3>Calls by day</h3><div id="callDailyChart"></div></article><article class="panel"><h3>Technician performance</h3><div class="table-wrap"><table><thead><tr><th>Technician</th><th>Calls</th><th>Completed</th><th>Quality</th></tr></thead><tbody id="callTechnicianRows"></tbody></table></div></article></div>
+</div>
     </section>
 
+
+    <section class="view" id="view-transcripts">
+      <div class="panel-head page-section-head"><div><p class="eyebrow">CONVERSATIONS</p><h2>Transcripts</h2><p class="helper" id="transcriptScope">View your recorded conversations.</p></div></div>
+      <article class="panel"><label>Search transcripts<input id="transcriptSearch" type="search" placeholder="Call ID, incident number, participant or service"></label><p class="helper" id="transcriptCount"></p><div id="transcriptList" class="table-wrap empty-list">Loading transcripts…</div></article>
+      <article class="panel transcript-detail" id="transcriptDetail" hidden></article>
+    </section>
+
+
     <section class="view" id="view-qa">
-      <div class="panel-head page-section-head"><div><p class="eyebrow">INDEPENDENT REVIEW</p><h2>Ticket quality audit</h2></div><button class="primary small" id="rerunAllQa">Rerun all audits</button></div>
+<div class="panel-head page-section-head"><div><p class="eyebrow">INDEPENDENT REVIEW</p><h2>Quality audit</h2></div></div><div class="report-tabs" role="tablist" aria-label="Qa type"><button type="button" role="tab" id="qa-tickets-tab" aria-controls="qa-tickets-panel" aria-selected="true" tabindex="0" data-report="qa" data-report-tab="tickets">Tickets</button><button type="button" role="tab" id="qa-calls-tab" aria-controls="qa-calls-panel" aria-selected="false" tabindex="-1" data-report="qa" data-report-tab="calls">Calls</button></div><div id="qa-tickets-panel" role="tabpanel" aria-labelledby="qa-tickets-tab">      <div class="panel-head page-section-head"><div><h3>Ticket audits</h3></div><button class="primary small" id="rerunAllQa">Rerun all audits</button></div>
       <p class="helper" id="bulkQaStatus" role="status" aria-live="polite">Rerun AI QA for all resolved tickets.</p>
-      <div id="qaWorkspace" class="panel empty-list">Select a ticket to inspect its evidence and rerun AI QA.</div>
+      <div id="qaWorkspace" class="panel empty-list">Select a ticket to inspect its evidence and rerun AI QA.</div></div><div id="qa-calls-panel" role="tabpanel" aria-labelledby="qa-calls-tab" hidden><div class="panel-head"><div><h3>Call audits</h3><p class="helper">Review greeting, problem solving, empathy, communication, verification and closure.</p></div><button class="primary small" id="evaluateCalls">Evaluate completed calls</button></div><p class="helper" id="callAuditStatus" role="status" aria-live="polite"></p><article class="panel"><label>Search call audits<input id="callQaSearch" type="search" placeholder="Call ID, incident number or participant"></label><div id="callQaList" class="table-wrap"></div></article><article class="panel transcript-detail" id="callQaDetail" hidden></article></div>
     </section>
   </main>
   <div class="modal-backdrop" id="keyModal" hidden>
@@ -137,7 +151,7 @@
       <button class="modal-close" id="closeIncidentKnowledgePanel" aria-label="Close">×</button>
       <p class="eyebrow">KNOWLEDGE FROM EXPERIENCE</p><h2 id="incidentKnowledgeTitle">Create from incidents</h2>
       <p class="helper">Use incident details, comments, resolution notes, and source conversations to draft a reusable article. Review and edit it before adding it to Knowledge.</p>
-      <form id="incidentKnowledgeForm"><label>Ticket numbers<textarea name="ticket_numbers" rows="4" placeholder="INC-12345678, INC-87654321" required maxlength="2000"></textarea></label>
+      <form id="incidentKnowledgeForm"><label>Ticket numbers<textarea name="ticket_numbers" rows="4" placeholder="INC0000001, INC87654321" required maxlength="2000"></textarea></label>
       <p class="helper">Enter up to 20 ticket numbers, separated by commas, spaces, or new lines.</p>
       <button class="primary full" id="generateIncidentKnowledge" type="submit">Generate draft</button><p class="form-message" id="incidentKnowledgeMessage" role="status"></p></form>
     </section>
@@ -150,7 +164,8 @@
   <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="primary resume-audio" hidden>Enable call audio</button>
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=3"></script>
-  <script src="/static/app.js?v=8"></script>
-  <script src="/static/calling.js?v=9"></script>
+  <script src="/static/app.js?v=11"></script>
+  <script src="/static/calling.js?v=11"></script>
+  <script src="/static/transcripts.js?v=2"></script>
 </body>
 </html>

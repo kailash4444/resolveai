@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-10-13T13:57:48.196383+00:00",
+  "counts": {
+    "users": 54,
+    "calls": 98,
+    "incidents": 99,
+    "knowledge": 9,
+    "metadata": 1
+  },
+  "sha256": {
+    "users.json": "facdbd576407827745c737307747115ef2821131b5148fac2a82da0406fabc00",
+    "calls.json": "729b04adc5f4a6564071b81d5bfec8c915d0ae62f57858be405ee4d242b7454e",
+    "incidents.json": "0f25b647b678efde10e22e9bebedd11930622b23df04569d92e7c1bfc17b2116",
+    "knowledge.json": "c813365d45e8ab8e1617f86a461adfbf4250fadb30d0ccf18288e4bfb2b526fb",
+    "metadata.json": "bae45e48c171fd1fa2402156e6a21397c28fb986ab44337e31344c58b62938ca"
+  },
+  "excluded": [
+    "Passwords and hashes",
+    "API credentials",
+    "Login sessions",
+    "Login attempts",
+    "Voice access tokens"
+  ]
+}

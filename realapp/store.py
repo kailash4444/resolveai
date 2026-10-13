@@ -1,23 +1,29 @@
 from copy import deepcopy
-from uuid import uuid4
+import json
 import sqlite3
 from pathlib import Path
 from threading import RLock
 
 from realapp.knowledge import SEED_ARTICLES
 from realapp.models import CaseRecord, KnowledgeArticle, KnowledgeArticleInput
+from realapp.numbering import assign_case, assign_article, sync_case, migrate
 
 
 class MemoryStore:
     def __init__(self) -> None:
         self._cases: dict[str, CaseRecord] = {}
         self._lock = RLock()
-        self._knowledge = {article.id: deepcopy(article) for article in SEED_ARTICLES}
+        self._meta = {}
+        self._knowledge = {}
+        for article in SEED_ARTICLES:
+            saved = assign_article(article, None, self._meta)
+            self._knowledge[saved.id] = saved
 
     def save_case(self, case: CaseRecord) -> CaseRecord:
         with self._lock:
-            self._cases[case.id] = deepcopy(case)
-        return deepcopy(case)
+            saved = assign_case(case, self._cases.get(case.id), self._meta)
+            self._cases[case.id] = saved
+        return sync_case(case, saved)
 
     def save_audit(self, original, audit):
         with self._lock:
@@ -38,10 +44,18 @@ class MemoryStore:
         return sorted((deepcopy(a) for a in self._knowledge.values()), key=lambda a: a.id)
 
     def add_knowledge(self, value: KnowledgeArticleInput) -> KnowledgeArticle:
-        article_id = value.id or f"KB-{uuid4().hex[:6].upper()}"
-        article = KnowledgeArticle(**value.model_dump(exclude={"id"}), id=article_id)
-        self._knowledge[article.id] = deepcopy(article)
-        return article
+        with self._lock:
+            key = self._meta.get('knowledge_aliases',{}).get(value.id,value.id)
+            article = assign_article(value,self._knowledge.get(key),self._meta)
+            self._knowledge[article.id] = deepcopy(article)
+            return article
+
+    def migrate_numbers(self):
+        with self._lock:
+            cases, articles, aliases = migrate(list(self._cases.values()),list(self._knowledge.values()),self._meta)
+            self._cases = {case.id:case for case in cases}
+            self._knowledge = {article.id:article for article in articles}
+            return aliases
 
 
 class FirestoreStore:
@@ -51,10 +65,22 @@ class FirestoreStore:
         self.client = firestore.Client(project=project)
         self.cases = self.client.collection(collection)
         self.knowledge = self.client.collection(f"{collection}_knowledge")
+        self.numbers = self.client.collection(f"{collection}_metadata").document("numbers")
 
     def save_case(self, case: CaseRecord) -> CaseRecord:
-        self.cases.document(case.id).set(case.model_dump(mode="json"))
-        return case
+        from google.cloud import firestore
+        @firestore.transactional
+        def save(transaction):
+            ref = self.cases.document(case.id)
+            snapshot = ref.get(transaction=transaction)
+            counter = self.numbers.get(transaction=transaction)
+            meta = counter.to_dict() if counter.exists else {}
+            existing = CaseRecord.model_validate(snapshot.to_dict()) if snapshot.exists else None
+            saved = assign_case(case,existing,meta)
+            transaction.set(self.numbers,meta)
+            transaction.set(ref,saved.model_dump(mode='json'))
+            return saved
+        return sync_case(case,save(self.client.transaction()))
 
     def save_audit(self, original, audit):
         from google.cloud import firestore
@@ -83,10 +109,38 @@ class FirestoreStore:
         return sorted(articles or [deepcopy(a) for a in SEED_ARTICLES], key=lambda a: a.id)
 
     def add_knowledge(self, value: KnowledgeArticleInput) -> KnowledgeArticle:
-        article_id = value.id or f"KB-{uuid4().hex[:6].upper()}"
-        article = KnowledgeArticle(**value.model_dump(exclude={"id"}), id=article_id)
-        self.knowledge.document(article.id).set(article.model_dump(mode="json"))
-        return article
+        from google.cloud import firestore
+        @firestore.transactional
+        def save(transaction):
+            snapshot = self.numbers.get(transaction=transaction)
+            meta = snapshot.to_dict() if snapshot.exists else {}
+            key = meta.get('knowledge_aliases',{}).get(value.id,value.id)
+            current = self.knowledge.document(key).get(transaction=transaction) if key else None
+            existing = KnowledgeArticle.model_validate(current.to_dict()) if current and current.exists else None
+            saved = assign_article(value,existing,meta)
+            transaction.set(self.numbers,meta)
+            transaction.set(self.knowledge.document(saved.id),saved.model_dump(mode='json'))
+            return saved
+        return save(self.client.transaction())
+
+    def migrate_numbers(self):
+        from google.cloud import firestore
+        @firestore.transactional
+        def convert(transaction):
+            snapshot = self.numbers.get(transaction=transaction)
+            meta = snapshot.to_dict() if snapshot.exists else {}
+            case_docs = list(self.cases.stream(transaction=transaction))
+            article_docs = list(self.knowledge.stream(transaction=transaction))
+            cases = [CaseRecord.model_validate(doc.to_dict()) for doc in case_docs]
+            articles = [KnowledgeArticle.model_validate(doc.to_dict()) for doc in article_docs] or deepcopy(SEED_ARTICLES)
+            cases, articles, aliases = migrate(cases,articles,meta)
+            for case in cases: transaction.set(self.cases.document(case.id),case.model_dump(mode='json'))
+            old_ids = {doc.id for doc in article_docs} - {a.id for a in articles}
+            for key in old_ids: transaction.delete(self.knowledge.document(key))
+            for article in articles: transaction.set(self.knowledge.document(article.id),article.model_dump(mode='json'))
+            transaction.set(self.numbers,meta)
+            return aliases
+        return convert(self.client.transaction())
 
 
 class SQLiteStore(MemoryStore):
@@ -98,16 +152,25 @@ class SQLiteStore(MemoryStore):
         with self.connection() as db:
             db.execute("CREATE TABLE IF NOT EXISTS cases (id TEXT PRIMARY KEY, body TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS knowledge (id TEXT PRIMARY KEY, body TEXT NOT NULL)")
-            for article in SEED_ARTICLES:
-                db.execute("INSERT OR IGNORE INTO knowledge VALUES (?, ?)", (article.id, article.model_dump_json()))
+            db.execute("CREATE TABLE IF NOT EXISTS metadata (id TEXT PRIMARY KEY, body TEXT NOT NULL)")
+            if db.execute('SELECT COUNT(*) FROM knowledge').fetchone()[0] == 0:
+                for article in SEED_ARTICLES:
+                    db.execute("INSERT INTO knowledge VALUES (?, ?)", (article.id, article.model_dump_json()))
+        self.migrate_numbers()
 
     def connection(self):
         return sqlite3.connect(self.path, timeout=20)
 
     def save_case(self, case):
         with self.connection() as db:
-            db.execute("INSERT OR REPLACE INTO cases VALUES (?, ?)", (case.id, case.model_dump_json()))
-        return case.model_copy(deep=True)
+            db.execute('BEGIN IMMEDIATE')
+            meta = self._read_meta(db)
+            row = db.execute('SELECT body FROM cases WHERE id=?',(case.id,)).fetchone()
+            existing = CaseRecord.model_validate_json(row[0]) if row else None
+            saved = assign_case(case,existing,meta)
+            db.execute("INSERT OR REPLACE INTO cases VALUES (?, ?)", (saved.id, saved.model_dump_json()))
+            self._write_meta(db,meta)
+        return sync_case(case,saved)
 
     def save_audit(self, original, audit):
         with self.connection() as db:
@@ -134,10 +197,38 @@ class SQLiteStore(MemoryStore):
             return [KnowledgeArticle.model_validate_json(row[0]) for row in db.execute("SELECT body FROM knowledge ORDER BY id")]
 
     def add_knowledge(self, value):
-        article = KnowledgeArticle(**value.model_dump(exclude={"id"}), id=value.id or f"KB-{uuid4().hex[:6].upper()}")
         with self.connection() as db:
+            db.execute('BEGIN IMMEDIATE')
+            meta = self._read_meta(db)
+            key = meta.get('knowledge_aliases',{}).get(value.id,value.id)
+            row = db.execute('SELECT body FROM knowledge WHERE id=?',(key,)).fetchone() if key else None
+            existing = KnowledgeArticle.model_validate_json(row[0]) if row else None
+            article = assign_article(value,existing,meta)
             db.execute("INSERT OR REPLACE INTO knowledge VALUES (?, ?)", (article.id, article.model_dump_json()))
+            self._write_meta(db,meta)
         return article
+
+    @staticmethod
+    def _read_meta(db):
+        row = db.execute("SELECT body FROM metadata WHERE id='numbers'").fetchone()
+        return json.loads(row[0]) if row else {}
+
+    @staticmethod
+    def _write_meta(db,meta):
+        db.execute("INSERT OR REPLACE INTO metadata VALUES ('numbers',?)",(json.dumps(meta),))
+
+    def migrate_numbers(self):
+        with self.connection() as db:
+            db.execute('BEGIN IMMEDIATE')
+            meta = self._read_meta(db)
+            cases = [CaseRecord.model_validate_json(row[0]) for row in db.execute('SELECT body FROM cases')]
+            articles = [KnowledgeArticle.model_validate_json(row[0]) for row in db.execute('SELECT body FROM knowledge')]
+            cases, articles, aliases = migrate(cases,articles,meta)
+            for case in cases: db.execute('UPDATE cases SET body=? WHERE id=?',(case.model_dump_json(),case.id))
+            db.execute('DELETE FROM knowledge')
+            db.executemany('INSERT INTO knowledge VALUES (?,?)',[(a.id,a.model_dump_json()) for a in articles])
+            self._write_meta(db,meta)
+            return aliases
 
 
 def create_store(settings):

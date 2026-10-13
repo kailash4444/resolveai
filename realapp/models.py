@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 class TranscriptTurn(BaseModel):
     speaker: str
+    speaker_name: str = ''
     text: str
     timestamp: str | None = None
 
@@ -130,6 +131,7 @@ class ScopedQAAuditPayload(QAAuditPayload):
 
 class CaseRecord(BaseModel):
     id: str
+    demo_dataset: str = ''
     customer_id: str = ''
     created_by: str = ''
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

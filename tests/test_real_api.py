@@ -55,7 +55,7 @@ def test_real_workflow_and_qa_rerun():
     case = response.json()
     assert case["routing"]["handler"] == "AI"
     assert case["knowledge_matches"]
-    assert case["ticket"]["id"].startswith("INC-")
+    assert case["ticket"]["id"].startswith("INC") and len(case["ticket"]["id"]) == 10
     assert case["ticket"]["state"] == "New"
     assert case["ticket"]["resolution"] == ""
     assert case["ticket"]["short_description"]
