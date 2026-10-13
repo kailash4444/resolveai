@@ -34,3 +34,36 @@
   applyMode();
   applyRole(null);
 })();
+
+// Preserve explicit role intent and a pending support destination across the auth modal's URL update.
+const supportReturnKey = 'resolveai-support-return';
+const nativeOpenAccountAuth = window.openAccountAuth;
+if (typeof nativeOpenAccountAuth === 'function') {
+  window.openAccountAuth = async (role = null, mode = 'signin') => {
+    const params = new URLSearchParams(location.search);
+    const requestedRole = params.get('role');
+    if (['customer', 'technician'].includes(requestedRole)) role = requestedRole;
+    if (params.get('next') === 'support') sessionStorage.setItem(supportReturnKey, '/support');
+    const result = await nativeOpenAccountAuth(role, mode);
+    if (sessionStorage.getItem(supportReturnKey)) history.replaceState(null, '', `${location.pathname}?next=support`);
+    return result;
+  };
+}
+
+const nativeLoadApplication = window.loadApplication;
+if (typeof nativeLoadApplication === 'function') {
+  window.loadApplication = async (...args) => {
+    const destination = sessionStorage.getItem(supportReturnKey);
+    if (destination) {
+      try {
+        const auth = await api('/api/auth/status');
+        if (auth.user) {
+          sessionStorage.removeItem(supportReturnKey);
+          location.assign(destination);
+          return;
+        }
+      } catch (_) {}
+    }
+    return nativeLoadApplication(...args);
+  };
+}

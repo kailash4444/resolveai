@@ -37,7 +37,250 @@
     <div class="workspace-mode-control" role="group" aria-label="Workspace detail level"><span>View</span><button type="button" data-view-mode="focus" aria-pressed="true">Focus</button><button type="button" data-view-mode="detail" aria-pressed="false">Detail</button></div>
 
 
-    <section class="view" id="view-signin"><article class="panel"><p class="eyebrow">YOUR SUPPORT WORKSPACE · DEPLOY CHECK</p><h2>Welcome to ResolveAI</h2><p>Sign in to access your support workspace. Your administrator creates technician and customer accounts.</p><button class="primary" id="accountSignIn">Sign in</button></article></section>
+    <section class="view" id="view-signin">
+      <div class="landing-page">
+        <!-- Floating Navigation -->
+        <header class="landing-nav">
+          <div class="landing-brand">
+            <span class="brand-mark">R</span>
+            <span class="brand-name">ResolveAI</span>
+            <span class="brand-badge">INCIDENT INTELLIGENCE PREVIEW</span>
+          </div>
+          <nav class="landing-nav-links">
+            <a href="#preview">Product</a>
+            <a href="#features">Capabilities</a>
+            <a href="#workflow">Architecture</a>
+            <a href="#workspaces">Workspaces</a>
+          </nav>
+          <div class="landing-nav-actions">
+            <a href="/support" class="landing-voice-link">
+              <span class="live-dot"></span> Browser voice support
+            </a>
+            <button type="button" class="nav-auth-btn nav-btn-signin" id="navSignInBtn" onclick="window.openRoleChooser('signin')">
+              Sign in
+            </button>
+          </div>
+        </header>
+
+        <!-- Hero Section -->
+        <section class="landing-hero">
+          <div class="hero-badge"><span class="pulse-indicator"></span><span>AI FOR SERVICE OPERATIONS</span></div>
+          <h1 class="hero-title">Less firefighting.<br><span class="hero-gradient-text">More resolution.</span></h1>
+          <p class="hero-subtitle">AI-assisted incident investigation, browser voice support, and technician-led resolution.</p>
+
+          <!-- Core Authentication Actions: Sign In and Log In on front page -->
+          <div class="hero-auth-container">
+            <div class="call-actions hero-actions" id="roleSignInChoices">
+              <button class="primary hero-btn hero-btn-login" id="heroLoginBtn" type="button" onclick="window.openRoleChooser('signin')">
+                <span>Choose your workspace</span> <span class="arrow">→</span>
+              </button>
+              <a class="secondary hero-btn" href="#preview">
+                <span>Explore ResolveAI</span> <span class="arrow">↓</span>
+              </a>
+            </div>
+            <div id="firstAdminSetup" class="hero-admin-setup" hidden>
+              <p class="helper">Set up your workspace’s first administrator account.</p>
+              <button class="primary hero-btn" id="adminSetupButton">Create administrator account</button>
+            </div>
+          </div>
+
+          <div class="hero-subtext">
+            <span>Customer and technician workspaces</span>
+            <span class="divider">•</span>
+            <span>Gemini-assisted investigation</span>
+            <span class="divider">•</span>
+            <span>Browser-based voice support</span>
+          </div>
+
+          <div class="hero-capabilities"><span>Voice intake</span><i></i><span>Multimodal analysis</span><i></i><span>Grounded guidance</span><i></i><span>Human-led resolution</span></div>
+        </section>
+
+        <!-- Illustrative product preview: sample content, not live customer data. -->
+        <section class="landing-preview-section" id="preview">
+          <div class="preview-intro">
+            <p class="eyebrow">THE RESOLVEAI WORKFLOW</p>
+            <h2>One clear thread from signal to solution.</h2>
+            <p class="section-desc">Bring the conversation, evidence, and next best action into the same incident workspace.</p>
+            <div class="preview-stages" role="group" aria-label="Workflow preview stages">
+              <button type="button" aria-pressed="true" data-preview-step="signal">01 · Signal</button>
+              <button type="button" aria-pressed="false" data-preview-step="investigation">02 · Investigation</button>
+              <button type="button" aria-pressed="false" data-preview-step="resolution">03 · Human review</button>
+            </div>
+          </div>
+          <div class="preview-mockup-frame">
+            <div class="mockup-header">
+              <div class="mockup-traffic-lights"><span class="light"></span><span class="light"></span><span class="light"></span></div>
+              <div class="mockup-title-bar"><span class="mockup-tab active">Incident workspace</span><span class="mockup-tab">Investigation</span><span class="mockup-tab">Knowledge</span></div>
+              <div class="mockup-status-badge">EXAMPLE VIEW</div>
+            </div>
+            <div class="mockup-body">
+              <article class="mockup-panel workflow-preview-column preview-stage-active" data-preview-target="signal">
+                <div class="mockup-panel-head"><div><span class="mockup-label">01 · SIGNALS</span><h4>Account access issue</h4></div><span class="status-pill" data-tone="live">Intake complete</span></div>
+                <div class="signal-quote"><span class="sub-label">CUSTOMER VOICE</span><p>“I can’t sign in to my account.”</p></div>
+                <div class="signal-item"><span class="sig-icon">02</span><div><strong>Reported impact</strong><small>Unable to access a work account</small></div></div>
+                <div class="signal-item"><span class="sig-icon">03</span><div><strong>Attached evidence</strong><small>Images or video, when provided</small></div></div>
+              </article>
+              <article class="mockup-panel workflow-preview-column" data-preview-target="investigation">
+                <div class="mockup-panel-head"><div><span class="mockup-label">02 · INVESTIGATION NOTES</span><h4>AI assisted</h4></div><span class="status-pill" data-tone="ai">Review</span></div>
+                <div class="hypothesis-card"><div class="conf-head"><span>Possible area to inspect</span><span class="conf-val">Review</span></div><p>Check account status and recent authentication events. Confirm the cause before taking action.</p></div>
+                <div class="signal-item"><span class="sig-icon">↗</span><div><strong>Grounded knowledge</strong><small>Relevant guidance from the available library</small></div></div>
+              </article>
+              <article class="mockup-panel workflow-preview-column" data-preview-target="resolution">
+                <div class="mockup-panel-head"><div><span class="mockup-label">03 · SUGGESTED NEXT STEP</span><h4>Human review</h4></div><span class="status-pill" data-tone="warning">Technician owned</span></div>
+                <div class="runbook-match"><div class="runbook-icon">✓</div><div><strong>Confirm the fix with the customer</strong><small>Resolution stays with the service team</small></div></div>
+                <p class="preview-human-review">A technician reviews the evidence, checks the recommendation, and confirms the outcome.</p>
+              </article>
+            </div>
+          </div>
+          <p class="preview-disclaimer">Illustrative workflow preview. Example content only.</p>
+        </section>
+
+        <!-- Features Bento Grid -->
+        <section class="landing-features" id="features">
+          <div class="section-heading-centered">
+            <p class="eyebrow">INTELLIGENT ARCHITECTURE</p>
+            <h2>Engineered for high-velocity resolution</h2>
+            <p class="section-desc">Four core pillars combining cutting-edge Gemini reasoning with enterprise IT service workflows.</p>
+          </div>
+
+          <div class="bento-grid">
+            <div class="bento-card bento-hero-left">
+              <div class="bento-icon-box">◉</div>
+              <span class="bento-badge">BROWSER VOICE SUPPORT</span>
+              <h3>Voice intake & handoff</h3>
+              <p>Customers can start a browser voice support session. LiveKit connects the session and can bring a technician into the conversation.</p>
+              <ul class="bento-list">
+                <li><span>✓</span> Browser-based two-way audio</li>
+                <li><span>✓</span> Live conversation transcription when configured</li>
+                <li><span>✓</span> Request a technician during a support call</li>
+              </ul>
+            </div>
+
+            <div class="bento-card bento-hero-right">
+              <div class="bento-icon-box">▧</div>
+              <span class="bento-badge">MULTIMODAL VISION</span>
+              <h3>Visual evidence and analysis</h3>
+              <p>Customers can attach images to incidents. Staff can add supported photos or video during case intake; AI analysis depends on provider and storage configuration.</p>
+              <ul class="bento-list">
+                <li><span>✓</span> Customer intake: up to 3 images and 20 MB total</li>
+                <li><span>✓</span> In-line video playback and full-res image modal</li>
+                <li><span>✓</span> AI visual observations for technician review</li>
+              </ul>
+            </div>
+
+            <div class="bento-card">
+              <div class="bento-icon-box">⌘</div>
+              <span class="bento-badge">VECTOR SEARCH</span>
+              <h3>Semantic Knowledge Library</h3>
+              <p>Knowledge search can retrieve relevant articles and runbooks to support technician investigation.</p>
+            </div>
+
+            <div class="bento-card">
+              <div class="bento-icon-box">✓</div>
+              <span class="bento-badge">COMPLIANCE & QA</span>
+              <h3>Automated Quality Audits</h3>
+              <p>Resolved incidents and calls can be reviewed against quality criteria, with evidence kept alongside the case.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4-Step Workflow Section -->
+        <section class="landing-workflow-section" id="workflow">
+          <div class="section-heading-centered">
+            <p class="eyebrow">Illustrative example</p>
+            <h2>From issue report to human-verified resolution</h2>
+            <p class="section-desc">A sample of how intake, AI-assisted investigation, routing, and technician review fit together.</p>
+          </div>
+
+          <div class="workflow-steps">
+            <div class="workflow-step">
+              <div class="step-num">01</div>
+              <h4>Multichannel Intake</h4>
+              <p>Customers describe an issue and attach supported images. Staff can also start with a transcript, audio recording, photos, or video.</p>
+            </div>
+            <div class="workflow-step">
+              <div class="step-num">02</div>
+              <h4>Gemini Analysis</h4>
+              <p>When configured, Gemini extracts intent, suggests incident fields and urgency, and prepares a draft for staff review.</p>
+            </div>
+            <div class="workflow-step">
+              <div class="step-num">03</div>
+              <h4>Knowledge & Routing</h4>
+              <p>Vector similarity retrieves matched runbooks, while technician availability and service skills guide incident routing.</p>
+            </div>
+            <div class="workflow-step">
+              <div class="step-num">04</div>
+              <h4>Resolution & QA</h4>
+              <p>Technicians confirm the cause and resolution. Quality checks can review the incident evidence.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Workspace Role Showcase -->
+        <section class="landing-workspaces" id="workspaces">
+          <div class="section-heading-centered">
+            <p class="eyebrow">TAILORED EXPERIENCES</p>
+            <h2>Built for every stakeholder</h2>
+          </div>
+
+          <div class="workspace-grid">
+            <div class="workspace-card">
+              <div class="ws-header">
+                <span class="ws-tag customer">CUSTOMER PORTAL</span>
+                <span class="ws-icon">○</span>
+              </div>
+              <h3>Empower your end-users</h3>
+              <p>Report an issue with supported images, follow its status, read help articles, or start browser voice support when configured.</p>
+              <a class="secondary full neo-button" href="/login?role=customer">Customer workspace <span>→</span></a>
+            </div>
+
+            <div class="workspace-card highlight">
+              <div class="ws-header">
+                <span class="ws-tag technician">TECHNICIAN CONSOLE</span>
+                <span class="ws-icon">⌁</span>
+              </div>
+              <h3>Supercharge your service team</h3>
+              <p>Centralized queue, browser call controls, incident timelines, and AI-assisted guidance.</p>
+              <a class="secondary full neo-button" href="/login?role=technician">Technician workspace <span>→</span></a>
+            </div>
+
+            <div class="workspace-card">
+              <div class="ws-header">
+                <span class="ws-tag admin">ADMIN COMMAND</span>
+                <span class="ws-icon">▤</span>
+              </div>
+              <h3>Complete operational visibility</h3>
+              <p>Service distribution reports, call analytics, technician access, and incident quality reviews.</p>
+              <a class="secondary full neo-button" href="/login?role=technician">Admin workspace <span>→</span></a>
+            </div>
+          </div>
+        </section>
+
+        <!-- Landing Footer -->
+        <footer class="landing-footer">
+          <div class="footer-top">
+            <div class="footer-brand">
+              <span class="brand-mark">R</span>
+              <span class="brand-name">ResolveAI</span>
+              <p>A human-led service desk with AI-assisted incident investigation.</p>
+            </div>
+            <div class="footer-trust">
+              <div class="trust-badge">Customer incident intake</div>
+              <div class="trust-badge">Technician-led resolution</div>
+              <div class="trust-badge">Browser voice support</div>
+            </div>
+          </div>
+          <div class="footer-bottom">
+            <span>© ResolveAI Inc. Enterprise Incident Management. All rights reserved.</span>
+            <div class="footer-links">
+              <a href="/support">Browser voice support</a>
+              <a href="#preview">Product Console</a>
+              <a href="#features">Architecture</a>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </section>
     <section class="view" id="view-customer-home">
       <article class="panel"><p class="eyebrow">MY SUPPORT</p><h2>How can we help?</h2><p>Speak with support, report a problem, or find a solution in Knowledge.</p><div class="call-actions"><a class="primary" href="/support" target="_blank" rel="noopener">Call support</a><button class="secondary" data-view="customer-create">Create an incident</button><button class="text-button" data-view="knowledge">Browse knowledge</button></div></article>
       <article class="panel"><h3>Your recent calls</h3><div id="customerCalls" class="empty-list">No calls yet.</div></article>
@@ -157,7 +400,57 @@
     </section>
   </div>
   <div class="toast" id="toast" hidden></div>
-  <div class="modal-backdrop" id="authModal" hidden><section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="authTitle"><button class="modal-close" data-close-call-modal="authModal" aria-label="Close">×</button><p class="eyebrow">TECHNICIAN WORKSPACE</p><h2 id="authTitle">Sign in</h2><p class="helper" id="authDescription">Use your technician account to receive calls.</p><form id="authForm"><label id="setupNameLabel" hidden>Your name<input name="name" autocomplete="name"></label><label>Username<input name="username" autocomplete="username" required maxlength="80"></label><label>Password<input name="password" type="password" autocomplete="current-password" required maxlength="128"></label><label id="setupTokenLabel" hidden>Administrator setup token<input name="setup_token" type="password" autocomplete="off"></label><button class="primary full" id="authSubmit">Sign in</button><p class="form-message" id="authMessage"></p></form></section></div>
+  <div class="modal-backdrop" id="roleChooserModal" hidden>
+    <section class="key-modal role-chooser-modal" role="dialog" aria-modal="true" aria-labelledby="roleChooserTitle" aria-describedby="roleChooserDesc" tabindex="-1">
+      <button class="modal-close" data-close-call-modal="roleChooserModal" id="closeRoleChooser" aria-label="Close">×</button>
+      <p class="eyebrow">ACCOUNT ACCESS</p>
+      <h2 id="roleChooserTitle">Choose your sign-in</h2>
+      <p class="helper" id="roleChooserDesc">Select the account type you use. Administrators choose Technician; admin permissions are applied automatically.</p>
+      <div class="role-chooser-grid">
+        <button type="button" class="role-choice-card" id="technicianSignIn"><span class="choice-icon" aria-hidden="true">◉</span><span class="choice-body"><strong>Technician</strong><span>Service team and administrator accounts</span></span><span aria-hidden="true">→</span></button>
+        <button type="button" class="role-choice-card" id="customerSignIn"><span class="choice-icon" aria-hidden="true">○</span><span class="choice-body"><strong>Customer</strong><span>Report issues and follow support requests</span></span><span aria-hidden="true">→</span></button>
+      </div>
+    </section>
+  </div>
+  <div class="auth-experience" id="authModal" hidden>
+    <aside class="auth-brand-panel" aria-label="ResolveAI overview">
+      <a class="auth-brand" href="/" aria-label="ResolveAI home"><span class="auth-brand-mark">R</span><span>ResolveAI</span></a>
+      <div class="auth-brand-copy"><p class="auth-kicker">SERVICE OPERATIONS, IN FOCUS</p><h1>Resolve issues.<br><span>Faster.</span></h1><p>Your AI-powered service desk, ready when you are.</p></div>
+      <div class="auth-visual" aria-hidden="true">
+        <svg viewBox="0 0 640 480" role="presentation">
+          <defs><radialGradient id="authOrb"><stop stop-color="#a8c9ff"/><stop offset=".28" stop-color="#528cff"/><stop offset="1" stop-color="#172b53"/></radialGradient><linearGradient id="authLine"><stop stop-color="#487ff0" stop-opacity=".06"/><stop offset=".5" stop-color="#8dafff" stop-opacity=".8"/><stop offset="1" stop-color="#7567f8" stop-opacity=".08"/></linearGradient></defs>
+          <ellipse cx="320" cy="245" rx="244" ry="86" fill="none" stroke="url(#authLine)" transform="rotate(-25 320 245)"/><ellipse cx="320" cy="245" rx="204" ry="132" fill="none" stroke="#3c5d9b" stroke-opacity=".45" transform="rotate(28 320 245)"/><ellipse cx="320" cy="245" rx="155" ry="180" fill="none" stroke="#6475bd" stroke-opacity=".3" transform="rotate(72 320 245)"/>
+          <circle cx="320" cy="245" r="92" fill="#2755a8" opacity=".13"/><circle cx="320" cy="245" r="62" fill="url(#authOrb)"/><circle cx="300" cy="222" r="17" fill="#e4edff" opacity=".58"/><circle cx="320" cy="245" r="74" fill="none" stroke="#83a9ff" stroke-opacity=".3"/>
+          <g fill="#9fbaff" stroke="#c7d8ff" stroke-width="1.5"><circle cx="105" cy="177" r="7"/><circle cx="479" cy="112" r="8"/><circle cx="514" cy="341" r="6"/><circle cx="184" cy="394" r="7"/><circle cx="397" cy="399" r="5"/></g><g fill="#0d1729" stroke="#3d5f9f"><rect x="45" y="252" width="114" height="48" rx="12"/><rect x="438" y="182" width="146" height="48" rx="12"/><rect x="347" y="46" width="135" height="46" rx="12"/></g>
+          <g fill="#a8b9da" font-family="Plus Jakarta Sans, sans-serif" font-size="12"><text x="61" y="281">AI insights</text><text x="454" y="211">Incident routing</text><text x="362" y="74">Resolution tracking</text></g><g fill="#7599ea"><circle cx="60" cy="273" r="3"/><circle cx="453" cy="203" r="3"/><circle cx="361" cy="66" r="3"/></g>
+        </svg>
+        <span class="auth-float-label auth-float-one">AI insights <i></i></span><span class="auth-float-label auth-float-two">Team collaboration <i></i></span><span class="auth-float-label auth-float-three">Workflow automation <i></i></span>
+      </div>
+      <div class="auth-brand-footer"><span><strong>Faster resolution</strong><small>Clearer next steps</small></span><span><strong>Higher productivity</strong><small>Less manual triage</small></span><span><strong>Happier teams</strong><small>One shared workspace</small></span></div>
+    </aside>
+    <main class="auth-main"><section class="auth-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <a class="auth-mobile-brand" href="/" aria-label="ResolveAI home"><span class="auth-brand-mark">R</span><span>ResolveAI</span></a>
+      <p class="auth-kicker" id="authWorkspaceLabel">ACCOUNT ACCESS</p><h2 id="authTitle">Welcome back</h2><p class="auth-description" id="authDescription">Sign in to your ResolveAI account.</p>
+      <div class="auth-role-tabs" id="authRoleTabs" role="group" aria-label="Sign in as">
+        <button type="button" class="auth-role-tab" id="authRoleCustomerTab" data-role="customer"><span aria-hidden="true">◉</span> Customer</button>
+        <button type="button" class="auth-role-tab active" id="authRoleTechnicianTab" data-role="technician"><span aria-hidden="true">⌘</span> Technician</button>
+      </div>
+      <p class="auth-admin-signin-hint" id="adminSignInHint">Admin accounts: choose Technician. Your account permissions load automatically after sign-in.</p>
+      <form id="authForm">
+        <label class="auth-name-field" id="setupNameLabel" hidden>Full name<input name="name" autocomplete="name" placeholder="Your name"></label>
+        <label class="auth-field">Username<span class="auth-input-wrap"><span class="auth-input-icon" aria-hidden="true">@</span><input name="username" autocomplete="username" required maxlength="80" placeholder="Enter your username"></span></label>
+        <label class="auth-field">Password<span class="auth-input-wrap"><span class="auth-input-icon" aria-hidden="true">⌑</span><input name="password" type="password" autocomplete="current-password" required maxlength="128" placeholder="Enter your password"><button type="button" class="auth-password-toggle" aria-label="Show password" aria-pressed="false">Show</button></span></label>
+        <label class="auth-token-field" id="setupTokenLabel" hidden>Administrator setup token<input name="setup_token" type="password" autocomplete="off" placeholder="Enter setup token"></label>
+        <div class="auth-help-row"><span id="authInlineNotice" role="status"></span><button type="button" id="forgotPasswordButton">Forgot password?</button></div>
+        <button class="auth-submit" type="submit" id="authSubmit">Sign in <span aria-hidden="true">→</span></button>
+        <p class="form-message" id="authMessage" role="alert" aria-live="polite"></p>
+      </form>
+      <section class="auth-signup-notice" id="authSignupNotice" hidden aria-live="polite"><span class="auth-notice-icon" aria-hidden="true">i</span><div><strong>Accounts are created by your administrator</strong><p>Self-service registration is not enabled. Ask your ResolveAI administrator to create your account and share your username.</p></div></section>
+      <p class="auth-footer" id="authFooter">New to ResolveAI? <a href="/signup">Create account</a></p>
+      <a class="auth-back-home" href="/">← Back to ResolveAI</a>
+      <p class="auth-legal-note" id="authLegalNote" hidden>First-time setup creates the workspace administrator account.</p>
+    </section></main>
+  </div>
   <div class="modal-backdrop" id="technicianModal" hidden><section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="technicianTitle"><button class="modal-close" data-close-call-modal="technicianModal" aria-label="Close">×</button><p class="eyebrow">YOUR TEAM</p><h2 id="technicianTitle">Add user</h2><form id="technicianForm"><label>Role<select name="role"><option value="technician">Technician</option><option value="customer">Customer</option></select></label><label>Name<input name="name" required minlength="2" maxlength="80"></label><label>Username<input name="username" required minlength="3" pattern="[a-zA-Z0-9_.@-]+" autocomplete="off"></label><label>Password<input name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label><label>Services or skills, separated by commas<input name="skills" value="general" required></label><p class="helper">Use the service name to match specialist work. “general” receives work when no specialist is available.</p><label>Languages, separated by commas<input name="languages" value="en" required></label><button class="primary full">Create user</button><p class="form-message" id="technicianMessage"></p></form></section></div>
   <div class="modal-backdrop" id="requestModal" hidden><section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="requestTitle"><button class="modal-close" data-close-call-modal="requestModal" aria-label="Close">×</button><p class="eyebrow">SERVICE DESK INTAKE</p><h2 id="requestTitle">Route a support request</h2><p class="helper">Create an incident from a customer request and send it through the same AI and technician routing used by phone calls.</p><form id="routeRequestForm"><label>Customer<input name="caller" required maxlength="100"></label><label>Problem description<textarea name="description" rows="5" required minlength="20" maxlength="8000"></textarea></label><label>Language<input name="language" value="en" required maxlength="10"></label><button class="primary full">Create and route</button><p class="form-message" id="requestMessage"></p></form></section></div>
   <div class="modal-backdrop" id="livekitModal" hidden><section class="key-modal livekit-modal" role="dialog" aria-modal="true" aria-labelledby="livekitTitle"><button class="modal-close" data-close-call-modal="livekitModal" aria-label="Close">×</button><p class="eyebrow">BROWSER CALLING</p><h2 id="livekitTitle">Connect LiveKit</h2><p class="helper">Use the local LiveKit server or your LiveKit Cloud project. Credentials are protected in your Windows profile and retained after restarts.</p><form id="livekitForm"><label>LiveKit server address<input name="url" required placeholder="ws://127.0.0.1:7880" autocomplete="off" spellcheck="false"></label><label>API key<input name="api_key" required autocomplete="off" spellcheck="false"></label><label>API secret<input name="api_secret" type="password" autocomplete="off" spellcheck="false" placeholder="Enter your API secret"></label><p class="helper">Cloud credentials are available in <a href="https://cloud.livekit.io/" target="_blank" rel="noopener noreferrer">LiveKit Cloud</a>. For local calls, run start-livekit-local.ps1 in the project.</p><button type="submit" class="primary full">Verify and save connection</button><p id="livekitMessage" class="form-message" role="status"></p></form></section></div>

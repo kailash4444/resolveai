@@ -4705,6 +4705,15 @@ input:focus, select:focus, textarea:focus { border-color: var(--action); box-sha
 .auth-field input, .auth-token-field input { background: #0B1425; color: var(--text); border-color: var(--border-strong); }
 .auth-help-row button, .text-button, .key-link { color: #75A5FF; }
 .auth-admin-signin-hint { margin: 8px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
+.role-chooser-modal { width: min(100% - 32px, 560px); margin: auto; padding: 28px; }
+.role-chooser-grid { display: grid; gap: 12px; margin-top: 22px; }
+.role-choice-card { display: grid; grid-template-columns: 40px 1fr 20px; align-items: center; gap: 14px; width: 100%; min-height: 76px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); color: var(--text); text-align: left; }
+.role-choice-card:hover { border-color: var(--action); background: var(--surface-overlay); }
+.choice-body { display: grid; gap: 4px; }
+.choice-body strong { font-size: 16px; }
+.choice-body span { color: var(--text-secondary); font-size: 12px; }
+.choice-icon { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 9px; background: var(--canvas); color: var(--text); }
+.workspace-mode-control > span { margin-right: 6px; color: var(--text-secondary); font-size: 12px; }
 .landing-page { background: var(--canvas); color: var(--text); }
 .landing-nav { background: rgba(7,11,22,.96); border-bottom: 1px solid var(--border); }
 .landing-brand .brand-name, .hero-title, .section-heading-centered h2, .preview-intro h2, .workspace-card h3 { color: var(--text); }

@@ -1,21 +1,116 @@
-const calling = { user: null, data: null, selected: null, room: null, roomCallId: null, ready: false, auth: null, loading: false, notice: null };
+const calling = { user: null, data: null, selected: null, room: null, roomCallId: null, ready: false, auth: null, authRole: null, loading: false, notice: null, priority: 'All' };
 
 function elapsed(at) { return at ? `${Math.max(0, Math.floor((Date.now() / 1000 - at) / 60))} min` : '—'; }
 function callBadge(status) { return `<span class="call-status status-${esc(status.toLowerCase().replaceAll(' ', '-'))}">${esc(status)}</span>`; }
 
-window.openTechnicianAuth = async () => {
+window.setAuthModalRole = (role) => {
+  const setup = calling.auth?.setup_required;
+  calling.authRole = setup ? null : (role === 'customer' ? 'customer' : 'technician');
+  const customer = calling.authRole === 'customer';
+
+  const tabContainer = $('#authRoleTabs');
+  if (tabContainer) tabContainer.hidden = !!setup;
+
+  const custTab = $('#authRoleCustomerTab');
+  const techTab = $('#authRoleTechnicianTab');
+  if (custTab) { custTab.classList.toggle('active', customer); custTab.setAttribute('aria-pressed', String(customer)); }
+  if (techTab) { techTab.classList.toggle('active', !customer); techTab.setAttribute('aria-pressed', String(!customer)); }
+
+  const modalSection = $('#authModal .auth-card');
+  if (modalSection) modalSection.dataset.role = setup ? 'admin' : (customer ? 'customer' : 'technician');
+
+  if (setup) {
+    $('#authWorkspaceLabel').textContent = 'ADMINISTRATOR SETUP';
+    $('#authTitle').textContent = 'Create your administrator account';
+    $('#authDescription').textContent = 'Create the first administrator account, then add technician and customer accounts.';
+    $('#authSubmit').textContent = 'Create administrator account';
+  } else if (customer) {
+    $('#authWorkspaceLabel').textContent = 'CUSTOMER WORKSPACE';
+    $('#authTitle').textContent = 'Welcome back';
+    $('#authDescription').textContent = 'Sign in to your ResolveAI customer account.';
+    $('#authSubmit').innerHTML = 'Sign in <span aria-hidden="true">→</span>';
+  } else {
+    $('#authWorkspaceLabel').textContent = 'TECHNICIAN WORKSPACE';
+    $('#authTitle').textContent = 'Welcome back';
+    $('#authDescription').textContent = 'Sign in to your ResolveAI technician account.';
+    $('#authSubmit').innerHTML = 'Sign in <span aria-hidden="true">→</span>';
+  }
+  $('#authMessage').textContent = '';
+};
+
+window.openRoleChooser = (mode = 'signin') => {
+  if (mode === 'signup') return window.openAccountAuth('technician', 'signup');
+  const chooser = $('#roleChooserModal');
+  if (!chooser) return window.openAccountAuth(calling.authRole || 'technician', mode);
+  chooser.hidden = false;
+  $('#closeRoleChooser')?.focus();
+};
+
+window.openAccountAuth = async (role = null, mode = 'signin') => {
+  const roleModal = $('#roleChooserModal');
+  if (roleModal) roleModal.hidden = true;
   calling.auth = await api('/api/auth/status');
+  window.setAuthModalRole(role || 'technician');
   const setup = calling.auth.setup_required;
-  $('#authTitle').textContent = setup ? 'Create your administrator account' : 'Sign in';
-  $('#authDescription').textContent = setup ? 'Create the single administrator account, then add technician and customer accounts.' : 'Sign in with the account your administrator created.';
+  const signup = !setup && mode === 'signup';
   $('#setupNameLabel').hidden = !setup;
   $('#setupNameLabel input').required = setup;
   $('#setupTokenLabel').hidden = !setup || !calling.auth.setup_token_required;
   $('#authForm [name=password]').minLength = setup ? 12 : 1;
-  $('#authSubmit').textContent = setup ? 'Create account' : 'Sign in';
+  $('#authForm [name=password]').autocomplete = setup ? 'new-password' : 'current-password';
+  $('#authForm').hidden = signup;
+  $('#authSignupNotice').hidden = !signup;
+  $('#authFooter').hidden = setup;
+  $('#authLegalNote').hidden = !setup;
+  $('#forgotPasswordButton').hidden = setup || signup;
+  $('#authInlineNotice').textContent = '';
+  $('#authSubmit').disabled = false;
+  $('#authTitle').textContent = setup ? 'Create your administrator account' : signup ? 'Create your account' : 'Welcome back';
+  if (signup) {
+    $('#authWorkspaceLabel').textContent = 'ACCOUNT REGISTRATION';
+    $('#authDescription').textContent = 'Get started with smarter issue resolution.';
+    $('#authRoleTabs').hidden = false;
+  }
+  $('#authFooter').innerHTML = 'Already have an account? <a href="/login">Sign in</a>';
+  if (!signup && !setup) $('#authFooter').innerHTML = 'New to ResolveAI? <a href="/signup">Create account</a>';
+  document.body.classList.add('auth-open');
+  history.replaceState(null, '', setup ? '/login' : signup ? '/signup' : '/login');
   $('#authMessage').textContent = '';
   $('#authModal').hidden = false;
+  $('#authForm [name=username]').focus({preventScroll:true});
 };
+
+window.openTechnicianAuth = () => window.openAccountAuth('technician');
+
+$('#technicianSignIn').addEventListener('click', () => {
+  const roleModal = $('#roleChooserModal');
+  if (roleModal) roleModal.hidden = true;
+  window.openAccountAuth('technician');
+});
+$('#customerSignIn').addEventListener('click', () => {
+  const roleModal = $('#roleChooserModal');
+  if (roleModal) roleModal.hidden = true;
+  window.openAccountAuth('customer');
+});
+$('#adminSetupButton').addEventListener('click', () => {
+  const roleModal = $('#roleChooserModal');
+  if (roleModal) roleModal.hidden = true;
+  window.openAccountAuth(null);
+});
+$('#authRoleCustomerTab')?.addEventListener('click', () => window.setAuthModalRole('customer'));
+$('#authRoleTechnicianTab')?.addEventListener('click', () => window.setAuthModalRole('technician'));
+$('.auth-password-toggle')?.addEventListener('click', event => {
+  const button = event.currentTarget;
+  const input = $('#authForm [name=password]');
+  const visible = input.type === 'password';
+  input.type = visible ? 'text' : 'password';
+  button.textContent = visible ? 'Hide' : 'Show';
+  button.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+  button.setAttribute('aria-pressed', String(visible));
+});
+$('#forgotPasswordButton')?.addEventListener('click', () => {
+  $('#authInlineNotice').textContent = 'Password resets are handled by your ResolveAI administrator. Contact them for help.';
+});
 
 window.loadCalling = async () => {
   if (calling.loading) return;
@@ -254,8 +349,8 @@ async function submitCallingForm(event, path, messageId, transform, after) {
   finally { button.disabled = false; }
 }
 
-$('#authForm').addEventListener('submit', event => submitCallingForm(event, calling.auth?.setup_required ? '/api/auth/setup' : '/api/auth/login', '#authMessage', null, async result => {
-  calling.user = result; calling.ready = false; calling.retryPhoneAt = 0; window.applyAccountRole?.(result); $('#authModal').hidden = true; await window.loadApplication();
+$('#authForm').addEventListener('submit', event => submitCallingForm(event, calling.auth?.setup_required ? '/api/auth/setup' : '/api/auth/login', '#authMessage', values => calling.auth?.setup_required ? values : {...values, expected_role: calling.authRole}, async result => {
+  calling.user = result; calling.ready = false; calling.retryPhoneAt = 0; window.applyAccountRole?.(result); $('#authModal').hidden = true; document.body.classList.remove('auth-open'); history.replaceState(null, '', '/'); await window.loadApplication();
 }));
 document.addEventListener('submit', event => {
   if (event.target.id === 'callReplyForm') submitCallingForm(event, `/api/calling/${calling.selected}/message`, '#callReplyMessage', null, async () => document.activeElement?.blur());
