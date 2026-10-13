@@ -1,5 +1,7 @@
 const $ = selector => document.querySelector(selector);
-let room, session, poll, busy = false, callStatus = '';
+const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+if (new URLSearchParams(location.search).has('embed')) document.body.classList.add('support-embedded');
+let room, session, poll, busy = false, callStatus = '', transcriptSnapshot = '';
 function updateListeningIndicator() {
   const connected = !!session && room?.state === 'connected';
   const microphoneOn = connected && room.localParticipant.isMicrophoneEnabled;
@@ -25,7 +27,9 @@ async function finish(message='Your call has ended. Thank you for contacting sup
   if(previousRoom) await previousRoom.disconnect();
   if(send && previous) fetch(`/api/support/calls/${previous.call_id}/end`,{method:'POST',headers:{'X-Support-Token':previous.access_token},keepalive:true}).catch(()=>{});
   $('#activeCall').hidden=true; $('#supportForm').hidden=false; $('#startSupportCall').disabled=false;
-  $('#supportMessage').textContent=message; $('#resumeAudioButton').hidden=true;
+  transcriptSnapshot = '';
+  $('#supportTranscript').innerHTML='<p class="helper">Your conversation will appear here when transcription is available.</p>';
+  $('#supportMessage').textContent=message; $('#resumeAudioButton').hidden=true; $('#retrySupport').hidden=!message || /ended|thank you|not connected yet/i.test(message);
 }
 async function refresh() {
   if(!session || busy) return;
@@ -34,6 +38,9 @@ async function refresh() {
     const call=await request(`/api/support/calls/${session.call_id}`);
     callStatus=call.status;
     updateListeningIndicator();
+    const turns=call.transcript||[];
+    const snapshot=JSON.stringify(turns),transcript=$('#supportTranscript');
+    if(snapshot!==transcriptSnapshot){const followTail=transcript.scrollHeight-transcript.scrollTop-transcript.clientHeight<32;transcriptSnapshot=snapshot;transcript.innerHTML=turns.length?turns.map(turn=>`<div class="support-transcript-turn"><b>${escapeHTML(turn.speaker)}</b><p>${escapeHTML(turn.text)}</p></div>`).join(''):'<p class="helper">Your conversation will appear here when transcription is available.</p>';if(followTail)transcript.scrollTop=transcript.scrollHeight;}
     const labels={Triage:['Tell us what happened','Our AI assistant is listening.'],AI:['Speaking with the AI assistant','Describe what you see and follow the suggested steps.'],Queued:['Finding a technician','Please stay on the call while we find someone available.'],Ringing:['Contacting a technician','Your support request is being offered to a technician.'],Connected:[`Connected to ${call.technician_name || 'your technician'}`,'You can now speak with your technician.']};
     if(['Completed','Failed','Callback requested'].includes(call.status)) {
       await finish(call.status==='Callback requested'?'No technician is available at the moment. Please try again later.':call.status==='Failed'?'The call was interrupted. Please start another call.':undefined,false);return;
@@ -42,7 +49,7 @@ async function refresh() {
     $('#callState').textContent=label[0]; $('#callExplanation').textContent=label[1];
     $('#askTechnician').hidden=!['Triage','AI'].includes(call.status);
     if(call.last_error) $('#supportMessage').textContent=call.last_error;
-  } catch(error) { $('#supportMessage').textContent=error.message; }
+  } catch(error) { $('#supportMessage').textContent=error.message; $('#retrySupport').hidden=false; }
   finally {busy=false;}
 }
 $('#supportForm').addEventListener('submit',async event=>{
@@ -61,20 +68,22 @@ $('#supportForm').addEventListener('submit',async event=>{
     $('#supportForm').hidden=true; $('#activeCall').hidden=false; $('#supportMessage').textContent='';
     $('#muteSupportCall').textContent='Mute';
     await refresh(); poll=setInterval(refresh,2000);
-  } catch(error) {await finish(error.message);}
+  } catch(error) {await finish(error.message); $('#retrySupport').hidden=false;}
 });
-$('#endSupportCall').addEventListener('click',()=>finish());
+$('#endSupportCall').addEventListener('click',()=>$('#endCallDialog').showModal());
+$('#endCallDialog').addEventListener('close',()=>{if($('#endCallDialog').returnValue==='end') finish(); else $('#endSupportCall').focus();});
+$('#retrySupport').addEventListener('click',async()=>{ $('#retrySupport').hidden=true; if(session) await refresh(); else { try {const status=await request('/api/support/status'); if(status.configured){$('#supportMessage').textContent='Ready. Start a new support call when you are ready.'; $('#startSupportCall').disabled=false;} else {$('#supportMessage').textContent='Calling is not connected yet. Please contact your support team.';} } catch(error){$('#supportMessage').textContent=error.message;$('#retrySupport').hidden=false;} }});
 $('#muteSupportCall').addEventListener('click',async()=>{
   if(!room) return;
   const enabled=!room.localParticipant.isMicrophoneEnabled;
   try {await room.localParticipant.setMicrophoneEnabled(enabled);$('#muteSupportCall').textContent=enabled?'Mute':'Unmute';updateListeningIndicator();}
-  catch(error){$('#supportMessage').textContent=error.message;}
+  catch(error){$('#supportMessage').textContent=error.message;$('#retrySupport').hidden=false;}
 });
 $('#askTechnician').addEventListener('click',async()=>{
   if(!session) return;
   $('#askTechnician').disabled=true;
   try{await request(`/api/support/calls/${session.call_id}/technician`,{method:'POST'});await refresh();}
-  catch(error){$('#supportMessage').textContent=error.message;}
+  catch(error){$('#supportMessage').textContent=error.message;$('#retrySupport').hidden=false;}
   finally{$('#askTechnician').disabled=false;}
 });
 $('#resumeAudioButton').addEventListener('click',async()=>{await room?.startAudio();$('#resumeAudioButton').hidden=true;});

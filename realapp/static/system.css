@@ -4761,3 +4761,23 @@ html, body, main, .landing-page { max-width: 100%; }
 
 [hidden], .view[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) { html body *, html body *::before, html body *::after { scroll-behavior: auto; animation-duration: .01ms; animation-iteration-count: 1; transition-duration: .01ms; } }
+
+/* Customer incident intake and browser support states */
+.selected-media-list { display:grid; gap:10px; list-style:none; padding:0; margin:12px 0; }
+.selected-media-item { display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--border-subtle); border-radius:var(--radius-md); background:var(--surface-raised); }
+.selected-media-item img { width:48px; height:48px; object-fit:cover; border-radius:8px; background:var(--surface-muted); }
+.selected-media-item span { flex:1; min-width:0; overflow-wrap:anywhere; font-size:14px; }
+.selected-media-item button { min-height:44px; }
+.media-drop-zone.is-dragging { outline:3px solid var(--focus); outline-offset:2px; }
+.upload-progress { display:flex; align-items:center; gap:12px; margin:12px 0; color:var(--text-secondary); }
+.upload-progress progress { flex:1; height:10px; accent-color:var(--action); }
+.incident-stepper { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.incident-stepper li.current { color:var(--text-primary); }
+#endCallDialog { width:min(460px,calc(100vw - 32px)); color:var(--text-primary); background:var(--surface-raised); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); padding:24px; }
+#endCallDialog::backdrop { background:rgba(1,7,17,.72); }
+#endCallDialog p { color:var(--text-secondary); }
+.dialog-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:10px; margin-top:20px; }
+#supportMessage:empty { display:none; }
+.support-card #retrySupport { margin-top:12px; }
+[hidden] { display:none; }
+@media (max-width: 390px) { .selected-media-item { align-items:flex-start; flex-wrap:wrap; } .selected-media-item span { flex-basis:calc(100% - 64px); } }

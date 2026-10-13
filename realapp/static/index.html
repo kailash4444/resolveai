@@ -282,11 +282,13 @@
       </div>
     </section>
     <section class="view" id="view-customer-home">
-      <article class="panel"><p class="eyebrow">MY SUPPORT</p><h2>How can we help?</h2><p>Speak with support, report a problem, or find a solution in Knowledge.</p><div class="call-actions"><a class="primary" href="/support" target="_blank" rel="noopener">Call support</a><button class="secondary" data-view="customer-create">Create an incident</button><button class="text-button" data-view="knowledge">Browse knowledge</button></div></article>
-      <article class="panel"><h3>Your recent calls</h3><div id="customerCalls" class="empty-list">No calls yet.</div></article>
+      <header class="portal-welcome"><div><p class="eyebrow">CUSTOMER PORTAL</p><h1>Support, without the runaround.</h1><p class="helper">Tell us what’s happening, add screenshots or photos, and follow your incident as the team works on it.</p></div><a class="secondary neo-button" href="#portalVoice">Start browser voice call <span>↓</span></a></header>
+      <div class="portal-actions"><button class="primary" data-view="customer-create">Report an issue</button><button class="text-button" data-view="knowledge">Browse help articles →</button></div>
+      <article class="panel"><div class="panel-head"><div><p class="eyebrow">YOUR REQUESTS</p><h2>Incident progress</h2></div><span class="tag">Updates from your service team</span></div><div id="customerIncidents" class="customer-incident-list"><p class="empty-list">Loading your incidents…</p></div></article>
+      <article class="panel portal-voice-panel" id="portalVoice"><div class="panel-head"><div><p class="eyebrow">VOICE SUPPORT</p><h3>Talk it through with support</h3></div><span class="status-pill" data-tone="live">LiveKit voice</span></div><p class="helper">Start a private browser call. You can ask for a technician during the conversation.</p><iframe class="portal-voice-frame" src="/support?embed=1" title="Start a browser voice support call" allow="microphone; autoplay" loading="lazy"></iframe><h4>Your recent calls</h4><div id="customerCalls" class="customer-call-list empty-list">No calls yet.</div></article>
     </section>
-    <section class="view" id="view-customer-create"><article class="panel intake-panel"><p class="eyebrow">REPORT A PROBLEM</p><h2>Create an incident</h2><form id="customerIncidentForm"><label>Short description<input name="short_description" required minlength="3" maxlength="200"></label><label>Description<textarea name="description" rows="7" required minlength="10" maxlength="8000" placeholder="What happened, and how is it affecting you?"></textarea></label><label>Service<input name="service" value="General" required minlength="2" maxlength="100"></label><label>Photos or videos (up to 10 files, 20 MB total)<input name="attachments" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/heic,video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-msvideo" multiple><small class="helper">Attach screenshots or short clips to help support understand the issue.</small></label><div id="attachmentSelection" class="helper" aria-live="polite"></div><button class="primary" type="submit">Create incident</button><p class="form-message" id="customerIncidentMessage" role="status" aria-live="polite"></p></form></article></section>
-    <section class="view active" id="view-overview">
+    <section class="view" id="view-customer-create"><article class="panel intake-panel"><p class="eyebrow">REPORT A PROBLEM</p><h1>Create an incident</h1><p class="helper">Add a short summary and enough detail for the service team to get started.</p><form id="customerIncidentForm"><label>Short description<input name="short_description" required minlength="3" maxlength="200" placeholder="For example: I can’t sign in to my account"></label><label>What happened?<textarea name="description" rows="6" required minlength="10" maxlength="8000" placeholder="Describe the issue, what you already tried, and what changed. You may also paste a conversation transcript."></textarea></label><label>Service<input name="service" value="General" required minlength="2" maxlength="100"></label><div class="media-field"><label class="media-drop-zone" data-drop-zone><span class="drop-icon" aria-hidden="true">↑</span><strong>Add screenshots or photos</strong><small>Choose PNG, JPEG, WebP, GIF, or HEIC · up to 3 images · 20 MB total</small><input name="attachments" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/heic" multiple aria-describedby="customerAttachmentHelp"></label><p id="customerAttachmentHelp" class="helper">Files are attached to your incident. AI visual analysis may be unavailable if the service is not configured.</p><div id="attachmentSelection" class="media-selection" data-drop-status aria-live="polite"></div><div id="customerAttachmentErrors" class="form-message error" role="alert" hidden></div><div id="customerAttachmentProgress" class="upload-progress" role="status" aria-live="polite" hidden><progress max="100" value="0" aria-label="Incident upload progress"></progress><span>Preparing upload…</span></div></div><button class="primary neo-button" type="submit">Submit incident <span>→</span></button><p class="form-message" id="customerIncidentMessage" role="alert" aria-live="polite"></p><button type="button" class="secondary" id="customerIncidentRetry" hidden>Retry submission</button></form></article></section>
+    <section class="view" id="view-overview">
       <header class="overview-heading"><p class="eyebrow">AI-FIRST ENTERPRISE SUPPORT</p><h1>Operations overview</h1></header>
       <div class="hero">
         <div><span class="pill">AI-powered triage</span><h2>Turn support conversations into action.</h2><p>Transcribe the call, understand the issue, find the right knowledge, route safely, draft the ticket, and audit its quality in one workflow.</p></div>
@@ -311,7 +313,7 @@
           <p class="helper">Paste a transcript, upload an audio recording, or record directly in the browser. Audio is transcribed by the configured AI service before analysis.</p>
           <div class="form-row"><label>Caller<input id="callerInput" value="Customer"></label><label>Channel<select id="channelInput"><option>Voice</option><option>Chat</option><option>Email</option><option>Walk-up</option></select></label></div>
           <div class="audio-row"><label>Audio recording<input type="file" id="audioFile" accept="audio/*,.mp3,.mp4,.mpeg,.mpga,.m4a,.wav,.webm"></label><button class="secondary" id="transcribeFileButton">Transcribe file</button></div>
-          <label>Issue photos or video (up to 10 files, 20 MB total)<input type="file" id="caseMediaFiles" accept="image/png,image/jpeg,image/webp,image/gif,image/heic,video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-msvideo" multiple><small class="helper">These files will be attached to the incident after it is drafted.</small></label><div id="caseMediaSelection" class="helper" aria-live="polite"></div>
+          <div class="media-field"><label class="media-drop-zone" data-drop-zone><span class="drop-icon" aria-hidden="true">↑</span><strong>Issue photos or video</strong><small>Drop images or video, or browse · up to 3 files · 20 MB total</small><input type="file" id="caseMediaFiles" accept="image/png,image/jpeg,image/webp,image/gif,image/heic,video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-msvideo,.mov,.mkv,.avi" multiple></label><div id="caseMediaSelection" class="media-selection" data-drop-status aria-live="polite"></div></div>
           <label>Conversation<textarea id="transcriptInput" rows="13" placeholder="Customer: I cannot access my account this morning.\nAgent: What message do you see?\nCustomer: It says my account is locked after too many attempts."></textarea></label>
           <div class="action-row"><button class="secondary" id="captureButton">● Record call</button><button class="primary" id="analyzeButton">Analyze with Gemini <span>→</span></button></div>
           <p class="form-message" id="analysisMessage"></p>
@@ -374,6 +376,11 @@
       <div id="qaWorkspace" class="panel empty-list">Select a ticket to inspect its evidence and rerun AI QA.</div></div><div id="qa-calls-panel" role="tabpanel" aria-labelledby="qa-calls-tab" hidden><div class="panel-head"><div><h3>Call audits</h3><p class="helper">Review greeting, problem solving, empathy, communication, verification and closure.</p></div><button class="primary small" id="evaluateCalls">Evaluate completed calls</button></div><p class="helper" id="callAuditStatus" role="status" aria-live="polite"></p><article class="panel"><label>Search call audits<input id="callQaSearch" type="search" placeholder="Call ID, incident number or participant"></label><div id="callQaList" class="table-wrap"></div></article><article class="panel transcript-detail" id="callQaDetail" hidden></article></div>
     </section>
   </main>
+  <dialog class="media-preview-dialog" id="mediaPreviewDialog" aria-label="Full-size incident attachment">
+    <button type="button" class="modal-close" id="closeMediaPreview" aria-label="Close image preview">×</button>
+    <img id="mediaPreviewImage" alt="">
+    <p id="mediaPreviewCaption"></p>
+  </dialog>
   <div class="modal-backdrop" id="keyModal" hidden>
     <section class="key-modal" role="dialog" aria-modal="true" aria-labelledby="keyModalTitle">
       <button class="modal-close" id="closeKeyPanel" aria-label="Close">×</button>
@@ -457,8 +464,9 @@
   <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="primary resume-audio" hidden>Enable call audio</button>
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=3"></script>
-  <script src="/static/app.js?v=16"></script>
-  <script src="/static/calling.js?v=11"></script>
+  <script src="/static/customer-flow.js?v=1"></script>
+  <script src="/static/app.js?v=17"></script>
+  <script src="/static/calling.js?v=13"></script>
   <script src="/static/transcripts.js?v=5"></script>
   <script src="/static/workspace.js?v=1"></script>
   <script src="/static/components/ui/primitives.js?v=1"></script>
