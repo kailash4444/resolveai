@@ -3,15 +3,34 @@ let knowledgeDraftSources = [], knowledgeGeneration;
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const esc = (value = "") => String(value).replace(/[&<>'"]/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[char]));
+function priorityBadge(value) {
+  const tones = {P1:['▲','Critical · P1','badge--critical'],P2:['◆','High · P2','badge--high'],P3:['●','Medium · P3','badge--medium'],P4:['○','Low · P4','badge--low']};
+  const [icon,label,tone] = tones[value] || ['○','Unrated','badge--low'];
+  return `<span class="badge ${tone}">${icon} ${label}</span>`;
+}
+function stateBadge(value) {
+  const states = {Resolved:['✓','badge--ok'],'In Progress':['◆','badge--high'],'On Hold':['○','badge--low'],New:['●','badge--medium'],Closed:['✓','badge--ok']};
+  const [icon,tone] = states[value] || ['○','badge--low'];
+  return `<span class="badge ${tone}">${icon} ${esc(value || 'Unknown')}</span>`;
+}
 
 async function api(path, options = {}) {
   const isFormData = options.body instanceof FormData;
   const headers = isFormData ? { ...(options.headers || {}) } : { "Content-Type": "application/json", ...(options.headers || {}) };
-  const response = await fetch(path, { ...options, headers });
+  window.Shell?.requestStarted();
+  let response;
+  try { response = await fetch(path, { ...options, headers }); }
+  catch (error) {
+    if (error.name === 'AbortError') throw error;
+    throw new Error("We couldn’t reach ResolveAI. Check your connection and try again.");
+  }
+  finally { window.Shell?.requestFinished(); }
   if (!response.ok) {
     let message = `Request failed (${response.status})`;
-    try { message = (await response.json()).detail || message; } catch (_) {}
-    throw new Error(message);
+    try { const detail = (await response.json()).detail; if (typeof detail === 'string') message = detail; } catch (_) {}
+    if (response.status === 401 && state.user && !path.startsWith('/api/auth/')) window.Shell?.sessionExpired();
+    const error = new Error(message); error.status = response.status;
+    throw error;
   }
   return response.json();
 }
@@ -40,17 +59,28 @@ document.addEventListener('keydown', event => {
   const target = event.key === 'Home' ? 'tickets' : event.key === 'End' ? 'calls' : tab.dataset.reportTab === 'tickets' ? 'calls' : 'tickets';
   selectReportTab(tab.dataset.report, target); $(`#${tab.dataset.report}-${target}-tab`).focus();
 });
+const VIEW_ACCESS = {
+  customer: ['customer-home','customer-create','tickets','ticket-detail','knowledge','transcripts'],
+  technician: ['overview','case','tickets','ticket-detail','calls','transcripts','analytics','knowledge','qa'],
+};
+VIEW_ACCESS.admin = [...VIEW_ACCESS.technician, 'technicians', 'configuration'];
+const VIEW_TITLES = {signin: 'ResolveAI · Less firefighting. More resolution.', 'customer-home': 'My support', 'customer-create': 'Report an issue', overview: 'Overview', case: 'Conversation intake', tickets: 'Tickets', 'ticket-detail': 'Ticket details', calls: 'Calls & queue', transcripts: 'Transcripts', analytics: 'Analytics', knowledge: 'Knowledge', qa: 'Quality audit', technicians: 'Users', configuration: 'Configuration', denied: 'No access', notfound: 'Not found'};
+function homeView(user = state.user) { return !user ? 'signin' : user.role === 'customer' ? 'customer-home' : user.role === 'technician' ? 'calls' : 'overview'; }
 function showView(name) {
   if (name === 'call-analytics') {name = 'analytics'; reportTabs.analytics = 'calls';}
   if (!state.user) name = 'signin';
-  else if (state.user.role === 'customer' && !['customer-home','customer-create','tickets','ticket-detail','knowledge','transcripts'].includes(name)) name = 'customer-home';
-  else if (state.user.role === 'technician' && name === 'technicians') name = 'calls';
+  else if (!$(`#view-${name}`)) name = 'notfound';
+  else if (!['denied','notfound'].includes(name) && !VIEW_ACCESS[state.user.role]?.includes(name)) name = name === 'signin' ? homeView() : 'denied';
   $$(".view").forEach(el => el.classList.toggle("active", el.id === `view-${name}`));
-  $$(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.view === name));
-  const titles = { overview: "Operations overview", case: "New support case", tickets: "Tickets", "ticket-detail": "Ticket details", analytics: "Analytics", knowledge: "Knowledge management", qa: "Quality audit", calls: "Calls & queue", technicians: "Technicians" };
-  document.title = ({"transcripts":"Transcripts","call-analytics":"Call analytics","customer-home":"My support","customer-create":"Create an incident","signin":"Welcome","technicians":"User management"})[name] || titles[name] || "ResolveAI";
+  window.Shell?.setCurrent(name);
+  if (state.user && name !== state.currentView) {
+    const knowledgeLabel = state.user.role === 'customer' && name === 'knowledge' ? 'Help articles' : null;
+    document.title = `${knowledgeLabel || VIEW_TITLES[name] || 'ResolveAI'} · ResolveAI`;
+    if (state.currentView) $('#mainContent').focus({preventScroll: true});
+  } else if (!state.user) document.title = VIEW_TITLES.signin;
+  state.currentView = name;
 
-  if (name === "customer-home") loadCustomerCalls();
+  if (name === "customer-home") { loadCustomerCalls(); loadCustomerIncidents(); }
   if (name === "tickets") loadCases();
   if (name === "knowledge") loadKnowledge();
   if (name === "analytics") selectReportTab("analytics", reportTabs.analytics);
@@ -69,6 +99,7 @@ function startNewCase() {
   $("#audioFile").value = "";
   $("#caseMediaFiles").value = "";
   $("#caseMediaSelection").textContent = "";
+  $("#caseMediaSelection").className = "media-selection";
   $("#caseResult").hidden = true;
   $("#caseResult").innerHTML = "";
   $("#analysisMessage").className = "form-message";
@@ -77,46 +108,71 @@ function startNewCase() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+// Success only. Errors stay inline, next to what failed.
 function toast(message) {
-  const box = $("#toast"); box.textContent = message; box.hidden = false;
-  setTimeout(() => box.hidden = true, 3200);
+  const item = document.createElement('div');
+  item.className = 'toast'; item.textContent = `✓ ${message.replace(/^✓\s*/, '')}`;
+  $('#toastHost').append(item); setTimeout(() => item.remove(), 5000);
+}
+function showFeedback(message, error = false) {
+  const box = $('#globalFeedback'); if (!box) return;
+  $('#globalFeedbackMessage').textContent = `${error ? '✕' : '○'} ${message}`;
+  box.classList.toggle('alert--info', !error);
+  box.setAttribute('role', error ? 'alert' : 'status');
+  box.setAttribute('aria-live', error ? 'assertive' : 'polite');
+  box.hidden = false;
 }
 
 async function loadConfig() {
   state.config = await api("/api/config");
+  const configAiStatus = $('#configurationAiStatus');
+  if (configAiStatus) configAiStatus.textContent = state.config.configured ? 'Configured' : state.config.runtime_key_supported === false ? 'Managed by deployment environment' : 'Not configured';
+  const configAiButton = $('#configurationAiButton');
+  if (configAiButton) configAiButton.hidden = state.user?.role !== 'admin' || state.config.runtime_key_supported === false;
   const ready = state.config.configured;
   const provider = state.config.provider === 'openai' ? 'OpenAI' : state.config.provider === 'mock' ? 'Test AI' : 'Gemini';
   $('#keyModalTitle').textContent = `Connect ${provider}`;
   $('#apiKeyLabel').textContent = `${provider} API key`;
-  $('#analyzeButton').innerHTML = `Analyze with ${provider} <span>→</span>`;
-  $("#statusDot").classList.toggle("ready", ready);
-  $("#systemStatus").textContent = ready ? `${provider} configured` : `${provider} setup required`;
-  $("#modelLabel").textContent = `${state.config.model} · ${state.config.data_backend}`;
-  $("#connectionBadge").textContent = ready ? `${provider} configured` : "Configuration required";
-  $("#connectionBadge").classList.toggle("ready", ready);
-  $("#openKeyPanel").hidden = !state.config.runtime_key_supported;
+  $('#analyzeButton').innerHTML = `Analyze with ${provider} <span aria-hidden="true">→</span>`;
+  const status = $("#systemStatus");
+  status.className = `badge ${ready ? 'badge--ok' : 'badge--high'}`;
+  status.textContent = ready ? `✓ ${provider} configured` : `◆ ${provider} not configured`;
+  $("#modelLabel").textContent = `Model ${state.config.model} · data ${state.config.data_backend}`;
+  const connection = $("#connectionBadge");
+  if (connection) { connection.className = `badge ${ready ? 'badge--ok' : 'badge--high'}`; connection.textContent = ready ? `✓ ${provider} configured` : '◆ AI provider not configured'; }
+  $("#openKeyPanel").hidden = state.user?.role !== 'admin' || !state.config.runtime_key_supported;
   $("#analysisMessage").textContent = ready ? `Analysis: ${state.config.model} · Transcription: ${state.config.transcription_model}` : "The administrator needs to configure the shared AI connection.";
 }
 
 async function loadOverview() {
-  if (state.user?.role === "customer") return;
-  const data = await api("/api/overview");
-  $("#metricTotal").textContent = data.total_cases;
-  $("#metricOpen").textContent = data.open_cases;
-  $("#metricAI").textContent = data.ai_handled;
-  $("#metricQA").textContent = `${data.average_quality}%`;
-  $("#recentCases").innerHTML = data.recent_cases.length ? data.recent_cases.map(item => `<div class="case-row" data-case-id="${esc(item.id)}"><div><strong>${esc(item.issue_title)}</strong><small>${esc(item.ticket.id)} · ${esc(item.ticket.state)} · ${esc(item.routing.handler)} handling</small></div><span class="score">${item.quality_score == null ? "QA pending" : `${item.quality_score}%`}</span></div>`).join("") : "No cases yet. Start with a real support conversation.";
-  const maximum = Math.max(1, ...data.themes.map(item => item.count));
-  $("#themeList").innerHTML = data.themes.length ? data.themes.map(item => `<div class="theme"><div class="theme-label"><span>${esc(item.name)}</span><b>${item.count}</b></div><div class="bar"><i style="width:${Math.round(item.count / maximum * 100)}%"></i></div></div>`).join("") : "Themes appear as conversations are analyzed.";
+  if (state.user?.role === 'customer') return;
+  $('#overviewLoading').hidden = false; $('#overviewError').hidden = true; $('#overviewContent').hidden = true;
+  try {
+    const data = await api('/api/overview');
+    $('#metricTotal').textContent = data.total_cases;
+    $('#metricOpen').textContent = data.open_cases;
+    $('#metricAI').textContent = data.ai_handled;
+    $('#metricQA').textContent = `${data.average_quality}%`;
+    const rank = {P1:0,P2:1,P3:2,P4:3};
+    const queue = [...data.recent_cases].filter(item => !['Resolved','Closed'].includes(item.ticket.state)).sort((a,b) => (rank[a.ticket.priority] ?? 4) - (rank[b.ticket.priority] ?? 4));
+    $('#recentCases').innerHTML = queue.length ? queue.map(item => `<a class="case-row" data-ticket-link="${esc(item.id)}" href="/console?ticket=${encodeURIComponent(item.id)}"><div><strong>${esc(item.issue_title || item.ticket.short_description)}</strong><small>${esc(item.ticket.id)} · ${stateBadge(item.ticket.state)} · ${esc(item.routing.handler)} handling</small></div>${priorityBadge(item.ticket.priority)}</a>`).join('') : '<p class="empty">No open incidents right now. New work will appear here when reported.</p>';
+    const maximum = Math.max(1, ...data.themes.map(item => item.count));
+    $('#themeList').innerHTML = data.themes.length ? data.themes.map(item => `<div class="theme"><div class="theme-label"><span>${esc(item.name)}</span><b>${item.count}</b></div><div class="bar"><i style="width:${Math.round(item.count / maximum * 100)}%"></i></div></div>`).join('') : '<p class="empty">Themes appear after conversations are analyzed.</p>';
+    $('#overviewContent').hidden = false;
+  } catch (error) {
+    $('#overviewErrorMessage').textContent = error.message;
+    $('#overviewError').hidden = false;
+  } finally { $('#overviewLoading').hidden = true; }
 }
+$('#retryOverview').addEventListener('click', loadOverview);
 
 async function analyzeConversation() {
   const transcript = $("#transcriptInput").value.trim();
   const message = $("#analysisMessage");
   if (transcript.length < 20) { message.className = "form-message error"; message.textContent = "Add at least a few lines of the customer conversation."; return; }
   const mediaFiles = [...$("#caseMediaFiles").files];
-  if (mediaFiles.length > 10 || mediaFiles.reduce((total, file) => total + file.size, 0) > 20 * 1024 * 1024) {
-    message.className = "form-message error"; message.textContent = "Choose up to 10 files with 20 MB total size or less."; return;
+  if (mediaFiles.length > 3 || mediaFiles.reduce((total, file) => total + file.size, 0) > 20 * 1024 * 1024) {
+    message.className = "form-message error"; message.textContent = "Choose up to 3 images with 20 MB total size or less."; return;
   }
   const button = $("#analyzeButton"); button.disabled = true; button.textContent = "Analyzing the conversation…";
   message.className = "form-message"; message.textContent = "Retrieving knowledge and drafting a new incident. QA will run after it is resolved.";
@@ -149,8 +205,8 @@ function renderCase(item) {
     <article class="result-card"><p class="eyebrow">UNDERSTANDING</p><h3>${esc(item.issue_title)}</h3><p class="helper">${esc(item.understanding.summary)}</p><div class="detail-list"><div><span>Intent</span><strong>${esc(item.understanding.intent)}</strong></div><div><span>Product</span><strong>${esc(item.understanding.product)}</strong></div><div><span>Urgency</span><strong>${esc(item.understanding.urgency)}</strong></div><div><span>Sentiment</span><strong>${esc(item.understanding.sentiment)}</strong></div></div></article>
     <article class="result-card"><p class="eyebrow">ROUTING DECISION</p><div class="route">${esc(item.routing.handler)} handling</div><p>${Math.round(item.routing.confidence * 100)}% confidence · ${esc(item.routing.risk)} risk</p><p class="helper">${esc(item.routing.rationale)}</p><hr><small>Recommended next question</small><p><strong>${esc(item.next_question)}</strong></p></article>
     <article class="result-card"><p class="eyebrow">RETRIEVED KNOWLEDGE</p><h3>Relevant guidance</h3>${matches}</article>
-    <article class="result-card"><p class="eyebrow">TICKET QUALITY</p><h3><span class="route">${item.quality_score == null ? "Pending" : `${item.quality_score}%`}</span></h3><p class="helper">AI QA becomes available after the incident is resolved and checks the final ticket against the conversation.</p>${item.ticket.state === "Resolved" ? '<button class="secondary" data-open-qa>Review audit</button>' : ""}</article>
-    <article class="result-card full"><div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h3>${esc(item.ticket.id)}</h3></div><span class="tag">${esc(item.ticket.state)}</span></div>${renderAttachments(item.ticket.attachments)}${ticketForm(item)}${followupPanels(item)}</article>
+    <article class="result-card"><p class="eyebrow">TICKET QUALITY</p><h3><span class="route">${item.quality_score == null ? "Pending" : `${item.quality_score}%`}</span></h3><p class="helper">AI QA becomes available after the incident is resolved and checks the final ticket against the conversation.</p>${item.ticket.state === "Resolved" ? '<button class="ghost" data-open-qa>Review audit</button>' : ""}</article>
+    <article class="result-card full card"><div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h3>${esc(item.ticket.id)}</h3></div>${stateBadge(item.ticket.state)}</div>${renderAttachments(item.ticket.attachments)}${renderVisualAnalysis(item.ticket)}${ticketForm(item)}${followupPanels(item)}</article>
   </div>`;
   $("#caseResult").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -175,7 +231,7 @@ function ticketForm(item) {
     <label class="wide">Assigned to${state.user?.role === 'admin' ? `<select name="assigned_user_id"><option value="">Unassigned</option>${state.users.filter(user=>user.role!=='customer').map(user=>`<option value="${esc(user.id)}" ${ticket.assigned_user_id===user.id?'selected':''}>${esc(user.name)} (${esc(user.username)})</option>`).join('')}</select>` : `<input value="${esc(ticket.assigned_to || '')}" readonly>`}</label>
     <label>Priority<select name="priority">${["P1","P2","P3","P4"].map(value => `<option ${value === ticket.priority ? "selected" : ""}>${value}</option>`).join("")}</select></label>
     <label>State<select name="state">${states.map(value => `<option ${value === ticket.state ? "selected" : ""}>${value}</option>`).join("")}</select></label>
-    <div class="wide action-row ticket-save-row"><button class="primary" type="submit">Save ticket</button></div>
+    <div class="wide action-row ticket-save-row"><button class="pop" type="submit">Save ticket</button></div>
   </form>`;
 }
 
@@ -191,7 +247,7 @@ function formatActivityFields(text) {
 function activityPanel(item) {
   const enabled = item.ticket.state !== "New";
   const notes = item.ticket.work_notes.slice().sort((left, right) => new Date(right.created_at) - new Date(left.created_at)).map(note => `<div class="activity-item activity-${esc(note.author_type.toLowerCase())}"><div><strong>${esc(note.author)}</strong><span class="tag">${esc(note.author_type)}</span></div><small>${new Date(note.created_at).toLocaleString()}</small><p>${note.author_type === "System" ? formatActivityFields(note.text) : esc(note.text)}</p></div>`).join("") || `<p class="helper">No activity yet.</p>`;
-  return `<section class="activity-panel"><div class="panel-head"><div><p class="eyebrow">ACTIVITY</p></div></div><div class="activity-list">${notes}</div><form id="workNoteForm" class="activity-form"><label>Comment<textarea name="text" rows="3" required ${enabled ? "" : "disabled"} placeholder="Add progress, troubleshooting details, or customer feedback"></textarea></label><div class="action-row"><span class="helper">${enabled ? "Technicians and customers can add activity while work is underway." : "Save the ticket as In Progress before adding activity."}</span><button class="secondary" type="submit" ${enabled ? "" : "disabled"}>Add activity</button></div><p class="form-message" data-activity-message></p></form></section>`;
+  return `<section class="activity-panel"><div class="panel-head"><div><p class="eyebrow">ACTIVITY</p></div></div><div class="activity-list">${notes}</div><form id="workNoteForm" class="activity-form"><label>Comment<textarea name="text" rows="3" required ${enabled ? "" : "disabled"} placeholder="Add progress, troubleshooting details, or customer feedback"></textarea></label><div class="action-row"><span class="helper">${enabled ? "Technicians and customers can add activity while work is underway." : "Save the ticket as In Progress before adding activity."}</span><button class="ghost" type="submit" ${enabled ? "" : "disabled"}>Add activity</button></div><p class="form-message" data-activity-message></p></form></section>`;
 }
 
 function transcriptPanel(item) {
@@ -201,7 +257,7 @@ function transcriptPanel(item) {
 
 function resolutionPanel(item) {
   const resolved = item.ticket.state === "Resolved";
-  return `<section class="resolution-panel"><p class="eyebrow">RESOLUTION</p><form id="resolutionForm"><label>Resolution details<textarea name="resolution" rows="8" required placeholder="Describe the fix, validation performed, and customer confirmation">${esc(item.ticket.resolution)}</textarea></label>${resolved ? "" : '<p class="helper">Submitting these notes resolves the ticket and runs AI QA automatically.</p>'}<button class="primary full" type="submit">${resolved ? "Save resolution notes" : "Resolve ticket"}</button><p class="form-message" data-resolution-message></p></form></section>`;
+  return `<section class="resolution-panel"><p class="eyebrow">RESOLUTION</p><form id="resolutionForm"><label>Resolution details<textarea name="resolution" rows="8" required placeholder="Describe the fix, validation performed, and customer confirmation">${esc(item.ticket.resolution)}</textarea></label>${resolved ? "" : '<p class="helper">Submitting these notes resolves the ticket and runs AI QA automatically.</p>'}<button class="pop full" type="submit">${resolved ? "Save resolution notes" : "Resolve ticket"}</button><p class="form-message" data-resolution-message></p></form></section>`;
 }
 
 async function saveTicket(form) {
@@ -247,7 +303,7 @@ async function rerunQA() {
   if (!state.current) return;
   const button = $("#rerunQa"); if (button) { button.disabled = true; button.textContent = "Auditing…"; }
   try { state.current = await api(`/api/cases/${state.current.id}/qa`, { method: "POST", body: "{}" }); renderQA(state.current); toast("AI QA audit completed."); }
-  catch (error) { toast(error.message); }
+  catch (error) { showFeedback(error.message, true); }
 }
 
 function visibleAuditChecks(checks) {
@@ -274,7 +330,7 @@ function visibleAuditChecks(checks) {
 
 function renderQA(item) {
   if (state.user?.role !== 'admin' && item.ticket.assigned_user_id !== state.user?.id) {
-    toast('You can review audits for tickets assigned to you.'); showView('qa'); return;
+    showFeedback('You can review audits for tickets assigned to you.'); showView('qa'); return;
   }
   selectReportTab("qa", "tickets", false);
   refreshBulkQA();
@@ -284,20 +340,20 @@ function renderQA(item) {
   document.title = "Quality audit";
   const heading = `<div class="qa-head"><div><div class="qa-identifiers"><span>Ticket number: <b>${esc(item.ticket.id)}</b></span><span>Call ID: <b>${esc(item.ticket.call_id || 'Not linked')}</b></span></div><h3>${esc(item.issue_title)}</h3></div><strong>${item.quality_score == null ? 'Pending' : `${item.quality_score}%`}</strong></div>`;
   if (item.ticket.state !== "Resolved") {
-    $("#qaWorkspace").className = "panel empty-list";
+    $("#qaWorkspace").className = "panel card empty-list";
     $("#qaWorkspace").innerHTML = `${heading}<h3>QA pending</h3><p>Resolve ${esc(item.ticket.id)} before running AI QA. This keeps the audit focused on the completed incident record.</p>`;
     return;
   }
   if (item.quality_score == null) {
-    $("#qaWorkspace").className = "panel empty-list";
-    $("#qaWorkspace").innerHTML = `${heading}<h3>QA pending</h3><p>AI QA is running in the background for ${esc(item.ticket.id)}. Return to the audit list shortly to see the completed score.</p><button class="secondary" data-view="qa">← Back to audits</button>`;
+    $("#qaWorkspace").className = "panel card empty-list";
+    $("#qaWorkspace").innerHTML = `${heading}<h3>QA pending</h3><p>AI QA is running in the background for ${esc(item.ticket.id)}. Return to the audit list shortly to see the completed score.</p><button class="ghost" data-view="qa">← Back to audits</button>`;
     return;
   }
   const audit = visibleAuditChecks(item.qa_checks);
   const lines = value => esc(value).replace(/\n/g, '<br>');
   const checks = audit.checks.map(check => `<div class="qa-check"><b class="${esc(check.result)}">${esc(check.result)}</b><strong>${esc(check.field)}</strong><span><b>Observed:</b> ${lines(check.observed)}<br><b>Recommended:</b> ${lines(check.recommended)}<br><small>Evidence: ${lines(check.evidence)}</small></span></div>`).join("");
-  $("#qaWorkspace").className = "panel";
-  $("#qaWorkspace").innerHTML = `<button class="text-button qa-back" data-view="qa">← Back to audits</button>${heading}${audit.legacy ? '<p class="helper">This saved score used the earlier audit format. Rerun QA to update it.</p>' : ''}<div>${checks || "No checks returned."}</div><div class="action-row"><span class="helper">The audit compares the resolved ticket with the source conversation.</span><button class="primary" id="rerunQa">Rerun AI QA</button></div>`;
+  $("#qaWorkspace").className = "panel card";
+  $("#qaWorkspace").innerHTML = `<button class="ghost pop--sm qa-back" data-view="qa">← Back to audits</button>${heading}${audit.legacy ? '<p class="helper">This saved score used the earlier audit format. Rerun QA to update it.</p>' : ''}<div>${checks || "No checks returned."}</div><div class="action-row"><span class="helper">The audit compares the resolved ticket with the source conversation.</span><button class="pop" id="rerunQa">Rerun AI QA</button></div>`;
 }
 
 async function loadQA() {
@@ -306,8 +362,8 @@ async function loadQA() {
   const resolved = cases.filter(item => item.ticket.state === "Resolved");
   state.qaResolvedCount = resolved.length;
   refreshBulkQA();
-  $("#qaWorkspace").className = resolved.length ? "panel table-wrap" : "panel empty-list";
-  $("#qaWorkspace").innerHTML = resolved.length ? `<table><thead><tr><th>Ticket</th><th>Issue</th><th>Service</th><th>Priority</th><th>QA status</th></tr></thead><tbody>${resolved.map(item => `<tr data-qa-case-id="${esc(item.id)}"><td><strong>${esc(item.ticket.id)}</strong></td><td>${esc(item.ticket.short_description)}</td><td>${esc(item.ticket.service)}</td><td><span class="tag">${esc(item.ticket.priority)}</span></td><td><b>${item.quality_score == null ? "Pending" : `${item.quality_score}%`}</b></td></tr>`).join("")}</tbody></table>` : "No resolved tickets yet. Resolved tickets appear here immediately while AI QA runs in the background.";
+  $("#qaWorkspace").className = resolved.length ? "panel card table-wrap" : "panel card empty-list";
+  $("#qaWorkspace").innerHTML = resolved.length ? `<table><thead><tr><th>Ticket</th><th>Issue</th><th>Service</th><th>Priority</th><th>QA status</th></tr></thead><tbody>${resolved.map(item => `<tr data-qa-case-id="${esc(item.id)}"><td><strong>${esc(item.ticket.id)}</strong></td><td>${esc(item.ticket.short_description)}</td><td>${esc(item.ticket.service)}</td><td>${priorityBadge(item.ticket.priority)}</td><td><span class="badge ${item.quality_score == null ? 'badge--low' : item.quality_score >= 80 ? 'badge--ok' : 'badge--high'}">${item.quality_score == null ? "○ Pending" : `${item.quality_score >= 80 ? '✓' : '◆'} ${item.quality_score}%`}</span></td></tr>`).join("")}</tbody></table>` : "No resolved tickets yet. Resolved tickets appear here immediately while AI QA runs in the background.";
 }
 
 
@@ -341,31 +397,46 @@ $('#rerunAllQa').addEventListener('click', async () => {
 
 async function loadCases() {
   const userId = state.user?.id;
-  const cases = await api('/api/cases');
-  if (state.user?.id !== userId) return;
-  state.cases = cases;
+  $('#ticketsLoadError').hidden = true;
+  $('#ticketsLoading').hidden = false;
+  try {
+    const cases = await api('/api/cases');
+    if (state.user?.id !== userId) return;
+    state.cases = cases;
   const select = $('#ticketAssignee'), selected = select.value;
   const names = [...new Set(cases.map(item => item.ticket.assigned_to).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   select.innerHTML = '<option value="">All assigned names</option><option value="__unassigned__">Unassigned</option>' + names.map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('');
-  select.value = [...select.options].some(option=>option.value===selected) ? selected : '';
-  renderTickets();
+    select.value = [...select.options].some(option=>option.value===selected) ? selected : '';
+    renderTickets();
+  } catch (error) {
+    $('#ticketsLoadErrorMessage').textContent = error.message;
+    $('#ticketsLoadError').hidden = false;
+  } finally { $('#ticketsLoading').hidden = true; }
 }
+$('#retryTickets').addEventListener('click', loadCases);
 
 function renderTickets() {
   const number = $('#ticketSearch').value.trim().toLowerCase(), assignee = $('#ticketAssignee').value;
   const status = $('#ticketStateFilter').value, priority = $('#ticketPriorityFilter').value;
+  document.querySelectorAll('[data-ticket-priority]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.ticketPriority === priority)));
   const cases = state.cases.filter(item => item.ticket.id.toLowerCase().includes(number) &&
     (!status || item.ticket.state === status) && (!priority || item.ticket.priority === priority) &&
     (!assignee || (assignee === '__unassigned__' ? !item.ticket.assigned_to : item.ticket.assigned_to === assignee)));
   $('#ticketResultCount').textContent = `${cases.length} of ${state.cases.length} tickets`;
   $('#ticketsEmpty').hidden = cases.length > 0;
   $('#ticketsEmpty').textContent = state.cases.length ? 'No tickets match these filters.' : 'No tickets yet.';
-  $('#ticketRows').innerHTML = cases.map(item => `<tr data-case-id="${esc(item.id)}"><td><strong>${esc(item.ticket.id)}</strong></td><td>${esc(item.ticket.short_description)}</td><td>${esc(item.ticket.service)}</td><td><span class="tag">${esc(item.ticket.priority)}</span></td><td>${esc(item.ticket.assigned_to || 'Unassigned')}</td><td>${esc(item.ticket.state)}</td></tr>`).join('');
+  $('#ticketRows').innerHTML = cases.map(item => `<tr data-case-id="${esc(item.id)}"><td><a href="${state.user?.role === 'customer' ? '/portal' : '/console'}?ticket=${encodeURIComponent(item.id)}" data-ticket-link="${esc(item.id)}">${esc(item.ticket.id)}</a></td><td>${esc(item.ticket.short_description)}</td><td>${esc(item.ticket.service)}</td><td>${priorityBadge(item.ticket.priority)}</td><td>${esc(item.ticket.assigned_to || 'Unassigned')}</td><td>${stateBadge(item.ticket.state)}</td></tr>`).join('');
 }
 $('#ticketSearch').addEventListener('input', renderTickets);
 $('#ticketAssignee').addEventListener('change', renderTickets);
 $('#ticketStateFilter').addEventListener('change', renderTickets);
 $('#ticketPriorityFilter').addEventListener('change', renderTickets);
+document.addEventListener('click', event => {
+  const filter = event.target.closest('[data-ticket-priority]');
+  if (!filter) return;
+  $('#ticketPriorityFilter').value = filter.dataset.ticketPriority;
+  renderTickets();
+});
 $('#clearTicketFilters').addEventListener('click', () => {
   ['ticketSearch','ticketAssignee','ticketStateFilter','ticketPriorityFilter'].forEach(id => $('#'+id).value='');
   renderTickets();
@@ -375,8 +446,8 @@ async function openTicketDetails(caseId) {
   if (state.user?.role === 'admin') state.users = await api('/api/users');
   state.current = await api(`/api/cases/${caseId}`);
   showView("ticket-detail");
-  const detail = $("#ticketDetailPage"); detail.className = "panel ticket-detail-panel";
-  detail.innerHTML = `<div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h2>${esc(state.current.ticket.id)}</h2><p class="helper">${state.user?.role === "customer" ? "Track progress and add comments." : "Edit the incident fields and save your changes."}</p></div><span class="tag">${esc(state.current.ticket.state)}</span></div>${state.user?.role === "customer" ? customerTicketDetails(state.current) : renderAttachments(state.current.ticket.attachments) + ticketForm(state.current) + followupPanels(state.current)}${transcriptPanel(state.current)}`;
+  const detail = $("#ticketDetailPage"); detail.className = "panel card ticket-detail-panel";
+  detail.innerHTML = `<div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h2>${esc(state.current.ticket.id)}</h2><p class="helper">${state.user?.role === "customer" ? "Track progress and add comments." : "Edit the incident fields and save your changes."}</p></div>${stateBadge(state.current.ticket.state)}</div>${state.user?.role === "customer" ? customerTicketDetails(state.current) : renderAttachments(state.current.ticket.attachments) + renderVisualAnalysis(state.current.ticket) + ticketForm(state.current) + followupPanels(state.current)}${transcriptPanel(state.current)}`;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -444,7 +515,7 @@ $('#ticketAnalyticsResetFilters').addEventListener('click',()=>{['Id','Technicia
 function renderKnowledge(query = "") {
   const term = query.trim().toLowerCase();
   const articles = state.knowledge.filter(article => !term || [article.id, article.title, article.product, article.symptoms, article.tags.join(" "), article.steps.join(" ")].join(" ").toLowerCase().includes(term));
-  $("#knowledgeList").innerHTML = articles.length ? articles.map(article => `<article class="article-card"><h4>${esc(article.id)} · ${esc(article.title)}</h4><p><b>${esc(article.product)}</b> · ${esc(article.tags.join(", "))}</p><p>${esc(article.symptoms)}</p><details><summary>Resolution steps</summary><ol>${article.steps.map(step => `<li>${esc(step)}</li>`).join("")}</ol><p><b>Expected outcome:</b> ${esc(article.resolution)}</p>${article.source_ticket_ids?.length ? `<p class="helper">Source incidents: ${article.source_ticket_ids.map(number => `<button type="button" class="text-button" data-source-ticket="${esc(number)}">${esc(number)}</button>`).join(", ")}</p>` : ""}</details></article>`).join("") : `<div class="empty-list">No knowledge articles match “${esc(query)}”.</div>`;
+  $("#knowledgeList").innerHTML = articles.length ? articles.map(article => `<article class="article-card"><h4>${esc(article.id)} · ${esc(article.title)}</h4><p><b>${esc(article.product)}</b> · ${esc(article.tags.join(", "))}</p><p>${esc(article.symptoms)}</p><details><summary>Resolution steps</summary><ol>${article.steps.map(step => `<li>${esc(step)}</li>`).join("")}</ol><p><b>Expected outcome:</b> ${esc(article.resolution)}</p>${article.source_ticket_ids?.length ? `<p class="helper">Source incidents: ${article.source_ticket_ids.map(number => `<button type="button" class="ghost pop--sm" data-source-ticket="${esc(number)}">${esc(number)}</button>`).join(", ")}</p>` : ""}</details></article>`).join("") : `<div class="empty-list">No knowledge articles match “${esc(query)}”.</div>`;
 }
 
 async function addKnowledge(event) {
@@ -498,7 +569,7 @@ async function openKnowledgeSource(number) {
     const source = cases.find(item => item.ticket.id === number);
     if (!source) throw new Error('Source incident is no longer available.');
     await openTicketDetails(source.id);
-  } catch (error) {toast(error.message);}
+  } catch (error) {showFeedback(error.message, true);}
 }
 
 async function saveAIKey(event) {
@@ -513,7 +584,7 @@ async function saveAIKey(event) {
 }
 
 async function transcribeAudio(file) {
-  if (!file) { toast("Choose an audio file first."); return; }
+  if (!file) { showFeedback("Choose an audio file first."); return; }
   const form = new FormData(); form.append("file", file, file.name || "recording.webm");
   const message = $("#analysisMessage"); message.className = "form-message"; message.textContent = `Transcribing with ${state.config?.transcription_model || "the configured model"}…`;
   try {
@@ -524,7 +595,7 @@ async function transcribeAudio(file) {
 
 async function toggleRecording() {
   if (state.mediaRecorder?.state === "recording") { state.mediaRecorder.stop(); return; }
-  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { toast("Audio recording is not supported by this browser. Upload a recording instead."); return; }
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { showFeedback("Audio recording is not supported by this browser. Upload a recording instead."); return; }
   try {
     state.audioStream = await navigator.mediaDevices.getUserMedia({ audio: true }); state.audioChunks = [];
     state.mediaRecorder = new MediaRecorder(state.audioStream);
@@ -536,7 +607,7 @@ async function toggleRecording() {
       $("#captureButton").textContent = "● Record call"; await transcribeAudio(file);
     };
     state.mediaRecorder.start(); $("#captureButton").textContent = "■ Stop and transcribe";
-  } catch (error) { toast(`Microphone unavailable: ${error.message}`); }
+  } catch (error) { showFeedback(`Microphone unavailable: ${error.message}`, true); }
 }
 
 document.addEventListener("click", event => {
@@ -546,14 +617,27 @@ document.addEventListener("click", event => {
     container.querySelectorAll("[data-followup-tab]").forEach(button => button.classList.toggle("active", button.dataset.followupTab === selected));
     container.querySelectorAll("[data-followup-pane]").forEach(pane => pane.hidden = pane.dataset.followupPane !== selected);
   }
-  const nav = event.target.closest("[data-view]"); if (nav) nav.dataset.view === "case" ? startNewCase() : showView(nav.dataset.view);
+  const ticketLink = event.target.closest('[data-ticket-link]'); if (ticketLink) { event.preventDefault(); openTicketDetails(ticketLink.dataset.ticketLink).catch(error => showFeedback(error.message, true)); return; }
+  const nav = event.target.closest("[data-view]");
+  if (nav) {
+    if (nav.tagName === 'A' && (event.metaKey || event.ctrlKey || event.shiftKey || event.button)) return;
+    event.preventDefault();
+    if (window.confirmLeave && !window.confirmLeave(() => nav.click())) return;
+    if (nav.tagName === 'A') history.pushState({view: nav.dataset.view}, '', nav.getAttribute('href'));
+    nav.dataset.view === "case" ? startNewCase() : showView(nav.dataset.view);
+  }
+  if (event.target.closest('[data-go-home]')) showView(homeView());
+  if (event.target.closest('#retryConfig')) loadConfig().catch(error => { $('#systemStatus').className = 'badge badge--err'; $('#systemStatus').textContent = `✕ Check failed: ${error.message}`; });
+  const customerRetry = event.target.closest('[data-customer-retry]');
+  if (customerRetry) customerRetry.dataset.customerRetry === 'calls' ? loadCustomerCalls() : loadCustomerIncidents();
   if (event.target.closest("[data-open-case]")) startNewCase();
   const direct = event.target.closest("[data-view-target]"); if (direct) showView(direct.dataset.viewTarget);
   const caseRow = event.target.closest("[data-case-id]"); if (caseRow) caseRow.tagName === "TR" ? openTicketDetails(caseRow.dataset.caseId) : openCase(caseRow.dataset.caseId, "case");
   const qaRow = event.target.closest("[data-qa-case-id]"); if (qaRow) openCase(qaRow.dataset.qaCaseId, "qa");
   if (event.target.closest("[data-open-qa]") && state.current) renderQA(state.current);
   if (event.target.closest("#rerunQa")) rerunQA();
-  if (event.target.closest("#openKeyPanel")) $("#keyModal").hidden = false;
+  if (event.target.closest("#openKeyPanel, #configurationAiButton")) { $("#keyModal").hidden = false; $('#aiKeyInput').focus(); }
+  if (event.target.closest('#dismissGlobalFeedback')) $('#globalFeedback').hidden = true;
   if (event.target.closest("#closeKeyPanel") || event.target === $("#keyModal")) $("#keyModal").hidden = true;
   if (event.target.closest("#openKnowledgePanel")) openKnowledgeEditor();
   if (event.target.closest("#closeKnowledgePanel") || event.target === $("#knowledgeModal")) $("#knowledgeModal").hidden = true;
@@ -562,8 +646,8 @@ document.addEventListener("click", event => {
   const source = event.target.closest('[data-source-ticket]'); if (source) openKnowledgeSource(source.dataset.sourceTicket);
 });
 document.addEventListener("submit", event => {
-  if (event.target.id === "ticketForm") { event.preventDefault(); saveTicket(event.target).catch(error => toast(error.message)); }
-  if (event.target.id === "workNoteForm") { event.preventDefault(); addWorkNote(event.target).catch(error => toast(error.message)); }
+  if (event.target.id === "ticketForm") { event.preventDefault(); saveTicket(event.target).catch(error => showFeedback(error.message, true)); }
+  if (event.target.id === "workNoteForm") { event.preventDefault(); addWorkNote(event.target).catch(error => showFeedback(error.message, true)); }
   if (event.target.id === "resolutionForm") { event.preventDefault(); saveResolution(event.target); }
 });
 document.addEventListener("change", event => {
@@ -581,7 +665,13 @@ $("#captureButton").addEventListener("click", toggleRecording);
 $("#transcribeFileButton").addEventListener("click", () => transcribeAudio($("#audioFile").files[0]));
 $("#caseMediaFiles").addEventListener("change", event => {
   const files = [...event.target.files];
-  $("#caseMediaSelection").textContent = files.length ? files.map(file => `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`).join(" · ") : "";
+  const status = $("#caseMediaSelection");
+  const unsupported = files.some(file => !/\.(png|jpe?g|webp|gif|heic)$/i.test(file.name));
+  if (unsupported || files.length > 3 || files.reduce((sum, file) => sum + file.size, 0) > 20 * 1024 * 1024) {
+    event.target.value = ""; status.textContent = unsupported ? "Only image files (PNG, JPEG, WebP, GIF, HEIC) are supported." : "Choose up to 3 images with 20 MB total size or less."; status.className = "media-selection form-message error"; return;
+  }
+  status.className = "media-selection";
+  status.textContent = files.length ? files.map(file => `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`).join(" · ") : "";
 });
 $("#knowledgeForm").addEventListener("submit", addKnowledge);
 $('#incidentKnowledgeForm').addEventListener('submit', generateIncidentKnowledge);
@@ -605,21 +695,74 @@ window.applyAccountRole = user => {
     select.closest('label').hidden = !admin;
     if (!admin) select.value = '';
   });
-  $$('.nav-item').forEach(nav => {nav.hidden = !user || (customer ? !['customer-home','tickets','knowledge','transcripts'].includes(nav.dataset.view) : nav.dataset.view === 'customer-home' || nav.dataset.view === 'technicians' && !admin);});
-  $('#accountIdentity').textContent = user ? `${user.name} · ${user.role === 'admin' ? 'Admin' : customer ? 'Customer' : 'Technician'}` : '';
-  $('#accountSignOut').hidden = !user;
-  $('#sidebarAccount').hidden = !user;
+  window.Shell?.render(user);
   if (!user || customer) {
     $('#presenceControl').hidden = $('#enablePhoneButton').hidden = true;
     $('#incomingCallBanner').hidden = true;
   }
-  $('.system-card').hidden = !user;
   $('#openKeyPanel').hidden = !admin || state.config?.runtime_key_supported === false;
+  const configAiButton = $('#configurationAiButton'); if (configAiButton) configAiButton.hidden = !admin || state.config?.runtime_key_supported === false;
+  const configAiStatus = $('#configurationAiStatus'); if (configAiStatus) configAiStatus.textContent = state.config?.configured ? 'Configured' : state.config?.runtime_key_supported === false ? 'Managed by deployment environment' : 'Not configured';
   $('#openKnowledgePanel').hidden = $('#openIncidentKnowledgePanel').hidden = !user || customer;
 };
 
+function renderVisualAnalysis(ticket) {
+  if (!ticket) return '';
+  const va = ticket.visual_analysis;
+  const mediaNote = !va ? ticket.work_notes?.find(note => /media analysis/i.test(note.text)) : null;
+  if (!va && !mediaNote) return '';
+
+  if (va) {
+    const priority = (va.suggested_priority || 'P3').toUpperCase();
+    return `<section class="visual-analysis-card spotlight-card">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">AI MULTIMODAL VISION</p>
+          <h4>Extracted Image Intelligence</h4>
+        </div>
+        <span class="status-pill" data-tone="ai">${esc(va.analysis_source || 'AI Multimodal Vision')}</span>
+      </div>
+      <div class="visual-meta-tags">
+        <span class="visual-meta-tag"><strong>Suggested Service:</strong> ${esc(va.suggested_service)}</span>
+        <span class="visual-meta-tag"><strong>Priority:</strong> ${priorityBadge(priority)}</span>
+        <span class="visual-meta-tag"><strong>Category:</strong> ${esc(va.suggested_category)} · ${esc(va.suggested_subcategory)}</span>
+      </div>
+      <div class="visual-detail-block">
+        <h5>Visual Observations & Detected Text</h5>
+        <p class="visual-text">${esc(va.visual_observations)}</p>
+      </div>
+      <div class="visual-detail-block">
+        <h5>Technical Assessment & Root Cause</h5>
+        <p class="visual-text">${esc(va.technical_diagnosis)}</p>
+      </div>
+      <div class="visual-detail-block recommended-action-block">
+        <h5>Recommended Remediation</h5>
+        <p class="visual-text">${esc(va.recommended_action)}</p>
+      </div>
+      <small class="helper">Automated visual extraction synthesized from submitted images. Technicians verify findings prior to resolution.</small>
+    </section>`;
+  }
+
+  return `<section class="visual-analysis-card spotlight-card">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">AI MULTIMODAL VISION</p>
+        <h4>Visual media analysis</h4>
+      </div>
+      <span class="status-pill" data-tone="ai">AI assisted</span>
+    </div>
+    <div class="visual-detail-block">
+      <p class="visual-text" style="white-space:pre-wrap">${esc(mediaNote.text)}</p>
+    </div>
+    <small class="helper">Recommendations are for technician review. The service team confirms the cause and resolution.</small>
+  </section>`;
+}
+
 function customerTicketDetails(item) {
-  return `<div class="customer-ticket"><h3>${esc(item.ticket.short_description)}</h3><p style="white-space:pre-wrap">${esc(item.ticket.description)}</p><p><b>State:</b> ${esc(item.ticket.state)} · <b>Service:</b> ${esc(item.ticket.service)} · <b>Assigned to:</b> ${esc(item.ticket.assigned_to || 'Awaiting assignment')}</p>${renderAttachments(item.ticket.attachments)}${item.ticket.resolution ? `<h4>Resolution</h4><p>${esc(item.ticket.resolution)}</p>` : ''}</div>${activityPanel(item)}`;
+  const state = item.ticket.state, labels = ['Received', 'Assigned', 'In progress', 'Resolved'];
+  const active = state === 'Resolved' || state === 'Closed' ? 3 : state === 'In Progress' || state === 'On Hold' ? 2 : item.ticket.assigned_to ? 1 : 0;
+  const timeline = `<ol class="steps customer-ticket-steps" aria-label="Incident progress">${labels.map((label,index) => `<li ${index === active ? 'aria-current="step"' : ''}><span aria-hidden="true">${index < active ? '✓' : index === active ? '●' : '○'}</span> ${label}</li>`).join('')}</ol>`;
+  return `<div class="customer-ticket"><h3>${esc(item.ticket.short_description)}</h3>${timeline}<p style="white-space:pre-wrap">${esc(item.ticket.description)}</p><p><b>State:</b> ${stateBadge(state)} · <b>Service:</b> ${esc(item.ticket.service)} · <b>Assigned to:</b> ${esc(item.ticket.assigned_to || 'Awaiting assignment')}</p>${renderAttachments(item.ticket.attachments)}${renderVisualAnalysis(item.ticket)}${item.ticket.resolution ? `<h4>Resolution</h4><p>${esc(item.ticket.resolution)}</p>` : ''}</div>${activityPanel(item)}`;
 }
 
 function renderAttachments(attachments = []) {
@@ -627,7 +770,7 @@ function renderAttachments(attachments = []) {
   return `<section class="incident-attachments"><h4>Attachments</h4><div class="attachment-grid">${attachments.map(att => {
     const url = `/api/attachments/${encodeURIComponent(att.id)}`;
     const preview = att.content_type.startsWith('image/')
-      ? `<img class="attachment-preview" src="${url}" alt="${esc(att.filename)}" loading="lazy">`
+      ? `<button type="button" class="image-preview-button" data-image-preview="${url}" data-image-alt="${esc(att.filename)}" aria-label="Inspect ${esc(att.filename)} at full size"><img class="attachment-preview" src="${url}" alt="" loading="lazy"></button>`
       : att.content_type.startsWith('video/')
         ? `<video class="attachment-preview" controls preload="metadata"><source src="${url}" type="${esc(att.content_type)}">Your browser cannot play this video.</video>`
         : '';
@@ -635,37 +778,105 @@ function renderAttachments(attachments = []) {
   }).join('')}</div></section>`;
 }
 
+document.addEventListener('click', event => {
+  const trigger = event.target.closest('[data-image-preview]');
+  if (!trigger) return;
+  const dialog = $('#mediaPreviewDialog');
+  $('#mediaPreviewImage').src = trigger.dataset.imagePreview;
+  $('#mediaPreviewImage').alt = trigger.dataset.imageAlt || 'Incident attachment';
+  $('#mediaPreviewCaption').textContent = trigger.dataset.imageAlt || '';
+  dialog.showModal();
+  $('#closeMediaPreview').focus();
+});
+$('#closeMediaPreview').addEventListener('click', () => $('#mediaPreviewDialog').close());
+$('#mediaPreviewDialog').addEventListener('click', event => { if (event.target === event.currentTarget) event.currentTarget.close(); });
+
 async function loadCustomerCalls() {
-  const calls = await api('/api/customer/calls');
-  $('#customerCalls').innerHTML = calls.length ? calls.map(call=>`<div class="case-row"><div><strong>${esc(call.id)}</strong><small>${new Date(call.created_at*1000).toLocaleString()} · ${esc(call.status)}</small></div>${call.case_id ? `<button class="text-button" data-customer-ticket="${esc(call.case_id)}">View incident</button>` : ''}</div>`).join('') : 'No calls yet.';
+  const target = $('#customerCalls');
+  if (!target) return;
+  target.setAttribute('aria-busy', 'true');
+  try {
+    const calls = await api('/api/customer/calls');
+    target.innerHTML = calls.length ? calls.map(call=>`<div class="case-row"><div><strong>${esc(call.id)}</strong><small>${new Date(call.created_at*1000).toLocaleString()} · <span class="badge ${call.status === 'Completed' ? 'badge--ok' : call.status === 'Failed' ? 'badge--critical' : 'badge--medium'}">${call.status === 'Completed' ? '✓' : call.status === 'Failed' ? '✕' : '●'} ${esc(call.status)}</span></small></div>${call.case_id ? `<button class="ghost pop--sm" data-customer-ticket="${esc(call.case_id)}">View incident</button>` : ''}</div>`).join('') : '<p class="empty-list">No calls yet. Your support calls will appear here.</p>';
+  } catch (error) {
+    target.innerHTML = `<div class="empty-state inline-error" role="alert"><p>We couldn’t load your calls. ${esc(error.message)}</p><button class="ghost pop--sm" data-customer-retry="calls">Try again</button></div>`;
+  } finally { target.removeAttribute('aria-busy'); }
+}
+
+async function loadCustomerIncidents() {
+  const target = $('#customerIncidents');
+  if (!target) return;
+  target.setAttribute('aria-busy', 'true');
+  let items;
+  try { items = await api('/api/cases'); }
+  catch (error) {
+    target.innerHTML = `<div class="empty-state inline-error" role="alert"><p>We couldn’t load your incidents. ${esc(error.message)}</p><button class="ghost pop--sm" data-customer-retry="incidents">Try again</button></div>`;
+    target.removeAttribute('aria-busy');
+    return;
+  }
+  if (!items.length) {
+    target.innerHTML = '<p class="empty-list">No incidents yet. Your submitted incidents will appear here.</p>';
+    target.removeAttribute('aria-busy');
+    return;
+  }
+  target.innerHTML = items.map(item => {
+    const ticket = item.ticket;
+    const state = ticket.state;
+    const step = state === 'Resolved' ? 3 : state === 'In Progress' ? 2 : ticket.assigned_to ? 1 : 0;
+    const labels = ['Received', 'Assigned', 'In progress', 'Resolved'];
+    const stateIcon = state === 'Resolved' ? '✓' : state === 'In Progress' ? '◆' : '●';
+    const badgeTone = state === 'Resolved' ? 'badge--ok' : state === 'In Progress' ? 'badge--high' : 'badge--medium';
+    return `<article class="customer-incident-card spotlight-card card">
+      <div class="customer-incident-heading"><div><p class="eyebrow">${esc(ticket.id)}</p>${priorityBadge(ticket.priority)}<h3>${esc(ticket.short_description)}</h3></div><span class="badge ${badgeTone}" data-status="${esc(state)}">${stateIcon} ${esc(state)}</span></div>
+      <p class="helper">${esc(ticket.service)} · ${esc(ticket.assigned_to || 'Awaiting assignment')}</p>
+      <ol class="incident-stepper" aria-label="Incident progress">${labels.map((label, index) => `<li class="${index < step ? 'complete' : ''} ${index === step ? 'current' : ''}"><span>${index < step ? '✓' : String(index + 1).padStart(2, '0')}</span><small>${label}</small></li>`).join('')}</ol>
+      <button class="ghost pop--sm" data-customer-ticket="${esc(item.id)}">View incident details →</button>
+    </article>`;
+  }).join('');
+  target.removeAttribute('aria-busy');
 }
 
 $('#customerIncidentForm').addEventListener('submit', async event => {
   event.preventDefault(); const form=event.target,button=form.querySelector('button'),message=$('#customerIncidentMessage');
   button.disabled=true;message.textContent='Creating your incident…';
-  try {const item=await api('/api/customer/incidents',{method:'POST',body:new FormData(form)});form.reset();$('#attachmentSelection').textContent='';message.textContent='';await openTicketDetails(item.id);}
+  try {const item=await api('/api/customer/incidents',{method:'POST',body:new FormData(form)});form.reset();$('#attachmentSelection').textContent='';$('#attachmentSelection').className='media-selection';message.textContent='';await openTicketDetails(item.id);}
   catch(error){message.textContent=error.message;}finally{button.disabled=false;}
 });
 $('#customerIncidentForm [name="attachments"]').addEventListener('change', event => {
   const files = [...event.target.files];
-  $('#attachmentSelection').textContent = files.length ? files.map(file => `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`).join(' · ') : '';
+  const status = $('#attachmentSelection');
+  const unsupported = files.some(file => !/\.(png|jpe?g|webp|gif|heic)$/i.test(file.name));
+  if (unsupported || files.length > 3 || files.reduce((sum, file) => sum + file.size, 0) > 20 * 1024 * 1024) {
+    event.target.value = ''; status.textContent = unsupported ? 'Only image files (PNG, JPEG, WebP, GIF, HEIC) are supported.' : 'Choose up to 3 images with 20 MB total size or less.'; status.className = 'media-selection form-message error'; return;
+  }
+  status.className = 'media-selection';
+  status.textContent = files.length ? files.map(file => `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`).join(' · ') : '';
 });
 document.addEventListener('click',event=>{const source=event.target.closest('[data-customer-ticket]');if(source)openTicketDetails(source.dataset.customerTicket);});
-$('#accountSignIn').addEventListener('click',()=>window.openTechnicianAuth?.());
-
-
 window.loadApplication = async () => {
   try {
     const auth=await api('/api/auth/status');applyAccountRole(auth.user);
-    if(!auth.user){showView('signin');return;}
-    await Promise.all([loadConfig(),loadKnowledge(),auth.user.role==='customer'?Promise.resolve():loadOverview()]);
+    if(!auth.user){$('#roleSignInChoices').hidden=auth.setup_required;$('#firstAdminSetup').hidden=!auth.setup_required;showView('signin');if(['/login','/signup'].includes(location.pathname))await window.openAccountAuth?.('technician',location.pathname==='/signup'?'signup':'signin');return;}
+    await Promise.all([loadConfig(),loadKnowledge()]);
     if(auth.user.role==='admin')state.users=await api('/api/users');
     const params=new URLSearchParams(location.search);
     if(params.get('next')==='support'){location.href='/support';return;}
     if(params.get('ticket'))return openTicketDetails(params.get('ticket'));
     if(params.get('case'))return openTicketDetails(params.get('case'));
-    showView(params.get('view') || (auth.user.role==='customer'?'customer-home':auth.user.role==='technician'?'calls':'overview'));
-  } catch(error){toast(error.message);}
+    const path = location.pathname;
+    if (path === '/portal' && auth.user.role !== 'customer') { location.replace(auth.user.role === 'admin' || auth.user.role === 'technician' ? '/console' : '/'); return; }
+    if (path === '/console' && auth.user.role === 'customer') { location.replace('/portal'); return; }
+    if (path === '/admin' && auth.user.role !== 'admin') { location.replace(auth.user.role === 'customer' ? '/portal' : '/console'); return; }
+    document.body.dataset.entry = path;
+    if (path === '/admin') $('#view-overview .overview-heading h1').textContent = 'Admin Command';
+    const routeView = path === '/portal' ? 'customer-home' : path === '/console' ? 'calls' : path === '/admin' ? 'overview' : null;
+    showView(params.get('view') || routeView || (auth.user.role==='customer'?'customer-home':auth.user.role==='technician'?'calls':'overview'));
+  } catch(error){showFeedback(error.message, true);}
 };
+window.addEventListener('popstate', () => {
+  if (!state.user) return;
+  const view = new URLSearchParams(location.search).get('view');
+  showView(view || homeView());
+});
 applyAccountRole(null);
 window.loadApplication();

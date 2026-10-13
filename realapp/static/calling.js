@@ -1,7 +1,7 @@
-const calling = { user: null, data: null, selected: null, room: null, roomCallId: null, ready: false, auth: null, authRole: null, loading: false, notice: null, priority: 'All' };
+const calling = { authOpener: null, authFromChooser: false, user: null, data: null, selected: null, room: null, roomCallId: null, ready: false, auth: null, authRole: null, loading: false, notice: null, priority: 'All' };
 
 function elapsed(at) { return at ? `${Math.max(0, Math.floor((Date.now() / 1000 - at) / 60))} min` : '—'; }
-function callBadge(status) { return `<span class="call-status status-${esc(status.toLowerCase().replaceAll(' ', '-'))}">${esc(status)}</span>`; }
+function callBadge(status) { const terminal = ['Completed'].includes(status), failed = ['Failed','Declined'].includes(status), active = ['Connected','Callback requested'].includes(status); const tone = terminal ? 'badge--ok' : failed ? 'badge--critical' : active ? 'badge--high' : 'badge--medium'; const icon = terminal ? '✓' : failed ? '✕' : active ? '◆' : '○'; return `<span class="badge call-status ${tone} status-${esc(status.toLowerCase().replaceAll(' ', '-'))}">${icon} ${esc(status)}</span>`; }
 
 window.setAuthModalRole = (role) => {
   const setup = calling.auth?.setup_required;
@@ -42,12 +42,15 @@ window.openRoleChooser = (mode = 'signin') => {
   if (mode === 'signup') return window.openAccountAuth('technician', 'signup');
   const chooser = $('#roleChooserModal');
   if (!chooser) return window.openAccountAuth(calling.authRole || 'technician', mode);
+  calling.authOpener = document.activeElement;
   chooser.hidden = false;
   $('#closeRoleChooser')?.focus();
 };
 
 window.openAccountAuth = async (role = null, mode = 'signin') => {
   const roleModal = $('#roleChooserModal');
+  calling.authFromChooser = !!roleModal && !roleModal.hidden;
+  calling.authOpener = calling.authFromChooser ? (role === 'customer' ? $('#customerSignIn') : $('#technicianSignIn')) : document.activeElement;
   if (roleModal) roleModal.hidden = true;
   calling.auth = await api('/api/auth/status');
   window.setAuthModalRole(role || 'technician');
@@ -81,22 +84,17 @@ window.openAccountAuth = async (role = null, mode = 'signin') => {
 };
 
 window.openTechnicianAuth = () => window.openAccountAuth('technician');
+window.closeAccountAuth = () => {
+  $('#authModal').hidden = true; document.body.classList.remove('auth-open');
+  if (calling.authFromChooser) {
+    $('#roleChooserModal').hidden = false;
+    calling.authOpener?.focus();
+  } else if (calling.authOpener?.isConnected) calling.authOpener.focus();
+};
 
-$('#technicianSignIn').addEventListener('click', () => {
-  const roleModal = $('#roleChooserModal');
-  if (roleModal) roleModal.hidden = true;
-  window.openAccountAuth('technician');
-});
-$('#customerSignIn').addEventListener('click', () => {
-  const roleModal = $('#roleChooserModal');
-  if (roleModal) roleModal.hidden = true;
-  window.openAccountAuth('customer');
-});
-$('#adminSetupButton').addEventListener('click', () => {
-  const roleModal = $('#roleChooserModal');
-  if (roleModal) roleModal.hidden = true;
-  window.openAccountAuth(null);
-});
+$('#technicianSignIn').addEventListener('click', () => window.openAccountAuth('technician'));
+$('#customerSignIn').addEventListener('click', () => window.openAccountAuth('customer'));
+$('#adminSetupButton').addEventListener('click', () => window.openAccountAuth(null));
 $('#authRoleCustomerTab')?.addEventListener('click', () => window.setAuthModalRole('customer'));
 $('#authRoleTechnicianTab')?.addEventListener('click', () => window.setAuthModalRole('technician'));
 $('.auth-password-toggle')?.addEventListener('click', event => {
@@ -148,7 +146,7 @@ window.loadCalling = async () => {
 function renderCalling() {
   const { metrics, voice: telephony } = calling.data;
   const query = $('#callSearch').value.trim().toLowerCase();
-  const calls = calling.data.calls.filter(call => !query || [call.id,call.caller,call.technician_name,call.service,call.summary].join(' ').toLowerCase().includes(query));
+  const calls = calling.data.calls.filter(call => (calling.priority === 'All' || call.priority === calling.priority) && (!query || [call.id,call.caller,call.technician_name,call.service,call.summary].join(' ').toLowerCase().includes(query)));
   const technicians = calling.data.technicians.filter(t=>t.role !== 'customer');
   $('#signInButton').hidden = true;
   $('#presenceControl').hidden = false;
@@ -160,6 +158,18 @@ function renderCalling() {
   $('#receiveCallsToggle').checked = calling.user.calls_enabled;
   $('#receiveCallsToggle').disabled = !!calling.user.current_call_id;
   $('#phoneConnection').textContent = !calling.user.calls_enabled ? 'Calls disabled · your availability is saved.' : calling.user.current_call_id ? 'On a call · your saved availability resumes afterward.' : calling.ready ? (calling.user.availability === 'Available' ? 'Ready to receive calls · preferences saved' : `${calling.user.availability} · preferences saved`) : telephony.configured ? 'Calls enabled · allow microphone access to receive calls.' : 'Browser calling is not configured.';
+  const presence = calling.user.availability || 'Offline';
+  const presenceIcon = presence === 'Available' && calling.user.calls_enabled ? '●' : presence === 'Away' ? '○' : '✕';
+  const presenceTone = presence === 'Available' && calling.user.calls_enabled ? 'badge--ok' : presence === 'Away' ? 'badge--low' : 'badge--critical';
+  $('#presenceIndicator').className = `badge ${presenceTone}`;
+  $('#presenceIndicator').textContent = `${presenceIcon} ${presence}${calling.user.calls_enabled ? '' : ' · Calls disabled'}`;
+  const micLabel = calling.ready ? '✓ Ready' : !telephony.configured ? '✕ Not configured' : '○ Not enabled';
+  $('#microphoneIndicator').className = `badge ${calling.ready ? 'badge--ok' : !telephony.configured ? 'badge--critical' : 'badge--low'}`;
+  $('#microphoneIndicator').textContent = micLabel;
+  const selectedCall = calling.data.calls.find(call => call.id === calling.selected);
+  const activeStatus = selectedCall ? selectedCall.status : calling.roomCallId ? 'Connected' : calling.data.incoming_calls?.length ? 'Waiting' : 'No active call';
+  $('#activeCallIndicator').className = `badge ${['Connected','Callback requested'].includes(activeStatus) ? 'badge--high' : ['Failed','Declined'].includes(activeStatus) ? 'badge--critical' : ['Completed','No active call'].includes(activeStatus) ? 'badge--low' : 'badge--medium'}`;
+  $('#activeCallIndicator').textContent = `${['Completed'].includes(activeStatus) ? '✓' : ['Failed','Declined'].includes(activeStatus) ? '✕' : ['Connected','Callback requested'].includes(activeStatus) ? '◆' : ['No active call'].includes(activeStatus) ? '○' : '●'} ${activeStatus}`;
   $('#callMicState').textContent = `Microphone readiness: ${calling.ready ? 'ready' : telephony.configured ? 'not enabled' : 'browser calling is not configured'}`;
   $('#enablePhoneButton').hidden = !telephony.configured || calling.ready || !calling.user.calls_enabled;
   $('#addTechnicianButton').hidden = calling.user.role !== 'admin';
@@ -171,17 +181,17 @@ function renderCalling() {
   $('#callPerformance').textContent = `${metrics.total ?? 0} total requests · ${metrics.completed ?? 0} completed · ${metrics.callbacks ?? 0} callbacks to follow up · ${metrics.average_wait_seconds ?? 0}s average wait before connection`;
   $('#callingSync').textContent = 'Updated just now';
   $('#callList').className = calls.length ? 'call-list' : 'empty-list';
-  $('#callList').innerHTML = calls.length ? calls.map(c => `<button class="call-row ${c.id === calling.selected ? 'selected' : ''}" data-call-select="${esc(c.id)}"><div><strong>${esc(c.caller)}</strong>${callBadge(c.status)}</div><p>${esc(c.service)} · ${esc(c.priority)} · ${c.origin === 'browser' ? 'Browser call' : 'Desk request'}</p><small>${esc(c.technician_name || (c.status === 'AI' ? 'AI assistant' : c.id))} · ${elapsed(c.created_at)} ago</small></button>`).join('') : 'No calls yet. Incoming calls and routed support requests appear here.';
+  $('#callList').innerHTML = calls.length ? calls.map(c => `<button class="call-row ${c.id === calling.selected ? 'selected' : ''}" data-call-select="${esc(c.id)}"><div><strong>${esc(c.caller)}</strong>${callBadge(c.status)}</div><p>${esc(c.service)} · ${window.priorityBadge ? window.priorityBadge(c.priority) : esc(c.priority)} · ${c.origin === 'browser' ? 'Browser call' : 'Desk request'}</p><small>${esc(c.technician_name || (c.status === 'AI' ? 'AI assistant' : c.id))} · ${elapsed(c.created_at)} ago</small></button>`).join('') : 'No calls yet. Incoming calls and routed support requests appear here.';
   $('#sharedQueuePanel').hidden = !(calling.data.incoming_calls || []).length;
-  $('#sharedQueue').innerHTML = (calling.data.incoming_calls || []).map(call=>`<div class="case-row"><div><strong>${esc(call.origin === 'browser' ? 'Incoming call' : 'Support request')}</strong><small>${esc(call.service)} · ${esc(call.priority)}</small></div><button class="primary small" data-pickup-call="${esc(call.id)}">Answer</button></div>`).join('');
+  $('#sharedQueue').innerHTML = (calling.data.incoming_calls || []).map(call=>`<div class="case-row"><div><strong>${esc(call.origin === 'browser' ? 'Incoming call' : 'Support request')}</strong><small>${esc(call.service)} · ${window.priorityBadge ? window.priorityBadge(call.priority) : esc(call.priority)}</small></div><button class="pop pop--sm" data-pickup-call="${esc(call.id)}">Answer</button></div>`).join('');
   const users = calling.data.users || technicians;
   $('#technicianRows').innerHTML = users.map(t => `<tr><td><strong>${esc(t.name)}</strong><br><small>${esc(t.role)} · ${esc(t.username)}</small></td><td>${t.role === 'customer' ? '—' : esc(t.skills.join(', '))}</td><td>${esc(t.languages.join(', '))}</td><td>${t.role === 'customer' ? '—' : callBadge(t.status)}</td><td>${t.role === 'customer' ? '—' : t.voice_ready ? 'Connected' : 'Not connected'}</td><td>${esc(t.current_call_id || '—')}</td></tr>`).join('');
   $('#techniciansEmpty').hidden = users.length > 0;
   const offer = calling.data.calls.find(c => c.technician_id === calling.user.id && c.status === 'Ringing');
   $('#incomingCallBanner').hidden = !offer;
   if (offer) {
-    $('#incomingCallBanner').innerHTML = `<div><strong>Incoming ${offer.origin === 'browser' ? 'call' : 'support request'} · ${esc(offer.caller)}</strong><small>${esc(offer.service)} · ${Math.max(0, Math.ceil(offer.reserved_until - Date.now()/1000))} seconds to answer</small></div><button class="primary small" data-call-select="${esc(offer.id)}">View request</button>`;
-    if (calling.notice !== offer.dispatch_id) { calling.notice = offer.dispatch_id; calling.selected = offer.id; toast('A support request has been assigned to you.'); }
+    $('#incomingCallBanner').innerHTML = `<div><strong>Incoming ${offer.origin === 'browser' ? 'call' : 'support request'} · ${esc(offer.caller)}</strong><small>${esc(offer.service)} · ${Math.max(0, Math.ceil(offer.reserved_until - Date.now()/1000))} seconds to answer</small></div><button class="pop pop--sm" data-call-select="${esc(offer.id)}">View request</button>`;
+    if (calling.notice !== offer.dispatch_id) { calling.notice = offer.dispatch_id; calling.selected = offer.id; showFeedback('A support request has been assigned to you.'); }
   }
   if (calling.selected) renderCallDetail();
 }
@@ -202,13 +212,13 @@ function renderCallDetail() {
   const controls = [];
   if (c.status === 'Ringing' && own) {
     const phoneReady = c.origin !== 'browser' || calling.ready;
-    controls.push(`<button class="primary" data-call-action="accept" ${phoneReady ? '' : 'disabled'}>${phoneReady ? 'Accept' : 'Enable calls first'}</button><button class="secondary" data-call-action="decline">Decline</button>`);
+    controls.push(`<button class="pop" data-call-action="accept" ${phoneReady ? '' : 'disabled'}>${phoneReady ? 'Accept' : 'Enable calls first'}</button><button class="ghost" data-call-action="decline">Decline</button>`);
   }
-  if (c.status === 'Connected' && own && calling.room) controls.push(`<button class="secondary" id="muteCallButton">${!calling.room.localParticipant.isMicrophoneEnabled ? 'Unmute' : 'Mute'}</button>`);
-  if (c.status === 'AI' || c.status === 'Connected' && canManage) controls.push('<button class="secondary" data-call-action="transfer">Transfer to queue</button>');
-  if ((c.status === 'Connected' || c.status === 'AI') && canManage) controls.push('<button class="secondary danger" data-call-action="finish">End call</button>');
-  $('#callWorkspace').innerHTML = `<div class="panel-head"><div><p class="eyebrow">${esc(c.id)}</p><h3>${esc(c.caller)}</h3></div>${callBadge(c.status)}</div><p>${esc(c.summary)}</p><div class="call-context"><span>${esc(c.service)} · ${esc(c.priority)}</span><span>${esc(c.technician_name || 'Not assigned')}</span></div><p class="helper">${esc(c.reason)}</p>${c.last_error ? `<p class="form-message error">${esc(c.last_error)}</p>` : ''}<div class="call-actions">${controls.join('')}</div><h4 class="call-section-label">Conversation</h4><div class="live-transcript">${c.transcript.map(t => `<div class="transcript-turn"><b>${esc(t.speaker)}${t.speaker_name ? ` · ${esc(t.speaker_name)}` : ''}</b><small>${t.timestamp ? new Date(t.timestamp).toLocaleTimeString() : ''}</small><p>${esc(t.text)}</p></div>`).join('') || '<p class="helper">The transcript will appear as participants speak.</p>'}</div><div id="callKnowledge"></div><details class="routing-history"><summary>Routing history</summary>${c.events.slice().reverse().map(e => `<p><small>${new Date(e.at).toLocaleTimeString()}</small> ${esc(e.text)}</p>`).join('')}</details>`;
-  if (c.origin === 'desk' && c.status === 'AI') $('#callWorkspace').insertAdjacentHTML('beforeend', '<form id="callReplyForm"><label>Customer reply<textarea name="text" rows="2" required maxlength="4000"></textarea></label><button class="primary small">Send reply</button><p class="form-message" id="callReplyMessage"></p></form>');
+  if (c.status === 'Connected' && own && calling.room) controls.push(`<button class="ghost" id="muteCallButton">${!calling.room.localParticipant.isMicrophoneEnabled ? 'Unmute' : 'Mute'}</button>`);
+  if (c.status === 'AI' || c.status === 'Connected' && canManage) controls.push('<button class="ghost" data-call-action="transfer">Transfer to queue</button>');
+  if ((c.status === 'Connected' || c.status === 'AI') && canManage) controls.push('<button class="pop pop--danger" data-call-action="finish">End call</button>');
+  $('#callWorkspace').innerHTML = `<div class="panel-head"><div><p class="eyebrow">${esc(c.id)}</p><h3>${esc(c.caller)}</h3></div>${callBadge(c.status)}</div><p>${esc(c.summary)}</p><div class="call-context"><span>${esc(c.service)} · ${window.priorityBadge ? window.priorityBadge(c.priority) : esc(c.priority)}</span><span>${esc(c.technician_name || 'Not assigned')}</span></div><p class="helper">${esc(c.reason)}</p>${c.last_error ? `<p class="form-message error">${esc(c.last_error)}</p>` : ''}<div class="call-actions">${controls.join('')}</div><h4 class="call-section-label">Conversation</h4><div class="live-transcript">${c.transcript.map(t => `<div class="transcript-turn"><b>${esc(t.speaker)}${t.speaker_name ? ` · ${esc(t.speaker_name)}` : ''}</b><small>${t.timestamp ? new Date(t.timestamp).toLocaleTimeString() : ''}</small><p>${esc(t.text)}</p></div>`).join('') || '<p class="helper">The transcript will appear as participants speak.</p>'}</div><div id="callKnowledge"></div><details class="routing-history"><summary>Routing history</summary>${c.events.slice().reverse().map(e => `<p><small>${new Date(e.at).toLocaleTimeString()}</small> ${esc(e.text)}</p>`).join('')}</details>`;
+  if (c.origin === 'desk' && c.status === 'AI') $('#callWorkspace').insertAdjacentHTML('beforeend', '<form id="callReplyForm"><label>Customer reply<textarea name="text" rows="2" required maxlength="4000"></textarea></label><button class="pop pop--sm">Send reply</button><p class="form-message" id="callReplyMessage"></p></form>');
   const guidance = c.knowledge_matches || [];
   const status = c.knowledge_status;
   $('#callKnowledge').innerHTML = `<h4 class="call-section-label">Suggested knowledge · Top 5</h4><p class="helper">${status === 'searching' ? 'Finding guidance for the latest customer problem…' : status === 'error' ? esc(c.knowledge_error) : 'Updated as the customer describes the issue.'}</p>${guidance.map(k => `<details class="call-knowledge" data-kb="${esc(k.id)}" ${openKnowledge.has(k.id) ? 'open' : ''}><summary>${esc(k.id)} · ${esc(k.title)}</summary><p>${esc(k.excerpt)}</p><ol>${k.steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol></details>`).join('') || '<p class="helper">' + (status === 'ready' ? 'No relevant knowledge articles found.' : 'Suggestions will appear after the customer speaks.') + '</p>'}`;
@@ -226,7 +236,7 @@ async function renderCallTicket(call) {
     const item = await api(`/api/cases/${call.case_id}`);
     if (calling.selected !== call.id) return;
     const t = item.ticket;
-    panel.innerHTML = `<div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h3>${esc(t.id)}</h3></div><button class="secondary" data-call-ticket="${esc(item.id)}">Edit incident</button></div><h4>${esc(t.short_description)}</h4><div class="call-ticket-fields">${[['State',t.state],['Priority',t.priority],['Service',t.service],['Assigned to',t.assigned_to || 'Unassigned'],['Category',t.category],['Subcategory',t.subcategory]].map(([label,value])=>`<div><span class="helper">${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('')}</div><h4>Description</h4><p class="call-ticket-description">${esc(t.description)}</p>${t.resolution ? `<h4>Resolution notes</h4><p class="call-ticket-description">${esc(t.resolution)}</p>` : ''}`;
+    panel.innerHTML = `<div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h3>${esc(t.id)}</h3></div><button class="ghost" data-call-ticket="${esc(item.id)}">Edit incident</button></div><h4>${esc(t.short_description)}</h4><div class="call-ticket-fields">${[['State',t.state],['Priority',t.priority],['Service',t.service],['Assigned to',t.assigned_to || 'Unassigned'],['Category',t.category],['Subcategory',t.subcategory]].map(([label,value])=>`<div><span class="helper">${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('')}</div><h4>Description</h4><p class="call-ticket-description">${esc(t.description)}</p>${t.resolution ? `<h4>Resolution notes</h4><p class="call-ticket-description">${esc(t.resolution)}</p>` : ''}`;
   } catch(error) {
     if (calling.selected === call.id) panel.innerHTML = `<h3>Incident</h3><p class="form-message error">${esc(error.message)}</p>`;
   }
@@ -258,7 +268,7 @@ async function enablePhone() {
     await ResolveAIVoice.microphonePermission();
     await api('/api/calling/check');
     calling.ready = true; await heartbeat(); await loadCalling();
-  } catch(error) { toast(error.message); }
+  } catch(error) { showFeedback(error.message, true); }
   finally { button.disabled = false; }
 }
 
@@ -283,8 +293,11 @@ async function acceptBrowserCall(id, connection) {
 
 document.addEventListener('click', async event => {
   try {
+    if (event.target.classList.contains('modal-backdrop')) {
+      event.target.hidden = true;
+    }
     const close = event.target.closest('[data-close-call-modal]');
-    if (close) $(`#${close.dataset.closeCallModal}`).hidden = true;
+    if (close) { $(`#${close.dataset.closeCallModal}`).hidden = true; if (close.dataset.closeCallModal === 'roleChooserModal') calling.authOpener?.focus(); }
     if (close?.dataset.closeCallModal === 'livekitModal') $('#livekitForm [name=api_secret]').value = '';
     const select = event.target.closest('[data-call-select]');
     if (select) await selectCall(select.dataset.callSelect);
@@ -301,8 +314,13 @@ document.addEventListener('click', async event => {
     const action = event.target.closest('[data-call-action]');
     if (action) {
       const id = calling.selected, kind = action.dataset.callAction;
-      if (kind === 'finish' && !window.confirm('End this support call? The conversation will stop for everyone.')) return;
-      if (kind === 'transfer' && !window.confirm('Transfer this call back to the support queue?')) return;
+      if (['transfer', 'finish'].includes(kind)) {
+        const dialog = $('#callActionDialog'); dialog.dataset.callId = id; dialog.dataset.action = kind;
+        $('#callActionTitle').textContent = kind === 'transfer' ? 'Transfer this call?' : 'Finish this call?';
+        $('#callActionDescription').textContent = kind === 'transfer' ? 'The call will return to the support queue for another technician.' : 'The conversation will stop for everyone.';
+        $('#confirmCallAction').textContent = kind === 'transfer' ? 'Transfer call' : 'Finish call';
+        dialog.showModal(); return;
+      }
       action.disabled = true;
       const result = await api(`/api/calling/${id}/${kind}`, {method:'POST',body:'{}'});
       if (kind === 'accept' && result.token) await acceptBrowserCall(id, result);
@@ -315,17 +333,28 @@ document.addEventListener('click', async event => {
     if (event.target.closest('#resumeAudioButton')) {await calling.room?.startAudio();$('#resumeAudioButton').hidden=true;}
     if (event.target.closest('#signInButton')) await openTechnicianAuth();
     if (event.target.closest('#enablePhoneButton')) await enablePhone();
-    if (event.target.closest('#addTechnicianButton')) $('#technicianModal').hidden = false;
-    if (event.target.closest('#routeRequestButton')) $('#requestModal').hidden = false;
-    if (event.target.closest('#accountSignOut')) {
-      await api('/api/auth/logout', {method:'POST',body:'{}'}); await calling.room?.disconnect(); calling.ready = false; calling.user = null; location.reload();
+    if (event.target.closest('#addTechnicianButton')) { $('#technicianModal').hidden = false; $('#technicianForm [name=role]').focus(); }
+    if (event.target.closest('#routeRequestButton')) { $('#requestModal').hidden = false; $('#routeRequestForm [name=caller]').focus(); }
+    if (event.target.closest('#confirmCallAction')) {
+      const dialog = $('#callActionDialog'), id = dialog.dataset.callId, kind = dialog.dataset.action;
+      dialog.close();
+      const result = await api(`/api/calling/${id}/${kind}`, {method:'POST',body:'{}'});
+      if (['finish','transfer'].includes(kind) && calling.roomCallId === id) { const room=calling.room; calling.room=null; calling.roomCallId=null; await room?.disconnect(); }
+      await loadCalling();
     }
-  } catch(error) { toast(error.message); loadCalling(); }
+    if (event.target.closest('#accountSignOut, [data-sign-out]')) {
+      const blockSignOut = () => { window.Shell?.closeDrawer(false); const notice = $('#signOutCallNotice'); notice.hidden = false; notice.focus(); };
+      if (calling.user?.current_call_id || calling.roomCallId) { blockSignOut(); return; }
+      try { await api('/api/auth/logout', {method:'POST',body:'{}'}); }
+      catch (error) { if (error.status === 409) { blockSignOut(); return; } throw error; }
+      await calling.room?.disconnect(); calling.ready = false; calling.user = null; location.assign('/');
+    }
+  } catch(error) { showFeedback(error.message, true); loadCalling(); }
 });
 
 $('#presenceSelect').addEventListener('change', async event => {
   try { await api('/api/technicians/me/presence', {method:'PATCH',body:JSON.stringify({status:event.target.value})}); await heartbeat(); await loadCalling(); }
-  catch(error) { toast(error.message); }
+  catch(error) { showFeedback(error.message, true); }
 });
 
 $('#receiveCallsToggle').addEventListener('change', async event => {
@@ -336,13 +365,13 @@ $('#receiveCallsToggle').addEventListener('change', async event => {
     calling.ready = false;
     if (enabled) await enablePhone();
     else { await heartbeat(); await loadCalling(); }
-  } catch(error) { toast(error.message); }
+  } catch(error) { showFeedback(error.message, true); }
   finally { event.target.disabled = false; await loadCalling(); }
 });
 
 async function submitCallingForm(event, path, messageId, transform, after) {
   event.preventDefault();
-  const form = event.target, button = form.querySelector('button[type=submit], button.primary');
+  const form = event.target, button = form.querySelector('button[type=submit], button.pop');
   const message = $(messageId); message.className = 'form-message'; message.textContent = 'Saving…'; button.disabled = true;
   try {
     const values = Object.fromEntries(new FormData(form));
@@ -353,12 +382,16 @@ async function submitCallingForm(event, path, messageId, transform, after) {
 }
 
 $('#authForm').addEventListener('submit', event => submitCallingForm(event, calling.auth?.setup_required ? '/api/auth/setup' : '/api/auth/login', '#authMessage', values => calling.auth?.setup_required ? values : {...values, expected_role: calling.authRole}, async result => {
-  calling.user = result; calling.ready = false; calling.retryPhoneAt = 0; window.applyAccountRole?.(result); $('#authModal').hidden = true; document.body.classList.remove('auth-open'); history.replaceState(null, '', '/'); await window.loadApplication();
+  calling.user = result; calling.ready = false; calling.retryPhoneAt = 0; window.applyAccountRole?.(result); $('#authModal').hidden = true; document.body.classList.remove('auth-open'); history.replaceState(null, '', sessionStorage.getItem('resolveai-support-return') ? '/?next=support' : '/'); await window.loadApplication();
 }));
 document.addEventListener('submit', event => {
   if (event.target.id === 'callReplyForm') submitCallingForm(event, `/api/calling/${calling.selected}/message`, '#callReplyMessage', null, async () => document.activeElement?.blur());
 });
-$('#technicianForm').addEventListener('submit', event => submitCallingForm(event, '/api/users', '#technicianMessage', values => ({...values, skills:values.skills.split(',').map(x=>x.trim()).filter(Boolean), languages:values.languages.split(',').map(x=>x.trim()).filter(Boolean)}), async () => { $('#technicianModal').hidden = true; state.users=await api('/api/users');toast('User account created.'); }));
+$('#technicianForm [name=role]').addEventListener('change', event => {
+  const customer = event.target.value === 'customer';
+  ['userSkillsField','userLanguagesField'].forEach(id => { const field = $('#'+id), input = field.querySelector('input'); field.hidden = customer; input.required = !customer; input.disabled = customer; if (customer) input.value = ''; else if (!input.value) input.value = id === 'userSkillsField' ? 'general' : 'en'; });
+});
+$('#technicianForm').addEventListener('submit', event => submitCallingForm(event, '/api/users', '#technicianMessage', values => ({...values, skills:(values.skills || 'general').split(',').map(x=>x.trim()).filter(Boolean), languages:(values.languages || 'en').split(',').map(x=>x.trim()).filter(Boolean)}), async () => { $('#technicianModal').hidden = true; state.users=await api('/api/users');toast('User account created.'); }));
 $('#routeRequestForm').addEventListener('submit', event => submitCallingForm(event, '/api/calling/requests', '#requestMessage', null, async result => {
   calling.selected = result.id; $('#requestModal').hidden = true; toast('Incident created and routed.');
 }));
@@ -369,8 +402,13 @@ async function openLiveKitSetup() {
   $('#livekitForm [name=api_key]').value=config.api_key;
   const secret=$('#livekitForm [name=api_secret]');secret.value='';secret.required=!config.credentials_saved;
   secret.placeholder=config.credentials_saved?'Saved securely · leave blank to keep':'Enter your API secret';
-  $('#livekitMessage').textContent='';$('#livekitModal').hidden=false;
+  $('#livekitMessage').textContent='';$('#livekitModal').hidden=false;$('#livekitForm [name=url]').focus();
 }
+window.openLiveKitSetup = openLiveKitSetup;
+$('#configurationLiveKitButton')?.addEventListener('click', async () => {
+  const message = $('#configurationLiveKitMessage'); message.textContent = '';
+  try { await openLiveKitSetup(); } catch (error) { message.textContent = error.message; }
+});
 $('#livekitForm').addEventListener('submit', async event=>{
   event.preventDefault();const form=event.target,button=form.querySelector('button[type=submit]'),message=$('#livekitMessage');
   button.disabled=true;message.textContent='Checking the LiveKit connection…';message.className='form-message';

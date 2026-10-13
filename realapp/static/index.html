@@ -9,40 +9,52 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/resolveai-components.css?v=3">
 </head>
-<body>
-  <aside class="sidebar side" id="appSidebar" aria-label="Staff navigation">
-    <div class="brand"><span class="brand-mark">R</span><span>ResolveAI</span></div>
-    <p class="workspace-label">SERVICE OPERATIONS</p>
-    <nav aria-label="Staff navigation"><button class="nav-item" data-view="customer-home" hidden><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-6v-7H10v7H4a1 1 0 0 1-1-1z"/></svg>My support</button>
-      <button class="nav-item active" data-view="overview"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="5" rx="1"/><rect x="13" y="10" width="8" height="11" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/></svg>Overview</button>
-      <button class="nav-item" data-view="tickets"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M7 8h10M7 12h10M7 16h7"/></svg>Tickets</button>
-      <button class="nav-item" data-view="calls"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 3h3l2 5-2 2a15 15 0 0 0 5 5l2-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 4 5a2 2 0 0 1 2-2Z"/></svg>Calls & queue</button>
-      <button class="nav-item" data-view="transcripts"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5h16M4 10h16M4 15h10M4 20h7"/></svg>Transcripts</button>
-      <button class="nav-item" data-view="technicians"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 5"/></svg>Users</button>
-      <button class="nav-item" data-view="analytics"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19V5M4 19h17"/><path d="m7 15 4-4 3 2 5-7"/></svg>Analytics</button>
-      <button class="nav-item" data-view="knowledge"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m12 3 9 9-9 9-9-9z"/><circle cx="12" cy="12" r="2"/></svg>Knowledge</button>
-      <button class="nav-item" data-view="qa"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m5 12 4 4L19 6"/><circle cx="12" cy="12" r="9"/></svg>Quality audit</button>
-      <button class="nav-item" data-view="configuration"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.6.9l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.6-.9l-1.7.7-1.4-2.4 1.4-1.1a7 7 0 0 1 0-1.9l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.6-.9l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.6.9l1.7-.7 1.4 2.4-1.4 1.1a7 7 0 0 1-.1 1.8Z"/></svg>Configuration</button>
-    </nav>
-    <div class="sidebar-footer">
-    <div class="system-card">
-      <span class="status-dot" id="statusDot"></span>
-      <div><strong id="systemStatus">Checking AI connection</strong><small id="modelLabel">Server connection</small><button class="key-link" id="openKeyPanel">Configure key</button></div>
+<body data-role="guest" data-shell="public" data-mode="focus">
+  <a class="skip" href="#mainContent">Skip to main content</a>
+  <div class="shell" id="appShell">
+  <aside class="shell__side" id="appSidebar" aria-label="Workspace navigation" hidden>
+    <div class="shell__brand">
+      <a class="brand" href="/" aria-label="ResolveAI home"><span class="brand__mark" aria-hidden="true">R</span>ResolveAI</a>
+      <button class="pop pop--quiet pop--sm shell__close" id="closeNav" type="button">Close<span class="sr"> navigation</span></button>
     </div>
-    </div>
+    <p class="kicker shell__label" id="workspaceLabel"></p>
+    <nav class="side" id="appNav" aria-label="Workspace"></nav>
+    <section class="shell__status" id="systemCard" aria-labelledby="systemCardTitle" hidden>
+      <p class="kicker" id="systemCardTitle">AI connection</p>
+      <span class="badge badge--low" id="systemStatus" role="status" aria-live="polite">○ Checking</span>
+      <p class="help" id="modelLabel" data-detail></p>
+      <div class="row row--sm">
+        <button class="pop pop--quiet pop--sm" id="retryConfig" type="button">Check again</button>
+        <button class="pop pop--quiet pop--sm" id="openKeyPanel" type="button" hidden>Configure key</button>
+      </div>
+    </section>
   </aside>
-
-  <main id="mainContent">
-    <header class="workspace-topbar" id="workspaceTopbar" hidden>
-      <button class="mobile-nav-toggle pop pop--quiet pop--sm" id="mobileNavToggle" type="button" aria-controls="appSidebar" aria-expanded="false">Menu</button>
-      <span class="workspace-account" id="accountIdentity"></span>
-      <div class="workspace-topbar-actions"><div class="workspace-mode-control" role="group" aria-label="Workspace detail level"><span>View</span><button class="switch" type="button" data-view-mode="detail" role="switch" aria-checked="false">Focus / Detail</button></div><button class="pop pop--quiet pop--sm" id="accountSignOut" data-sign-out>Sign out</button></div>
+  <div class="scrim" id="mobileNavBackdrop" aria-hidden="true" hidden></div>
+  <div class="shell__body" id="shellBody">
+    <header class="topbar" id="workspaceTopbar" hidden>
+      <button class="pop pop--quiet pop--sm topbar__menu" id="mobileNavToggle" type="button" aria-controls="appSidebar" aria-expanded="false"><svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Menu</button>
+      <a class="brand topbar__brand" href="/" aria-label="ResolveAI home"><span class="brand__mark" aria-hidden="true">R</span><span class="brand__name">ResolveAI</span></a>
+      <nav class="topnav" id="topNav" aria-label="Customer"></nav>
+      <div class="topbar__end">
+        <button class="switch" id="modeSwitch" type="button" role="switch" aria-checked="false" data-mode-switch hidden>Detail view</button>
+        <span class="topbar__account" id="accountIdentity"></span>
+        <button class="pop pop--quiet pop--sm" id="accountSignOut" type="button" data-sign-out>Sign out</button>
+      </div>
     </header>
-    <button class="mobile-nav-backdrop" id="mobileNavBackdrop" type="button" aria-label="Close navigation" hidden></button>
-    <div id="incomingCallBanner" class="incoming-call-banner" hidden role="status"></div>
-    <div id="globalFeedback" class="alert global-feedback" role="status" aria-live="polite" hidden><span id="globalFeedbackMessage"></span><button type="button" class="pop pop--quiet pop--sm" id="dismissGlobalFeedback">Dismiss</button></div>
-    <p id="signOutCallNotice" class="alert" role="status" tabindex="-1" hidden></p>
-
+    <div class="shell__notices" id="shellNotices">
+      <div class="alert alert--info" id="offlineNotice" role="status" hidden><strong>✕ You’re offline.</strong><span class="sec">Changes can’t be saved until your connection returns. This page will keep what you entered.</span></div>
+      <div class="alert alert--info" id="slowNotice" role="status" aria-live="polite" hidden><strong>○ Still loading.</strong><span class="sec">The server is taking longer than usual. You can keep working; results will appear when ready.</span></div>
+      <div id="incomingCallBanner" class="card card--lift incoming-call" role="status" hidden></div>
+      <div id="globalFeedback" class="alert" role="status" aria-live="polite" hidden><span id="globalFeedbackMessage"></span><button type="button" class="pop pop--quiet pop--sm" id="dismissGlobalFeedback">Dismiss</button></div>
+      <div id="signOutCallNotice" class="alert" role="alert" tabindex="-1" hidden><strong>✕ You’re on an active call.</strong><span class="sec" id="signOutCallMessage">Finish or transfer your call in Calls &amp; queue before signing out, so the customer isn’t dropped.</span><button type="button" class="pop pop--quiet pop--sm" data-view="calls">Go to call</button></div>
+    </div>
+    <main id="mainContent" class="shell__main" tabindex="-1">
+    <section class="view" id="view-denied" aria-labelledby="deniedTitle">
+      <div class="empty stack"><h1 id="deniedTitle">You don’t have access to this page</h1><p class="sec">Your account role doesn’t include this area. If you need it, ask your administrator.</p><div class="row" style="justify-content:center"><button class="pop" type="button" data-go-home>Go to your workspace</button></div></div>
+    </section>
+    <section class="view" id="view-notfound" aria-labelledby="notFoundTitle">
+      <div class="empty stack"><h1 id="notFoundTitle">We can’t show that record</h1><p class="sec" id="notFoundMessage">It may have been removed, or it isn’t visible to your account.</p><div class="row" style="justify-content:center"><button class="pop" type="button" data-go-home>Go to your workspace</button></div></div>
+    </section>
     <section class="view" id="view-signin">
       <div class="landing-page pop-landing">
         <header class="landing-nav">
@@ -204,7 +216,9 @@
       <p class="helper" id="bulkQaStatus" role="status" aria-live="polite">Rerun AI QA for all resolved tickets.</p>
       <div id="qaWorkspace" class="panel card empty-list">Select a ticket to inspect its evidence and rerun AI QA.</div></div><div id="qa-calls-panel" role="tabpanel" aria-labelledby="qa-calls-tab" hidden><div class="panel-head"><div><h3>Call audits</h3><p class="helper">Review greeting, problem solving, empathy, communication, verification and closure.</p></div><button class="pop pop--sm" id="evaluateCalls">Evaluate completed calls</button></div><p class="helper" id="callAuditStatus" role="status" aria-live="polite"></p><article class="panel card"><label>Search call audits<input id="callQaSearch" type="search" placeholder="Call ID, incident number or participant"></label><div id="callQaList" class="table-wrap"></div></article><article class="panel card transcript-detail" id="callQaDetail" hidden></article></div>
     </section>
-  </main>
+    </main>
+  </div>
+  </div>
   <dialog class="media-preview-dialog" id="mediaPreviewDialog" aria-label="Full-size incident attachment">
     <button type="button" class="modal-close" id="closeMediaPreview" aria-label="Close image preview">×</button>
     <img id="mediaPreviewImage" alt="">
@@ -235,7 +249,12 @@
       <button class="pop full" id="generateIncidentKnowledge" type="submit">Generate draft</button><p class="form-message" id="incidentKnowledgeMessage" role="status"></p></form>
     </section>
   </div>
-  <div class="toasts" id="toastHost" role="status" aria-live="polite" aria-atomic="true"><div class="toast" id="toast" hidden></div></div>
+  <div class="toasts" id="toastHost" aria-live="polite"></div>
+  <dialog class="dlg" id="sessionDialog" aria-labelledby="sessionTitle" aria-describedby="sessionText">
+    <h2 id="sessionTitle">Your session has ended</h2>
+    <p class="sec" id="sessionText">For your security you were signed out. Sign in again to continue. Anything you typed on this page is still here until you leave it.</p>
+    <div class="row"><button type="button" class="pop pop--quiet" data-close>Stay on this page</button><button type="button" class="pop" id="sessionSignIn">Sign in again</button></div>
+  </dialog>
   <div class="modal-backdrop" id="roleChooserModal" hidden>
     <section class="key-modal role-chooser-modal" role="dialog" aria-modal="true" aria-labelledby="roleChooserTitle" aria-describedby="roleChooserDesc" tabindex="-1">
       <button class="modal-close" data-close-call-modal="roleChooserModal" id="closeRoleChooser" aria-label="Close">×</button>
@@ -292,14 +311,13 @@
   <div class="modal-backdrop" id="livekitModal" hidden><section class="key-modal livekit-modal" role="dialog" aria-modal="true" aria-labelledby="livekitTitle"><button class="modal-close" data-close-call-modal="livekitModal" aria-label="Close">×</button><p class="eyebrow">BROWSER CALLING</p><h2 id="livekitTitle">Connect LiveKit</h2><p class="helper">Use the local LiveKit server or your LiveKit Cloud project. Credentials are protected in your Windows profile and retained after restarts.</p><form id="livekitForm"><label>LiveKit server address<input name="url" required placeholder="ws://127.0.0.1:7880" autocomplete="off" spellcheck="false"></label><label>API key<input name="api_key" required autocomplete="off" spellcheck="false"></label><label>API secret<input name="api_secret" type="password" autocomplete="off" spellcheck="false" placeholder="Enter your API secret"></label><p class="helper">Cloud credentials are available in <a href="https://cloud.livekit.io/" target="_blank" rel="noopener noreferrer">LiveKit Cloud</a>. For local calls, run start-livekit-local.ps1 in the project.</p><button type="submit" class="pop full">Verify and save connection</button><p id="livekitMessage" class="form-message" role="status"></p></form></section></div>
   <dialog class="dlg" id="callActionDialog" aria-labelledby="callActionTitle" aria-describedby="callActionDescription"><h2 id="callActionTitle">Confirm call action</h2><p id="callActionDescription"></p><div class="row"><button type="button" class="pop pop--quiet" data-close>Cancel</button><button type="button" class="pop pop--danger" id="confirmCallAction">Confirm</button></div></dialog>
   <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="pop resume-audio" hidden>Enable call audio</button>
-  <script src="/static/vendor/livekit-client.umd.js"></script>
-  <script src="/static/voice-browser.js?v=3"></script>
-  <script src="/static/customer-flow.js?v=1"></script>
-  <script src="/static/app.js?v=17"></script>
-  <script src="/static/calling.js?v=13"></script>
-  <script src="/static/admin-ui.js?v=1"></script>
-  <script src="/static/transcripts.js?v=5"></script>
-  <script src="/static/workspace.js?v=1"></script>
   <script src="/static/resolveai-components.js?v=1"></script>
+  <script src="/static/vendor/livekit-client.umd.js"></script>
+  <script src="/static/voice-browser.js?v=4"></script>
+  <script src="/static/shell.js?v=1"></script>
+  <script src="/static/customer-flow.js?v=2"></script>
+  <script src="/static/app.js?v=18"></script>
+  <script src="/static/calling.js?v=14"></script>
+  <script src="/static/transcripts.js?v=6"></script>
 </body>
 </html>
