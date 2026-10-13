@@ -92,6 +92,19 @@ def test_analytics_filters_cannot_expand_role_access(accounts):
     assert f.customer_a.get('/api/transcripts/'+one['id']).json()['overall_quality'] is None
 
 
+def test_transcripts_report_recorded_duration_without_estimating_open_calls(accounts):
+    f=accounts
+    one=add_completed(f.service,f.customer_a_id,f.tech_a_id)
+    f.service.repository.mutate(lambda db:db['calls'][one['id']].update(created_at=100,ended_at=466))
+    open_call=f.service.create_call('Customer','browser',customer_id=f.customer_a_id)
+    f.service.add_turn(open_call['id'],'Customer','The application is not opening.')
+    records={source['source_id']:source for source in f.customer_a.get('/api/transcripts').json()}
+    assert records[one['id']]['duration_seconds']==366
+    assert records[open_call['id']]['duration_seconds'] is None
+    assert f.tech_a.get('/api/transcripts/'+one['id']).json()['duration_seconds']==366
+    assert f.tech_b.get('/api/transcripts/'+one['id']).status_code==404
+
+
 def test_active_calls_and_missing_handler_evidence_are_not_scored(service):
     quality=CallQuality(service)
     call=service.create_call('Customer','browser')

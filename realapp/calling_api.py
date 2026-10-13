@@ -143,6 +143,7 @@ def install_calling(app, settings, store, engine, update_ticket):
             result.append(dict(source_id=call['id'],call_id=call['id'],case_id=call.get('case_id'),
                 ticket_number=case.ticket.id if case else '',customer=call['caller'],technician=call.get('technician_name') or 'AI assistant',
                 service=call.get('service','General'),status=call['status'],created_at=call['created_at'],
+                duration_seconds=max(0,round(call['ended_at']-call['created_at'])) if call.get('ended_at') is not None else None,
                 overall_quality=overall_quality(call) if actor['role']!='customer' else None,
                 transcript=call['transcript'],quality_audit=call.get('quality_audit') if actor['role']!='customer' and audit_current(call) else None))
         for case in cases.values():
@@ -150,7 +151,7 @@ def install_calling(app, settings, store, engine, update_ticket):
             if case.id in linked or not own or not case.transcript: continue
             result.append(dict(source_id=case.id,call_id=case.ticket.call_id,case_id=case.id,ticket_number=case.ticket.id,
                 customer=case.caller,technician=case.ticket.assigned_to or 'Not assigned',service=case.ticket.service,
-                status=case.ticket.state,created_at=case.created_at.timestamp(),transcript=[t.model_dump(mode='json') for t in case.transcript],quality_audit=None))
+                status=case.ticket.state,created_at=case.created_at.timestamp(),duration_seconds=None,transcript=[t.model_dump(mode='json') for t in case.transcript],quality_audit=None))
         return sorted(result,key=lambda item:item['created_at'],reverse=True)
 
     @router.get('/api/transcripts')

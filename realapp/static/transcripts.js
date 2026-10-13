@@ -1,8 +1,30 @@
 let transcriptSources=[], transcriptSelected=null, callAnalyticsTimer;
+let transcriptOwner=null,transcriptDurationLimit=1;
+function durationLabel(seconds) {
+  if(seconds==null) return 'Not recorded';
+  return `${Math.floor(seconds/60)}m ${Math.round(seconds%60)}s`;
+}
+function resetTranscriptFilters() {
+  ['transcriptSearch','transcriptTechnicianFilter','transcriptServiceFilter'].forEach(id=>$('#'+id).value='');
+  $('#transcriptDurationMin').value=0;$('#transcriptDurationMax').value=transcriptDurationLimit;
+}
 
 window.loadTranscripts = async () => {
   try {
-    transcriptSources=await api('/api/transcripts');
+    const userId=state.user?.id,sources=await api('/api/transcripts');
+    if(state.user?.id!==userId) return;
+    const previousLimit=transcriptDurationLimit,previousMax=Number($('#transcriptDurationMax').value);
+    transcriptSources=sources;
+    transcriptDurationLimit=Math.max(1,...sources.map(source=>source.duration_seconds ?? 0));
+    ['transcriptDurationMin','transcriptDurationMax'].forEach(id=>{
+      $('#'+id).max=transcriptDurationLimit;$('#'+id).disabled=!sources.some(source=>source.duration_seconds!=null);
+    });
+    if(previousMax===previousLimit) $('#transcriptDurationMax').value=transcriptDurationLimit;
+    analyticsOptions('#transcriptTechnicianFilter',sources.map(source=>source.technician),'All technicians');
+    analyticsOptions('#transcriptServiceFilter',sources.map(source=>source.service || 'General'),'All services');
+    $('#transcriptTechnicianLabel').hidden=state.user.role!=='admin';
+    if(state.user.role!=='admin') $('#transcriptTechnicianFilter').value='';
+    if(transcriptOwner!==userId) {resetTranscriptFilters();transcriptSelected=null;$('#transcriptDetail').hidden=true;transcriptOwner=userId;}
     $('#transcriptScope').textContent=state.user.role==='admin' ? 'All recorded calls and incident conversations.' : state.user.role==='technician' ? 'Conversations assigned to you.' : 'Your own support conversations.';
     renderTranscripts();
     if (!transcriptSources.some(source=>source.source_id===transcriptSelected)) {transcriptSelected=null;$('#transcriptDetail').hidden=true;}
@@ -11,10 +33,17 @@ window.loadTranscripts = async () => {
 
 function renderTranscripts() {
   const query=$('#transcriptSearch').value.trim().toLowerCase();
-  const sources=transcriptSources.filter(source=>!query || [source.source_id,source.ticket_number,source.customer,source.technician,source.service].join(' ').toLowerCase().includes(query));
+  const technician=$('#transcriptTechnicianFilter').value,service=$('#transcriptServiceFilter').value;
+  const min=Number($('#transcriptDurationMin').value),max=Number($('#transcriptDurationMax').value),allLengths=min===0 && max===transcriptDurationLimit;
+  $('#transcriptDurationLabel').textContent=allLengths?'All lengths':`${durationLabel(min)} – ${durationLabel(max)}`;
+  $('#transcriptDurationMin').setAttribute('aria-valuetext',durationLabel(min));$('#transcriptDurationMax').setAttribute('aria-valuetext',durationLabel(max));
+  const sources=transcriptSources.filter(source=>(!query || [source.source_id,source.ticket_number,source.customer,source.technician,source.service].join(' ').toLowerCase().includes(query)) &&
+    (!technician || source.technician===technician) && (!service || (source.service || 'General')===service) &&
+    (allLengths || source.duration_seconds!=null && source.duration_seconds>=min && source.duration_seconds<=max));
+  if(!sources.some(source=>source.source_id===transcriptSelected)) {transcriptSelected=null;$('#transcriptDetail').hidden=true;}
   $('#transcriptCount').textContent=`${sources.length} of ${transcriptSources.length} conversations`;
   $('#transcriptList').className=sources.length?'table-wrap':'empty-list';
-  $('#transcriptList').innerHTML=sources.length?`<table><thead><tr><th>Call / Source ID</th><th>Incident</th><th>Customer</th><th>Technician</th><th>Service</th><th></th></tr></thead><tbody>${sources.map(source=>`<tr class="transcript-list-row" data-transcript="${esc(source.source_id)}"><td>${esc(source.call_id || source.source_id)}</td><td>${esc(source.ticket_number || 'Pending')}</td><td>${esc(source.customer)}</td><td>${esc(source.technician)}</td><td>${esc(source.service)}</td><td><button class="text-button" data-transcript="${esc(source.source_id)}">View transcript</button></td></tr>`).join('')}</tbody></table>`:'No conversations match this search.';
+  $('#transcriptList').innerHTML=sources.length?`<table><thead><tr><th>Call / Source ID</th><th>Incident</th><th>Customer</th><th>Technician</th><th>Service</th><th>Call length</th><th></th></tr></thead><tbody>${sources.map(source=>`<tr class="transcript-list-row" data-transcript="${esc(source.source_id)}"><td>${esc(source.call_id || source.source_id)}</td><td>${esc(source.ticket_number || 'Pending')}</td><td>${esc(source.customer)}</td><td>${esc(source.technician)}</td><td>${esc(source.service)}</td><td>${durationLabel(source.duration_seconds)}</td><td><button class="text-button" data-transcript="${esc(source.source_id)}">View transcript</button></td></tr>`).join('')}</tbody></table>`:'No conversations match these filters.';
 }
 
 async function openTranscript(id) {
@@ -92,6 +121,13 @@ async function refreshCallAudit() {
 }
 
 $('#transcriptSearch').addEventListener('input',renderTranscripts);
+['transcriptTechnicianFilter','transcriptServiceFilter'].forEach(id=>$('#'+id).addEventListener('change',renderTranscripts));
+['Min','Max'].forEach(bound=>$('#transcriptDuration'+bound).addEventListener('input',()=>{
+  const min=$('#transcriptDurationMin'),max=$('#transcriptDurationMax');
+  if(Number(min.value)>Number(max.value)) (bound==='Min'?max:min).value=(bound==='Min'?min:max).value;
+  renderTranscripts();
+}));
+$('#clearTranscriptFilters').addEventListener('click',()=>{resetTranscriptFilters();renderTranscripts();});
 $('#callQaSearch').addEventListener('input',renderCallQA);
 document.addEventListener('click',async event=>{
   const target=event.target.closest('[data-transcript]');
