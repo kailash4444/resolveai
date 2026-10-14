@@ -5,7 +5,7 @@
   try { framedApp = window.top !== window.self && window.top.location.origin === location.origin && !location.pathname.startsWith('/support'); } catch (_) {}
   if (framedApp) {
     window.stop();
-    document.documentElement.innerHTML = '<head><meta charset="utf-8"><link rel="stylesheet" href="/static/resolveai-components.css?v=8"></head><body class="support--embedded"><p class="sec" style="padding:16px">Your session has ended. <a href="/login" target="_top">Sign in again</a> to call support.</p></body>';
+    document.documentElement.innerHTML = '<head><meta charset="utf-8"><link rel="stylesheet" href="/static/resolveai-components.css?v=8"></head><body class="support--embedded"><p class="sec" style="padding:16px">Your session has ended. <a href="/login" target="_top">Log in again</a> to call support.</p></body>';
     return;
   }
   const KEY = 'resolveai-theme', root = document.documentElement;

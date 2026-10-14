@@ -46,7 +46,6 @@
     sidebar.hidden = role === 'guest';
     byId('workspaceTopbar').hidden = role === 'guest';
     byId('accountIdentity').textContent = user ? `${user.name} · ${role === 'admin' ? 'Admin' : role === 'customer' ? 'Customer' : 'Technician'}` : '';
-    byId('systemCard').hidden = role === 'guest' || role === 'customer';
     // Customers always see Focus; staff keep their saved preference (default Focus).
     const modeSwitch = byId('modeSwitch');
     modeSwitch.hidden = role === 'guest' || role === 'customer';
@@ -61,6 +60,7 @@
 
   function setCurrent(view) {
     const target = PARENT[view] || view;
+    document.body.dataset.currentView = view;   // not data-view: that attribute marks navigation links
     document.querySelectorAll('#appNav a, #topNav a').forEach(link => {
       if (link.dataset.view === target) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
@@ -132,7 +132,7 @@
     const dialog = byId('sessionDialog');
     if (role !== 'guest' && !dialog.open) dialog.showModal();
   }
-  byId('sessionSignIn').addEventListener('click', () => { location.assign(`/login?role=${role === 'customer' ? 'customer' : 'technician'}`); });
+  byId('sessionSignIn').addEventListener('click', () => { location.assign(role === 'customer' ? '/login' : '/login?as=staff'); });
 
   // ---- Unsaved changes. "unload" keys only guard leaving the page; "all" keys also guard in-app navigation. ----
   const dirty = new Map();
@@ -140,6 +140,7 @@
   window.ResolveDirty = {
     mark(key, on, scope = 'unload') { if (on) dirty.set(key, scope); else dirty.delete(key); },
     clear() { dirty.clear(); },
+    isDirty() { return [...dirty.values()].includes('all'); },
   };
   window.confirmLeave = retry => {
     if (![...dirty.values()].includes('all')) return true;

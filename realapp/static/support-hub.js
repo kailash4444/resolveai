@@ -4,10 +4,10 @@
   if (!chooser) return;
   const KEY = 'resolveai-active-chat';
   const MODES = {
-    talk: {button: 'Start voice call', help: 'Your browser will ask for microphone access when the call starts.'},
-    chat: {button: 'Start chat', help: 'Type with our AI assistant. A technician can join if you need one.'},
-    incident: {button: 'Raise an incident', help: 'Opens the incident form, where you can add screenshots.'},
-    help: {button: 'Browse help articles', help: 'Opens step-by-step guides for common problems.'},
+    talk: {icon: '<path d="M6 3h3l2 5-2 2a15 15 0 0 0 5 5l2-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 4 5a2 2 0 0 1 2-2z"/>', button: 'Start voice call', help: 'Your browser will ask for microphone access when the call starts.'},
+    chat: {icon: '<path d="M4 5h16v11H9l-5 4z"/>', button: 'Start chat', help: 'Type with our AI assistant. A technician can join if you need one.'},
+    incident: {icon: '<path d="M12 5v14M5 12h14"/>', button: 'Raise an incident', help: 'Opens the incident form, where you can add screenshots.'},
+    help: {icon: '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5"/>', button: 'Browse help articles', help: 'Opens step-by-step guides for common problems.'},
   };
   const CHAT_STATUS = {
     Triage: ['badge--medium', '● Reading your message'],
@@ -25,7 +25,8 @@
   const mode = () => chooser.elements.supportMode.value;
   function syncButton() {
     const spec = MODES[mode()] || MODES.chat;
-    $('#supportStart').textContent = spec.button;
+    $('#supportStart .pop__label').textContent = spec.button;
+    $('#supportStart .pop__bubble svg').innerHTML = spec.icon;
     $('#supportStartHelp').textContent = spec.help;
   }
   chooser.addEventListener('change', syncButton);

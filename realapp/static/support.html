@@ -7,14 +7,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/resolveai-components.css?v=9">
-  <script src="/static/theme.js?v=4"></script>
+  <link rel="stylesheet" href="/static/resolveai-components.css?v=20">
+  <script src="/static/theme.js?v=5"></script>
 </head>
 <body class="support" data-mode="focus">
   <a class="skip" href="#supportMain">Skip to support controls</a>
   <header class="support__bar" data-standalone>
     <a class="brand" href="/portal" aria-label="ResolveAI, back to My support"><span class="brand__mark" aria-hidden="true">R</span>ResolveAI</a>
-    <div class="row row--sm"><button type="button" class="pop pop--quiet pop--sm theme-toggle" data-theme-toggle aria-label="Switch theme"></button><a class="sec auth__back" href="/portal">← Back to My support</a></div>
+    <div class="row row--sm"><button type="button" class="pop pop--quiet pop--sm theme-toggle" data-theme-toggle aria-label="Switch theme"></button><a class="go go--back" href="/portal">Back to My support</a></div>
   </header>
   <main id="supportMain" class="support__main">
     <section class="support__card stack" aria-labelledby="callState">
@@ -35,15 +35,15 @@
         <div class="field field--inline" id="nameField"><label for="customerName">Your name</label><input class="input" id="customerName" name="caller" autocomplete="name" required minlength="2" maxlength="100" aria-describedby="customerNameError"><p class="err" id="customerNameError" hidden></p></div>
         <p class="help" id="callingAs" hidden></p>
         <input type="hidden" name="language" value="en">
-        <button id="startSupportCall" class="pop" type="submit">Start voice call</button>
+        <button id="startSupportCall" class="pop pop--lead" type="submit"><span class="pop__bubble" aria-hidden="true"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h3l2 5-2 2a15 15 0 0 0 5 5l2-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 4 5a2 2 0 0 1 2-2z"/></svg></span><span class="pop__label">Start voice call</span></button>
         <p class="help">Your browser will ask for microphone access when you start. The conversation is transcribed to help resolve your issue and create an incident.</p>
       </form>
       <section id="activeCall" class="stack" aria-label="Call controls" hidden>
         <p class="help" id="listeningStatus"></p>
-        <div class="row">
+        <div class="call-controls">
           <button id="muteSupportCall" class="switch" type="button" role="switch" aria-checked="true">Microphone on</button>
-          <button id="askTechnician" class="pop pop--quiet" type="button">Ask for a technician</button>
-          <button id="endSupportCall" class="pop pop--danger" type="button">End call</button>
+          <button id="askTechnician" class="call-btn" type="button"><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>Ask for a technician</button>
+          <button id="endSupportCall" class="call-btn call-btn--danger" type="button"><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15c5-5 13-5 18 0l-2 3-4-1v-3a10 10 0 0 0-6 0v3l-4 1z"/></svg></span>End call</button>
         </div>
         <details class="transcript-box" open>
           <summary>Live transcript</summary>
@@ -68,6 +68,6 @@
   <script src="/static/resolveai-components.js?v=1"></script>
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=4"></script>
-  <script src="/static/support.js?v=10"></script>
+  <script src="/static/support.js?v=12"></script>
 </body>
 </html>

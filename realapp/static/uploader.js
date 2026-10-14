@@ -47,7 +47,8 @@ window.ResolveUploader = (() => {
         row.append(media, badge);
         if (!['uploading', 'attached'].includes(item.status)) {
           const remove = document.createElement('button');
-          remove.type = 'button'; remove.className = 'pop pop--quiet pop--sm'; remove.textContent = 'Remove';
+          remove.type = 'button'; remove.className = 'pop pop--quiet pop--icon'; remove.title = 'Remove';
+          remove.innerHTML = '<svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
           remove.setAttribute('aria-label', `Remove ${item.file.name}`);
           remove.addEventListener('click', () => {
             items.splice(index, 1); validate(); render(); onChange();

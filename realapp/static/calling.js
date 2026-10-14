@@ -98,7 +98,7 @@ function renderCalling() {
   $('#callsAvailable').textContent = metrics.available;
   $('#callPerformance').textContent = `All time: ${metrics.total ?? 0} requests · ${metrics.completed ?? 0} completed · ${metrics.callbacks ?? 0} callbacks to follow up · ${metrics.average_wait_seconds ?? 0} s average wait before a technician connected.`;
   $('#callingSync').textContent = `✓ Updated ${new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}`;
-  patch($('#callList'), calls.length ? `<ul class="list">${calls.map(c => { const selected = c.id === calling.selected; return `<li class="list__row${selected ? ' is-selected' : ''}"><span class="list__main"><strong>${esc(c.caller)}</strong><span class="help">${esc(c.service)} · ${(c.origin === 'browser' ? 'Browser call' : c.channel === 'chat' ? 'Chat' : 'Desk request')} · ${esc(c.technician_name || (['AI','Triage'].includes(c.status) ? 'AI assistant' : 'Unassigned'))} · ${elapsed(c.created_at)} ago</span></span>${priorityBadge(c.priority)}${callBadge(c.status)}<button type="button" class="pop pop--quiet pop--sm" data-call-select="${esc(c.id)}" aria-pressed="${selected}"><span>${selected ? 'Viewing' : 'Open'}<span class="sr"> call from ${esc(c.caller)}</span></span></button></li>`; }).join('')}</ul>`
+  patch($('#callList'), calls.length ? `<ul class="list">${calls.map(c => { const selected = c.id === calling.selected; return `<li class="list__row${selected ? ' is-selected' : ''}"><span class="list__main"><strong>${esc(c.caller)}</strong><span class="help">${esc(c.service)} · ${(c.origin === 'browser' ? 'Browser call' : c.channel === 'chat' ? 'Chat' : 'Desk request')} · ${esc(c.technician_name || (['AI','Triage'].includes(c.status) ? 'AI assistant' : 'Unassigned'))} · ${elapsed(c.created_at)} ago</span></span>${priorityBadge(c.priority)}${callBadge(c.status)}<button type="button" class="go" data-call-select="${esc(c.id)}" aria-pressed="${selected}"><span>${selected ? 'Viewing' : 'Open'}<span class="sr"> call from ${esc(c.caller)}</span></span></button></li>`; }).join('')}</ul>`
     : calling.data.calls.length ? '<p class="sec">No calls match this search.</p>' : '<div class="empty"><h3 class="h4">The queue is empty</h3><p class="sec">Incoming browser calls and routed support requests appear here.</p></div>');
   const incoming = calling.data.incoming_calls || [];
   $('#sharedQueuePanel').hidden = !incoming.length;
@@ -133,10 +133,10 @@ function renderCallDetail() {
   const controls = [];
   if (c.status === 'Ringing' && own) {
     const phoneReady = c.origin !== 'browser' || calling.ready;
-    controls.push(`<button type="button" class="pop" data-call-action="accept" ${phoneReady ? '' : 'disabled aria-describedby="acceptHelp"'}>Accept</button><button type="button" class="pop pop--quiet" data-call-action="decline">Decline</button>${phoneReady ? '' : '<p class="help" id="acceptHelp">Enable your microphone to accept browser calls.</p>'}`);
+    controls.push(`<button type="button" class="call-btn call-btn--go" data-call-action="accept" ${phoneReady ? '' : 'disabled aria-describedby="acceptHelp"'}><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h3l2 5-2 2a15 15 0 0 0 5 5l2-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 4 5a2 2 0 0 1 2-2z"/></svg></span>Accept</button><button type="button" class="call-btn" data-call-action="decline"><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>Decline</button>${phoneReady ? '' : '<p class="help" id="acceptHelp">Enable your microphone to accept browser calls.</p>'}`);
   }
-  if ((c.status === 'AI' || c.status === 'Connected') && canManage) controls.push('<button type="button" class="pop pop--quiet" data-call-action="transfer">Transfer to queue</button>');
-  if ((c.status === 'Connected' || c.status === 'AI') && canManage) controls.push('<button type="button" class="pop pop--danger" data-call-action="finish">End call</button>');
+  if ((c.status === 'AI' || c.status === 'Connected') && canManage) controls.push('<button type="button" class="call-btn" data-call-action="transfer"><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h7M17 15l3 3-3 3"/></svg></span>Transfer to queue</button>');
+  if ((c.status === 'Connected' || c.status === 'AI') && canManage) controls.push(`<button type="button" class="call-btn call-btn--danger" data-call-action="finish"><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15c5-5 13-5 18 0l-2 3-4-1v-3a10 10 0 0 0-6 0v3l-4 1z"/></svg></span>${c.channel === 'chat' ? 'End chat' : 'End call'}</button>`);
   const guidance = c.knowledge_matches || [], status = c.knowledge_status;
   const openKnowledge = new Set([...document.querySelectorAll('#callWorkspace details[data-kb][open]')].map(item => item.dataset.kb));
   patch($('#callWorkspace'), `<div class="section-head section-head--tight"><div><p class="kicker"><span class="mono">${esc(c.id)}</span></p><h2 class="h3" tabindex="-1">${esc(c.caller)}</h2></div>${callBadge(c.status)}</div>
@@ -144,7 +144,7 @@ function renderCallDetail() {
     <dl class="kv"><div><dt>Service</dt><dd>${esc(c.service)}</dd></div><div><dt>Priority</dt><dd>${priorityBadge(c.priority)}</dd></div><div><dt>Technician</dt><dd>${esc(c.technician_name || 'Not assigned')}</dd></div><div><dt>Started</dt><dd>${elapsed(c.created_at)} ago</dd></div></dl>
     ${c.reason ? `<p class="help" data-detail>Routing: ${esc(c.reason)}</p>` : ''}
     ${c.last_error ? `<div class="alert" role="alert"><strong>✕ Call problem.</strong><span class="sec">${esc(c.last_error)}</span></div>` : ''}
-    ${controls.length ? `<div class="row">${controls.join('')}</div>` : ''}
+    ${controls.length ? `<div class="call-controls">${controls.join('')}</div>` : ''}
     <h3 class="h4">Conversation</h3>${c.transcript.length ? transcriptTurns(c.transcript) : '<p class="help">The transcript appears as people speak.</p>'}
     ${c.channel === 'chat' && c.status === 'Connected' && own ? '<form id="techReplyForm" class="stack stack--sm" novalidate><div class="field field--inline"><label for="techReplyText">Reply to customer</label><textarea class="input" id="techReplyText" name="text" rows="2" required maxlength="4000"></textarea></div><div class="row"><button type="submit" class="pop pop--sm">Send</button><p class="form-status" id="techReplyMessage" role="status"></p></div></form>' : ''}
     ${c.origin === 'desk' && c.channel !== 'chat' && c.status === 'AI' ? '<form id="callReplyForm" class="stack stack--sm" novalidate><div class="field field--inline"><label for="callReplyText">Customer reply</label><textarea class="input" id="callReplyText" name="text" rows="2" required maxlength="4000"></textarea></div><div class="row"><button type="submit" class="pop pop--sm">Send reply</button><p class="form-status" id="callReplyMessage" role="status"></p></div></form>' : ''}
@@ -165,7 +165,7 @@ async function renderCallTicket(call) {
     const item = await api(`/api/cases/${call.case_id}`);
     if (calling.selected !== call.id) return;
     const t = item.ticket;
-    patch(panel, `<div class="section-head section-head--tight"><div><p class="kicker">Linked incident</p><h2 class="h3"><span class="mono">${esc(t.id)}</span></h2></div>${stateBadge(t.state)}</div><p><strong>${esc(t.short_description)}</strong></p><dl class="kv"><div><dt>Priority</dt><dd>${priorityBadge(t.priority)}</dd></div><div><dt>Service</dt><dd>${esc(t.service)}</dd></div><div><dt>Assigned to</dt><dd>${esc(t.assigned_to || 'Unassigned')}</dd></div><div><dt>Category</dt><dd>${esc(t.category)} · ${esc(t.subcategory)}</dd></div></dl><p class="sec pre" data-detail>${esc(t.description)}</p><div><a class="pop pop--quiet pop--sm" href="${window.Shell.home(state.user.role)}?ticket=${encodeURIComponent(item.id)}" data-ticket-link="${esc(item.id)}"><span>Open<span class="sr"> ${esc(t.id)}</span> to edit</span></a></div>`);
+    patch(panel, `<div class="section-head section-head--tight"><div><p class="kicker">Linked incident</p><h2 class="h3"><span class="mono">${esc(t.id)}</span></h2></div>${stateBadge(t.state)}</div><p><strong>${esc(t.short_description)}</strong></p><dl class="kv"><div><dt>Priority</dt><dd>${priorityBadge(t.priority)}</dd></div><div><dt>Service</dt><dd>${esc(t.service)}</dd></div><div><dt>Assigned to</dt><dd>${esc(t.assigned_to || 'Unassigned')}</dd></div><div><dt>Category</dt><dd>${esc(t.category)} · ${esc(t.subcategory)}</dd></div></dl><p class="sec pre" data-detail>${esc(t.description)}</p><div><a class="go" href="${window.Shell.home(state.user.role)}?ticket=${encodeURIComponent(item.id)}" data-ticket-link="${esc(item.id)}"><span>Open<span class="sr"> ${esc(t.id)}</span> to edit</span></a></div>`);
   } catch(error) {
     if (calling.selected === call.id) patch(panel, `<h2 class="h3">Incident</h2><div class="alert" role="alert"><strong>✕ Couldn’t load the incident.</strong><span class="sec">${esc(error.message)}</span></div>`);
   }
@@ -261,7 +261,7 @@ document.addEventListener('click', async event => {
       await loadCalling();
     }
     if (event.target.closest('#resumeAudioButton')) {await calling.room?.startAudio();$('#resumeAudioButton').hidden=true;}
-    if (event.target.closest('#signInButton')) location.assign('/login?role=technician');
+    if (event.target.closest('#signInButton')) location.assign('/login?as=staff');
     if (event.target.closest('#addTechnicianButton')) { $('#technicianForm').reset(); $('#technicianForm').dispatchEvent(new Event('change')); $('#technicianMessage').textContent = ''; $('#technicianModal').showModal(); }
     if (event.target.closest('#retryUsers')) await loadCalling();
     if (event.target.closest('#routeRequestButton')) { $('#requestMessage').textContent = ''; $('#requestModal').showModal(); }
@@ -334,7 +334,7 @@ $('#technicianForm').addEventListener('change', event => {
 });
 $('#technicianForm').addEventListener('submit', event => submitCallingForm(event, '/api/users', '#technicianMessage', values => ({...values, skills: (values.skills || 'general').split(',').map(x => x.trim()).filter(Boolean), languages: (values.languages || 'en').split(',').map(x => x.trim()).filter(Boolean)}), async user => {
   $('#technicianModal').close(); state.users = await api('/api/users');
-  toast(`Account created for ${user.name} (${user.username}). Share the sign-in details securely.`);
+  toast(`Account created for ${user.name} (${user.username}). Share the login details securely.`);
 }));
 $('#routeRequestForm').addEventListener('submit', event => submitCallingForm(event, '/api/calling/requests', '#requestMessage', null, async result => {
   calling.selected = result.id; $('#requestModal').close(); toast('Incident created and routed.');

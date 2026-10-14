@@ -17,6 +17,15 @@ from conftest import signed_in_admin
 client = signed_in_admin(TestClient(app))
 
 
+def test_role_workspace_entry_routes_serve_the_shared_app_shell():
+    for path in ("/portal", "/console", "/admin"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert 'id="view-customer-home"' in response.text
+        assert 'id="view-calls"' in response.text
+        assert 'id="view-overview"' in response.text
+
+
 def test_ticket_list_opens_dedicated_editor_without_qa_controls():
     page = client.get("/")
     assert page.status_code == 200
@@ -68,8 +77,8 @@ def test_real_workflow_and_qa_rerun():
 
     blocked_qa = client.post(f"/api/cases/{case['id']}/qa")
     assert blocked_qa.status_code == 409
-    blocked_note = client.post(f"/api/cases/{case['id']}/work-notes", json={"author": "Alex", "author_type": "Technician", "text": "Started investigation."})
-    assert blocked_note.status_code == 409
+    early_note = client.post(f"/api/cases/{case['id']}/work-notes", json={"author": "Alex", "author_type": "Technician", "text": "Started investigation."})
+    assert early_note.status_code == 200 and early_note.json()["ticket"]["state"] == "New"   # notes are allowed in every state
 
     updated = client.patch(f"/api/cases/{case['id']}/ticket", json={
         "short_description": "Locked enterprise account",
@@ -93,7 +102,7 @@ def test_real_workflow_and_qa_rerun():
     assert technician_note.status_code == 200
     customer_note = client.post(f"/api/cases/{case['id']}/work-notes", json={"author": "Test user", "author_type": "Customer", "text": "I completed the verification step."})
     assert customer_note.status_code == 200
-    assert len(customer_note.json()["ticket"]["work_notes"]) == 4
+    assert len(customer_note.json()["ticket"]["work_notes"]) == 5   # includes the note added while New
 
     missing_resolution = client.patch(f"/api/cases/{case['id']}/ticket", json={"state": "Resolved"})
     assert missing_resolution.status_code == 422

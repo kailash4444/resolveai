@@ -88,7 +88,7 @@ body[data-mode="focus"] [data-detail]{display:none}
    ========================================================================== */
 
 /* ---- Foundation: extra tokens, base elements ---- */
-:root{--input:#0A1220;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--side-w:256px;--page-max:1264px;color-scheme:dark}
+:root{--input:#0A1220;--focus:#FFFFFF;--link:#4385FF;--danger-bg:#2A1710;--danger-fg:#FFB59A;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--side-w:256px;--page-max:1264px;color-scheme:dark}
 html{-webkit-text-size-adjust:100%;scroll-padding-top:88px}
 body{min-height:100vh}
 h1{font-size:40px;font-weight:800;line-height:1.1;letter-spacing:-.02em}
@@ -149,7 +149,6 @@ body[data-shell="customer"] .shell__side{display:none}
 .shell__brand{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:0 8px}
 .shell__label{padding:0 14px}
 .shell__close{display:none}
-.shell__status{margin-top:auto;display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:16px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface)}
 .scrim{position:fixed;inset:0;z-index:39;background:rgba(7,11,22,.8)}
 .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:16px 24px;min-height:72px;padding:12px 32px;background:var(--canvas);border-bottom:1px solid var(--border)}
 body[data-shell="staff"] .topbar__brand{display:none}
@@ -226,6 +225,13 @@ body[data-shell="public"] .shell__main{max-width:none;padding:0}
 .auth__card form{display:flex;flex-direction:column}
 .auth__submit{width:100%;margin-top:4px}
 #authHelp{margin-top:20px}
+/* Sign in as: Customer | Technician / Admin. Selected = solid face + Pop edge (shape and weight, not colour alone). */
+.auth__side{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;margin-bottom:8px;border:1px solid var(--border-strong);border-radius:999px;background:var(--input)}
+.auth__side a{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 12px;border-radius:999px;color:var(--text-2);font:700 15px var(--font);text-align:center;text-decoration:none;transition:background .12s,color .12s,box-shadow .12s}
+.auth__side a:hover{color:var(--text);background:var(--surface-2)}
+.auth__side a[aria-current="page"]{background:var(--text);color:var(--canvas);box-shadow:3px 3px 0 var(--edge)}
+.landing__signin-note{margin-top:16px}
+.auth__switch{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:0 6px;margin-top:8px;padding-top:16px;border-top:1px solid var(--border);font-size:15px;color:var(--text-2)}
 #authSwitchRole{align-self:flex-start;margin-bottom:16px}
 #authError{margin-bottom:12px;font-size:14px}
 .auth__roles legend{margin-bottom:6px}
@@ -255,16 +261,73 @@ body[data-shell="public"] .shell__main{max-width:none;padding:0}
 
 /* ---- Light theme: same components, light tokens. Toggle in theme.js. ---- */
 :root[data-theme="light"]{--canvas:#F4F6FA;--surface:#FFFFFF;--surface-2:#EAEFF6;--border:#D3DAE6;--border-strong:#6A7891;
---text:#0B1222;--text-2:#3A4760;--text-3:#4D5A72;--edge:#2F6BEB;--focus:#A85B00;
---critical:#B23E10;--high:#8A5A00;--medium:#1D62B0;--low:#4D5A72;--ok:#0B7350;--input:#FFFFFF;color-scheme:light}
-/* The library hard-codes four dark colours; these map them to light equivalents. */
+--text:#0B1222;--text-2:#3A4760;--text-3:#4D5A72;--edge:#2F6BEB;--focus:#000000;
+--critical:#B23E10;--high:#8A5A00;--medium:#1D62B0;--low:#4D5A72;--ok:#0B7350;--input:#FFFFFF;--link:#1F55C9;--danger-bg:#FDECE5;--danger-fg:#9A3412;color-scheme:light}
+/* The library hard-codes four dark colours; these map them to light equivalents (danger Pops use --danger-bg/--danger-fg). */
 :root[data-theme="light"] .input{background:var(--input)}
-:root[data-theme="light"] .pop--danger{background:#FDECE5;color:#9A3412}
 :root[data-theme="light"] .alert:not(.alert--info):not(.alert--ok){background:#FDF0EA}
 :root[data-theme="light"] .dlg::backdrop,:root[data-theme="light"] .scrim{background:rgba(11,18,34,.45)}
 /* Icon-only round toggle: sun = switch to light, moon = switch to dark. Name comes from aria-label. */
-.pop.theme-toggle{width:44px;min-width:44px;height:44px;padding:0;border-radius:50%;flex:none}
 .theme-toggle svg{flex:none}
+
+/* ---- Button shapes: same Pop face, edge and press; the shape follows the job ----
+   pill = action · circle = icon action · chevron link = row action / back · chip = filter · captioned circle = call control */
+.pop{border-radius:999px}
+.pop--sm{padding:0 18px}
+/* Destructive pills carry a ✕ so danger is never colour alone (decorative: empty alt text). */
+.pop--danger{background:var(--danger-bg);color:var(--danger-fg)}
+.pop--danger:not([aria-busy="true"])::before{content:"✕";content:"✕" / "";font-size:.9em}
+/* Optional leading icon in a dark bubble (Start voice call, Start chat). */
+.pop--lead{padding-left:7px}
+.pop--lead.pop--sm{padding-left:5px}
+.pop__bubble{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--canvas);color:var(--text);flex:none}
+.pop--sm .pop__bubble{width:32px;height:32px}
+.pop--quiet .pop__bubble{background:var(--text);color:var(--canvas)}
+/* Round icon Pop, 44px. Its name comes from aria-label or an .sr span. */
+.pop--icon,.pop.theme-toggle{width:44px;min-width:44px;height:44px;padding:0;flex:none}
+.pop--icon svg{flex:none}
+.pop--icon .when-on,.pop--icon[aria-pressed="true"] .when-off{display:none}
+.pop--icon[aria-pressed="true"] .when-on{display:block}
+/* Chevron text action: row actions in tables and lists, and back navigation. */
+.go{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 4px;background:none;border:0;border-radius:var(--r-sm);color:var(--link);font:700 15px var(--font);text-decoration:none;white-space:nowrap;cursor:pointer}
+.go::after,.go--back::before{content:"";width:7px;height:7px;border:solid currentColor;border-width:2.5px 2.5px 0 0;flex:none;transform:rotate(45deg);transition:transform .12s}
+.go--back::after{content:none}
+.go--back::before{transform:rotate(-135deg)}
+.go:hover{text-decoration:underline;text-underline-offset:4px}
+.go:hover::after{transform:translateX(2px) rotate(45deg)}
+.go--back:hover::before{transform:translateX(-2px) rotate(-135deg)}
+.go[aria-pressed="true"]{color:var(--text);cursor:default}
+.go[aria-pressed="true"]::after{content:"●";content:"●" / "";width:auto;height:auto;border:0;transform:none;font-size:12px;color:var(--edge)}
+.tbl td .go{font-weight:700}
+/* Filter chip: pill outline; selected = solid face, Pop edge and ✓ (shape and weight, never colour alone). */
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid var(--border-strong);background:transparent;color:var(--text-2);font:700 14px var(--font);cursor:pointer;transition:background .12s,border-color .12s,box-shadow .12s,color .12s}
+.chip:hover{border-color:var(--text-2);color:var(--text)}
+.chip [aria-hidden="true"]{margin-left:6px}
+.chip[aria-pressed="true"]{background:var(--text);border-color:var(--text);color:var(--canvas);box-shadow:3px 3px 0 var(--edge)}
+/* Call controls: round Pop with the caption underneath, like a phone call screen. */
+.call-controls{display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px 20px}
+.call-controls .switch{min-height:56px;margin-right:4px}
+.call-btn{--e:var(--border-strong);display:inline-flex;flex-direction:column;align-items:center;gap:8px;min-width:76px;padding:0;background:none;border:0;color:var(--text-2);font:700 13px/1.3 var(--font);text-align:center;cursor:pointer}
+.call-btn__icon{display:grid;place-items:center;width:56px;height:56px;border-radius:50%;background:var(--surface);color:var(--text);border:1px solid var(--border-strong);box-shadow:4px 4px 0 var(--e);transition:transform .08s,box-shadow .08s}
+.call-btn:hover{color:var(--text)}
+.call-btn:hover .call-btn__icon{transform:translate(-1px,-1px);box-shadow:5px 5px 0 var(--e)}
+.call-btn:active .call-btn__icon{transform:translate(4px,4px);box-shadow:0 0 0 var(--e)}
+.call-btn:focus-visible{outline:none}
+.call-btn:focus-visible .call-btn__icon{outline:3px solid var(--focus);outline-offset:3px}
+.call-btn--go{--e:var(--edge)}
+.call-btn--go .call-btn__icon{background:var(--text);color:var(--canvas);border-color:var(--canvas)}
+.call-btn--danger{--e:var(--critical)}
+.call-btn--danger .call-btn__icon{background:var(--danger-bg);color:var(--danger-fg);border-color:var(--critical)}
+.call-btn:disabled{opacity:.45;cursor:not-allowed}
+.call-btn:disabled .call-btn__icon{transform:none;box-shadow:none}
+.call-btn[aria-busy="true"]{pointer-events:none}
+.call-btn[aria-busy="true"] .call-btn__icon svg{animation:spin .8s linear infinite}
+/* Phone shortcut for customers: round "+" Report an issue, always in reach. */
+.fab{display:none}
+@media (max-width:768px){
+  body[data-shell="customer"]:not([data-current-view="customer-create"]) .fab{display:inline-flex;position:fixed;z-index:30;right:20px;bottom:calc(20px + env(safe-area-inset-bottom, 0px));width:60px;min-width:60px;height:60px;padding:0}
+  body[data-shell="customer"] .toasts{bottom:calc(96px + env(safe-area-inset-bottom, 0px))}
+}
 
 /* ---- Shared content blocks ---- */
 .h3{font-size:18px;font-weight:700;line-height:1.3}
@@ -297,6 +360,14 @@ body[data-shell="public"] .shell__main{max-width:none;padding:0}
 .turn__who time{font-weight:400;margin-left:8px}
 .turn p{font-size:15px}
 details > summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}
+/* Image analysis: findings laid out so the technician needn't open the image. */
+.va-summary{font-size:17px;font-weight:700;color:var(--text)}
+.va-codes{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.va-codes li{padding:4px 12px;border:1px solid var(--critical);border-radius:999px;color:var(--text);background:var(--surface-2)}
+.va-images{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.va-image{display:flex;flex-direction:column;gap:8px;padding:14px 16px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface-2)}
+.va-list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.va-screen li{padding:6px 12px;border-left:3px solid var(--edge);background:var(--surface);font-family:var(--mono);font-size:14px;overflow-wrap:anywhere}
 .plain-steps{padding-left:20px;display:flex;flex-direction:column;gap:12px;font-size:15px}
 
 /* ---- Staff screens: stats, detail layout, calls, charts ---- */
@@ -416,7 +487,7 @@ details > summary{cursor:pointer;min-height:44px;display:flex;align-items:center
   .landing__lede{font-size:18px}
   .landing__workspaces{margin-top:64px}
   .landing__workspaces h2{font-size:32px}
-  .auth__bar{padding:16px}
+      .auth__bar{padding:16px}
   .auth__main{padding:16px 16px 56px}
   .auth__card{padding:24px 20px}
   body[data-shell="staff"] .shell{display:block}
@@ -433,6 +504,8 @@ details > summary{cursor:pointer;min-height:44px;display:flex;align-items:center
   .page-head h1{font-size:28px}
 }
 @media (max-width:390px){
+  .auth__side a{gap:0;padding:0 6px;font-size:14px}
+  .auth__side svg{display:none}
   .landing__links{gap:16px}
   .choices{grid-template-columns:1fr}
   .topbar__brand .brand__name{display:none}

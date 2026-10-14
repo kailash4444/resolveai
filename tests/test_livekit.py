@@ -56,7 +56,7 @@ def customer_client(f):
     value={'name':'Customer','username':'customer','password':'isolated-customer-password','role':'customer'}
     assert f.client.post('/api/users',json=value).status_code==201
     client=TestClient(f.app)
-    assert client.post('/api/auth/login',json=value).status_code==200
+    assert client.post('/api/auth/login',json={**value,'expected_role':'customer'}).status_code==200
     return client
 
 
@@ -70,9 +70,11 @@ def test_signed_in_customer_call_capability_does_not_expose_workspace(voice_app)
     assert customer.get('/api/calling').status_code==403
     assert customer.get('/api/support/calls/'+call_id).status_code==403
     assert customer.post('/api/support/calls/'+call_id+'/end',headers={'X-Support-Token':'wrong'}).status_code==403
+    f.service.add_turn(call_id, 'Customer', 'I cannot sign in to my account.')
     headers={'X-Support-Token':connection['access_token']}
     state=customer.get('/api/support/calls/'+call_id,headers=headers).json()
-    assert 'transcript' not in state and 'customer_token_hash' not in state
+    assert state['transcript'][0]['text'] == 'I cannot sign in to my account.'
+    assert 'customer_token_hash' not in state
     assert 'customer_token_hash' not in f.client.get('/api/calling').text
     assert f.service.get(call_id)['customer_token_hash']==hashlib.sha256(connection['access_token'].encode()).hexdigest()
     assert customer.post('/api/support/calls/'+call_id+'/end',headers=headers).status_code==200
@@ -181,10 +183,10 @@ def test_livekit_config_admin_only_local_and_secret_not_returned(voice_app):
     assert f.saved[-1]['livekit_api_secret']==secret
     assert secret not in f.client.get('/api/config/livekit').text
     f.client.post('/api/technicians',json={'name':'Worker','username':'worker','password':'test-worker-password'})
-    worker=TestClient(f.app);worker.post('/api/auth/login',json={'username':'worker','password':'test-worker-password'})
+    worker=TestClient(f.app);worker.post('/api/auth/login',json={'username':'worker','password':'test-worker-password','expected_role':'technician'})
     assert worker.post('/api/config/livekit',json=value).status_code==403
     remote=TestClient(f.app,base_url='https://calls.example.test')
-    remote.post('/api/auth/login',json={'username':'admin','password':'test-admin-password'})
+    remote.post('/api/auth/login',json={'username':'admin','password':'test-admin-password','expected_role':'technician'})
     assert remote.post('/api/config/livekit',json=value).status_code==403
     f.room.list_rooms.side_effect=RuntimeError(secret)
     failed=f.client.post('/api/config/livekit',json={**value,'api_key':'wrong'})

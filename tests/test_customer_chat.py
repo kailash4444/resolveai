@@ -3,9 +3,9 @@ from fastapi.testclient import TestClient
 from test_calling import webapp  # noqa: F401  (fixture)
 
 
-def _client(app, username, password):
+def _client(app, username, password, side='customer'):
     client = TestClient(app)
-    assert client.post('/api/auth/login', json={'username': username, 'password': password}).status_code == 200
+    assert client.post('/api/auth/login', json={'username': username, 'password': password, 'expected_role': side}).status_code == 200
     return client
 
 
@@ -43,7 +43,7 @@ def test_customer_chat_runs_from_start_to_technician_reply_and_end(webapp):
     assert casey.post(f"/api/support/chats/{chat['id']}/technician").json()['status'] == 'Queued'
     assert casey.post(f"/api/support/chats/{chat['id']}/messages", json={'text': 'It started after the update.'}).json()['transcript'][-1]['text'] == 'It started after the update.'
 
-    tara = _client(app, 'tara', 'tara-password-1234')
+    tara = _client(app, 'tara', 'tara-password-1234', 'technician')
     tara_id = service.authenticate(tara.cookies.get('resolveai_session'))['id']
     service.presence(tara_id, 'Available')
     service.heartbeat(tara_id, False)

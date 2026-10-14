@@ -74,6 +74,9 @@ def test_ticket_reporting_and_audits_are_owned_not_name_based(accounts, monkeypa
     f=accounts
     monkeypatch.setattr(main.app.state, 'bulk_audit', BulkAudit())
     own, foreign, unassigned=resolved(f,3)
+    # Customer incidents may be auto-assigned on AI handover; this test needs one genuinely unassigned ticket.
+    unassigned.ticket.assigned_user_id, unassigned.ticket.assigned_to = '', ''
+    f.store.save_case(unassigned)
     for case, owner in [(own,f.tech_a_id),(foreign,f.tech_b_id)]:
         case.ticket.assigned_user_id=owner
         case.ticket.assigned_to='Same display name'

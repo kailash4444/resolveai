@@ -1,4 +1,5 @@
 import asyncio
+import time
 import hmac
 from contextlib import asynccontextmanager
 from pydantic import BaseModel, Field
@@ -8,7 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import PlainTextResponse
 from realapp.call_analytics import CallQuality, filtered_analytics, overall_quality, visible_call, audit_current
 
-from realapp.calling import CallingService, TechnicianCreate, Login, Presence, Heartbeat, CallSettings, SupportRequest, CustomerMessage, TERMINAL
+from realapp.calling import CallingService, TechnicianCreate, Registration, Login, Presence, Heartbeat, CallSettings, SupportRequest, CustomerMessage, TERMINAL
 from realapp.calling_store import create_calling_store
 from realapp.models import TicketUpdate
 from realapp.livekit_transport import LiveKitTransport
@@ -53,7 +54,7 @@ def install_calling(app, settings, store, engine, update_ticket):
     def user(request, admin=False, staff=False):
         result = service.authenticate(request.cookies.get("resolveai_session"))
         if not result:
-            raise HTTPException(401, "Sign in to ResolveAI.")
+            raise HTTPException(401, "Log in to ResolveAI.")
         if admin and result["role"] != "admin":
             raise HTTPException(403, "Administrator access is required.")
         if staff and result['role'] not in {'admin','technician'}:
@@ -69,11 +70,11 @@ def install_calling(app, settings, store, engine, update_ticket):
                 allowed = {str(request.base_url).rstrip("/"), settings.public_base_url.rstrip("/")}
                 if origin and origin not in allowed:
                     return JSONResponse({"detail": "Cross-site requests are not allowed."}, status_code=403)
-            public = path in {'/api/health','/api/auth/status','/api/auth/setup','/api/auth/login'}
+            public = path in {'/api/health','/api/auth/status','/api/auth/setup','/api/auth/login','/api/auth/register'}
             if not public:
                 actor = service.authenticate(request.cookies.get('resolveai_session'))
                 if not actor:
-                    return JSONResponse({'detail':'Sign in to ResolveAI.'},status_code=401)
+                    return JSONResponse({'detail':'Log in to ResolveAI.'},status_code=401)
                 request.state.user = actor
                 if (path.startswith('/api/config/') or path == '/api/users' or path == '/api/technicians') and actor['role'] != 'admin':
                     return JSONResponse({'detail':'Administrator access is required.'},status_code=403)
@@ -83,7 +84,7 @@ def install_calling(app, settings, store, engine, update_ticket):
                         or path.startswith('/api/support/')
                         or path == '/api/knowledge' and request.method == 'GET'
                         or path.startswith('/api/attachments/') and request.method == 'GET'
-                        or path.startswith('/api/cases/') and (request.method == 'GET' or (path.endswith('/work-notes') or path.endswith('/attachments')) and request.method == 'POST'))
+                        or path.startswith('/api/cases/') and (request.method == 'GET' or (path.endswith('/work-notes') or path.endswith('/attachments') or path.endswith('/assist')) and request.method == 'POST'))
                     if not allowed:
                         return JSONResponse({'detail':'This feature is available to support staff only.'},status_code=403)
         response = await next_handler(request)
@@ -97,16 +98,37 @@ def install_calling(app, settings, store, engine, update_ticket):
     @router.get("/api/auth/status")
     def auth_status(request: Request):
         return {"setup_required": not service.has_users(), "user": service.authenticate(request.cookies.get("resolveai_session")),
-                "setup_token_required": not local(request), "login_required": True}
+                "setup_token_required": not local(request), "login_required": True, "signup_enabled": settings.allow_customer_signup}
 
     @router.post("/api/auth/setup", status_code=201)
     def setup(value: TechnicianCreate, request: Request, response: Response):
         if not local(request) and (not settings.admin_setup_token or not hmac.compare_digest(value.setup_token, settings.admin_setup_token)):
             raise HTTPException(403, "Enter the administrator setup token configured on the server.")
         service.create_technician(value, first=True)
-        token, tech = service.login(Login(username=value.username, password=value.password), request.client.host)
+        token, tech = service.login(Login(username=value.username, password=value.password, expected_role='technician'), request.client.host)
         cookie(response, token, request)
         return tech
+
+    signups: dict[str, list[float]] = {}
+
+    @router.post("/api/auth/register", status_code=201)
+    def register(value: Registration, request: Request, response: Response):
+        """Self-service customer sign-up, then signed in. Never creates staff accounts."""
+        if not settings.allow_customer_signup:
+            raise HTTPException(403, "Creating an account is turned off. Ask your ResolveAI administrator for an account.")
+        if not service.has_users():
+            raise HTTPException(409, "ResolveAI isn't set up yet. The administrator account must be created first.")
+        if value.username.lower() in value.password.lower():
+            raise HTTPException(422, "Choose a password that doesn't contain your username.")
+        peer, now = request.client.host, time.time()
+        recent = [at for at in signups.get(peer, []) if now - at < 3600]
+        if len(recent) >= settings.signups_per_hour_per_address:
+            raise HTTPException(429, "Too many new accounts from this network. Try again in an hour.")
+        service.create_technician(TechnicianCreate(role='customer', name=value.name.strip(), username=value.username, password=value.password))
+        signups[peer] = recent + [now]
+        token, account = service.login(Login(username=value.username, password=value.password, expected_role='customer'), peer)
+        cookie(response, token, request)
+        return account
 
     @router.post("/api/auth/login")
     def login(value: Login, request: Request, response: Response):
@@ -118,7 +140,7 @@ def install_calling(app, settings, store, engine, update_ticket):
     def logout(request: Request, response: Response):
         actor = user(request)
         if actor["current_call_id"]:
-            raise HTTPException(409, "Finish or decline your call before signing out.")
+            raise HTTPException(409, "Finish or decline your call before logging out.")
         service.logout(request.cookies.get("resolveai_session", ""), actor["id"])
         response.delete_cookie("resolveai_session")
         return {"ok": True}

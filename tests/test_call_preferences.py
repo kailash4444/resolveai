@@ -12,10 +12,10 @@ def test_saved_preferences_survive_logout_login_and_service_restart(service, ava
     tech = technician(service)
     service.presence(tech['id'], availability)
     service.call_settings(tech['id'], False)
-    token, _ = service.login(Login(username='alex', password='test-password-12345'), 'test')
+    token, _ = service.login(Login(username='alex', password='test-password-12345', expected_role='technician'), 'test')
     service.logout(token, tech['id'])
     restarted = CallingService(service.settings, service.repository, service.case_store, service.engine, now=service.now)
-    token, user = restarted.login(Login(username='alex', password='test-password-12345'), 'test')
+    token, user = restarted.login(Login(username='alex', password='test-password-12345', expected_role='technician'), 'test')
     assert user['availability'] == user['status'] == availability
     assert user['calls_enabled'] is False
     assert restarted.heartbeat(tech['id'], True)['voice_ready'] is False

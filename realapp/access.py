@@ -5,7 +5,7 @@ from fastapi import HTTPException
 def actor(request):
     value = getattr(request.state, 'user', None)
     if not value:
-        raise HTTPException(401, 'Sign in to ResolveAI.')
+        raise HTTPException(401, 'Log in to ResolveAI.')
     return value
 
 

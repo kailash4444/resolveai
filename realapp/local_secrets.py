@@ -68,8 +68,6 @@ def _gemini_path() -> Path:
 
 
 def save_local_gemini_key(value: str) -> None:
-    if os.name != 'nt':
-        raise OSError('Local key storage requires Windows. Use GEMINI_API_KEY or GCP service identity in deployment.')
     path = _gemini_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     protected = base64.b64encode(_protect(value.strip().encode('utf-8')))
@@ -79,27 +77,32 @@ def save_local_gemini_key(value: str) -> None:
             temporary = Path(handle.name)
             handle.write(protected)
         os.replace(temporary, path)
+        if os.name != 'nt':
+            try:
+                path.chmod(0o600)
+            except OSError:
+                pass
     finally:
         if temporary and temporary.exists():
             temporary.unlink()
 
 
 def load_local_gemini_key() -> str | None:
-    if os.name != 'nt' or not _gemini_path().exists():
+    path = _gemini_path()
+    if not path.exists():
         return None
     try:
-        return _unprotect(base64.b64decode(_gemini_path().read_bytes())).decode('utf-8').strip() or None
+        return _unprotect(base64.b64decode(path.read_bytes())).decode('utf-8').strip() or None
     except (OSError, ValueError, UnicodeDecodeError):
         return None
+
+
 def _livekit_path() -> Path:
     override = os.getenv("RESOLVEAI_LOCAL_LIVEKIT_FILE")
     return Path(override) if override else Path(os.getenv("LOCALAPPDATA") or Path.home()) / "ResolveAI" / "livekit.dpapi"
 
 
 def save_local_livekit_config(values: dict) -> None:
-    # Do not silently fall back to plaintext on Linux/Cloud Run.
-    if os.name != "nt":
-        raise OSError("Local credential storage requires Windows. Use environment secrets on the server.")
     path = _livekit_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     protected = base64.b64encode(_protect(json.dumps(values).encode("utf-8")))
@@ -109,16 +112,22 @@ def save_local_livekit_config(values: dict) -> None:
             temporary = Path(handle.name)
             handle.write(protected)
         os.replace(temporary, path)
+        if os.name != 'nt':
+            try:
+                path.chmod(0o600)
+            except OSError:
+                pass
     finally:
         if temporary and temporary.exists():
             temporary.unlink()
 
 
 def load_local_livekit_config() -> dict:
-    if os.name != "nt" or not _livekit_path().exists():
+    path = _livekit_path()
+    if not path.exists():
         return {}
     try:
-        result = json.loads(_unprotect(base64.b64decode(_livekit_path().read_bytes())))
+        result = json.loads(_unprotect(base64.b64decode(path.read_bytes())))
         return result if isinstance(result, dict) else {}
     except (OSError, ValueError, UnicodeDecodeError):
         return {}

@@ -33,7 +33,7 @@ function setState(name, overrides = {}) {
   $('#callState').textContent = spec.title;
   $('#callExplanation').textContent = spec.text || ''; $('#callExplanation').hidden = !spec.text;
   $('#supportForm').hidden = !show.has('form');
-  $('#startSupportCall').textContent = name === 'ended' ? 'Start another call' : 'Start voice call';
+  $('#startSupportCall .pop__label').textContent = name === 'ended' ? 'Start another call' : 'Start voice call';
   $('#activeCall').hidden = !show.has('call');
   $('#retrySupport').hidden = !show.has('retry'); $('#reportInstead').hidden = !show.has('report');
   $('#supportRecovery').hidden = !show.has('retry') && !show.has('report');
@@ -172,9 +172,9 @@ window.addEventListener('pagehide', () => { if (session) fetch(`/api/support/cal
 // Signed out: a standalone page goes to sign-in; the embedded card offers a link that opens in the full window.
 function signedOut() {
   if (!embedded) { location.href = '/?next=support'; return; }
-  setState('error', {badge: ['badge--low', '○ Signed out'], title: 'Your session has ended', text: 'Sign in again to call support.', show: []});
+  setState('error', {badge: ['badge--low', '○ Logged out'], title: 'Your session has ended', text: 'Log in again to call support.', show: []});
   $('#supportRecovery').hidden = false; $('#reportInstead').hidden = false;
-  $('#reportInstead').textContent = 'Sign in again'; $('#reportInstead').href = '/login?role=customer';
+  $('#reportInstead').textContent = 'Log in again'; $('#reportInstead').href = '/login';
 }
 
 async function checkReady() {
