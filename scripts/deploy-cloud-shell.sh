@@ -30,7 +30,7 @@ test -n "$(gcloud auth list --filter=status:ACTIVE --format='value(account)')" |
 printf 'Preparing %s in %s. This deployment runs one continuously billed instance.\n' "$SERVICE" "$REGION"
 gcloud config set project "$PROJECT_ID"
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
-  firestore.googleapis.com secretmanager.googleapis.com aiplatform.googleapis.com storage.googleapis.com iam.googleapis.com \
+  firestore.googleapis.com secretmanager.googleapis.com aiplatform.googleapis.com speech.googleapis.com storage.googleapis.com iam.googleapis.com \
   cloudresourcemanager.googleapis.com --project="$PROJECT_ID" --quiet
 
 DATABASE_TYPE="$(gcloud firestore databases list --project="$PROJECT_ID" --format=json | python3 -c \
@@ -49,7 +49,7 @@ for NAME in resolveai-runtime resolveai-builder; do
     gcloud iam service-accounts create "$NAME" --display-name="$NAME" --project="$PROJECT_ID" --quiet
   fi
 done
-for ROLE in roles/aiplatform.user roles/datastore.user; do
+for ROLE in roles/aiplatform.user roles/datastore.user roles/speech.client; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$RUNTIME_ACCOUNT" \
     --role="$ROLE" --condition=None --quiet >/dev/null
 done
@@ -89,7 +89,7 @@ LIVEKIT_SECRET_VERSION="$SECRET_VERSION"
 ensure_secret resolveai-admin-setup 'administrator setup token'
 ADMIN_VERSION="$SECRET_VERSION"
 
-DEPLOY_ENV="ENVIRONMENT=production,LLM_PROVIDER=vertex,GEMINI_PROVIDER=vertex,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.8-flash,GEMINI_TRANSCRIPTION_MODEL=gemini-3.8-flash,GEMINI_TTS_MODEL=gemini-3.8-flash-lite-tts,EMBEDDING_MODEL=gemini-embedding-001,DATA_BACKEND=firestore,CALLING_BACKEND=firestore,FIRESTORE_COLLECTION=resolveai_cases,LIVEKIT_URL=$LIVEKIT_URL"
+DEPLOY_ENV="ENVIRONMENT=production,LLM_PROVIDER=vertex,GEMINI_PROVIDER=vertex,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,LIVE_TRANSCRIPTION_BACKEND=auto,SPEECH_MODEL=chirp_3,SPEECH_LOCATION=${SPEECH_LOCATION:-us},SPEECH_LANGUAGE=${SPEECH_LANGUAGE:-en-IN},GEMINI_MODEL=gemini-3.8-flash,GEMINI_TRANSCRIPTION_MODEL=gemini-3.8-flash,GEMINI_TTS_MODEL=gemini-3.8-flash-lite-tts,EMBEDDING_MODEL=gemini-embedding-001,DATA_BACKEND=firestore,CALLING_BACKEND=firestore,FIRESTORE_COLLECTION=resolveai_cases,LIVEKIT_URL=$LIVEKIT_URL"
 if [[ -n "$ATTACHMENT_BUCKET" ]]; then
   gcloud storage buckets add-iam-policy-binding "gs://$ATTACHMENT_BUCKET" \
     --member="serviceAccount:$RUNTIME_ACCOUNT" --role=roles/storage.objectUser --project="$PROJECT_ID" --quiet

@@ -8,6 +8,7 @@ import secrets
 import time
 import wave
 import logging
+import json
 import re
 from collections import deque
 from datetime import timedelta
@@ -34,7 +35,9 @@ class AudioTurns:
 
     This detects acoustic activity only; transcription and meaning are handled later.
     """
-    def __init__(self, threshold=450):
+    def __init__(self, threshold=450, silence_ms=400, max_seconds=12):
+        self.silence_bytes = max(250, silence_ms) * 32
+        self.max_bytes = max(2, min(12, max_seconds)) * 32000
         self.threshold = max(90, threshold)
         self.buffer = bytearray()
         self.silence = self.voiced = 0
@@ -70,7 +73,7 @@ class AudioTurns:
         else:
             self.silence += len(pcm)
             self.buffer.extend(pcm)
-        if self.active and (self.silence >= 20800 or len(self.buffer) >= 384000):
+        if self.active and (self.silence >= self.silence_bytes or len(self.buffer) >= self.max_bytes):
             return self.flush()
 
     def flush(self):
@@ -108,7 +111,7 @@ class LiveKitTransport:
         return {'configured': self.configured, 'provider': 'LiveKit', 'url': s.livekit_url,
                 'setup_available': s.environment == 'local' and os.name == 'nt',
                 'local_server': s.livekit_url.startswith(('ws://localhost:', 'ws://127.0.0.1:')),
-                'transcription_model': s.active_transcription_model,
+                'transcription_model': s.active_live_transcription_model,
                 'checks': {'LiveKit address': bool(s.livekit_url), 'API credentials': bool(s.livekit_api_key and s.livekit_api_secret)},
                 'customer_url': '/support'}
 
@@ -125,7 +128,7 @@ class LiveKitTransport:
         # server confirms the current offer and their actual room membership.
         allowed = role != 'technician'
         grants = api.VideoGrants(room_join=True, room=self.room_name(call_id), can_publish=allowed,
-            can_subscribe=allowed, can_publish_data=False, can_publish_sources=['microphone'],
+            can_subscribe=allowed, can_publish_data=role == 'agent', can_publish_sources=['microphone'],
             can_update_own_metadata=False, agent=role == 'agent')
         return (api.AccessToken(self.settings.livekit_api_key, self.settings.livekit_api_secret)
                 .with_identity(identity).with_name(name).with_ttl(timedelta(seconds=60 if role == 'technician' else 300))
@@ -176,8 +179,8 @@ class LiveKitTransport:
     def customer_status(call):
         return {key: call.get(key) for key in ('id', 'status', 'technician_name', 'last_error')}
 
-    def offer(self, call_id, actor):
-        call = self.service.get(call_id)
+    def offer(self, call_id, actor, call=None):
+        call = call if call is not None else self.service.get(call_id)
         if call['origin'] != 'browser' or call['technician_id'] != actor['id']:
             raise HTTPException(403, 'This call is assigned to another technician.')
         if call['status'] != 'Ringing' or call['reserved_until'] <= self.service.now():
@@ -185,8 +188,9 @@ class LiveKitTransport:
         return self.connection(call, self.tech_identity(call), actor['name'], 'technician')
 
     async def confirm_join(self, call_id, actor):
-        call = self.service.get(call_id)
-        self.offer(call_id, actor)
+        started = time.monotonic()
+        call = await asyncio.to_thread(self.service.get, call_id)
+        self.offer(call_id, actor, call)
         identity = self.tech_identity(call)
         try:
             async with livekit_client(self.settings) as client:
@@ -200,6 +204,7 @@ class LiveKitTransport:
                 session = self.sessions.get(call_id)
                 if session:
                     session.interrupt()
+                logging.getLogger('uvicorn.error.voice').info('Call pickup confirmed call=%s duration_ms=%.0f', call_id, (time.monotonic()-started)*1000)
                 return connected
         except HTTPException:
             raise
@@ -272,6 +277,13 @@ class BrowserSession:
         self.tasks = set()
         self.streams = set()
         self.queue = asyncio.Queue(maxsize=12)
+        self.responses = asyncio.Queue(maxsize=24)
+        self.turn_revision = 0
+        self.speech_revision = 0
+        self.recognition_tasks = set()
+        self.call_state = None
+        self.streaming_speech = None
+        self.use_streaming = transport.settings.streaming_transcription_enabled
         self.speech_task = None
         self.closed = False
         self.finalizing = False
@@ -305,7 +317,7 @@ class BrowserSession:
                     code = getattr(error, 'code', None)
                     safe_code = code if isinstance(code, (str, int)) else 'unknown'
                     detail = _safe_provider_error(error)
-                    logging.getLogger(__name__).error('Call worker failed (%s; provider code %s): %s', type(error).__name__, safe_code, detail)
+                    logging.getLogger('uvicorn.error.voice').error('Call worker failed (%s; provider code %s): %s', type(error).__name__, safe_code, detail)
                     self.service.error(self.call_id, 'ResolveAI could not produce a voice response. The call is being routed to a technician.')
                     self.task(self.recover_voice_failure())
         task.add_done_callback(consume_error)
@@ -354,7 +366,10 @@ class BrowserSession:
         self.source = rtc.AudioSource(24000, 1)
         track = rtc.LocalAudioTrack.create_audio_track('ResolveAI voice', self.source)
         await self.room.local_participant.publish_track(track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE))
+        self.call_state = await asyncio.to_thread(self.service.get, self.call_id)
+        self.task(self.watch_call())
         self.task(self.process())
+        self.task(self.process_responses())
 
     async def validate_technician(self, identity):
         call = await asyncio.to_thread(self.service.get, self.call_id)
@@ -382,31 +397,91 @@ class BrowserSession:
         if self.source:
             self.source.clear_queue()
 
+    async def watch_call(self):
+        while not self.closed:
+            self.call_state = await asyncio.to_thread(self.service.get, self.call_id)
+            await asyncio.sleep(0.5)
+
+    async def caption(self, speaker, text, segment, final=False):
+        try:
+            await self.room.local_participant.publish_data(json.dumps({
+                'speaker': speaker, 'text': text[:4000], 'segment': segment, 'final': final,
+            }), reliable=True, topic='resolveai.caption')
+        except Exception:
+            # Captions are supplementary; transcript storage must still succeed.
+            logging.getLogger('uvicorn.error.voice').debug('Caption delivery unavailable call=%s', self.call_id)
+
+    async def stream_segment(self, queue, speaker, identity, previous, segment):
+        started = time.monotonic()
+        try:
+            if self.streaming_speech is None:
+                from realapp.streaming_speech import GoogleStreamingSpeech
+                self.streaming_speech = GoogleStreamingSpeech(self.transport.settings)
+            text = await self.streaming_speech.transcribe(queue,
+                lambda text: self.caption(speaker, text, segment))
+            if previous:
+                await asyncio.shield(previous)
+            call = await asyncio.to_thread(self.service.get, self.call_id)
+            # A former technician cannot append speech after reassignment.
+            if speaker == 'Technician' and identity != self.transport.tech_identity(call):
+                return
+            if text:
+                await self.record_text(speaker, text)
+                await self.caption(speaker, text, segment, final=True)
+            logging.getLogger('uvicorn.error.voice').info('Streaming STT call=%s speaker=%s duration_ms=%.0f',
+                self.call_id, speaker, (time.monotonic()-started)*1000)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            logging.getLogger('uvicorn.error.voice').warning('Streaming STT failed call=%s type=%s', self.call_id, type(error).__name__)
+            await asyncio.to_thread(self.service.error, self.call_id,
+                'Live transcription is unavailable. Check the Speech-to-Text API, speech.client permission and speech region. Voice audio is still connected.')
+
     async def listen(self, track, identity):
         stream = rtc.AudioStream(track, sample_rate=16000, num_channels=1, frame_size_ms=20)
         self.streams.add(stream)
-        detector = AudioTurns(self.transport.settings.voice_activity_threshold)
-        call, checked_at = None, 0
+        settings = self.transport.settings
+        detector = AudioTurns(settings.voice_activity_threshold, settings.voice_silence_ms, settings.voice_max_segment_seconds)
+        segment_queue, previous = None, None
         try:
             async for event in stream:
                 if self.closed:
                     break
-                if time.monotonic() - checked_at > 0.5:
-                    call = await asyncio.to_thread(self.service.get, self.call_id)
-                    checked_at = time.monotonic()
+                call = self.call_state
+                if not call:
+                    continue
                 customer = identity == f'customer:{self.call_id}'
                 technician = call['status'] == 'Connected' and identity == self.transport.tech_identity(call)
                 if not customer and not technician:
                     continue
-                chunk = detector.feed(bytes(event.frame.data))
+                speaker = 'Customer' if customer else 'Technician'
+                pcm = bytes(event.frame.data)
+                was_active = detector.active
+                chunk = detector.feed(pcm)
+                if customer and detector.active and not was_active:
+                    self.speech_revision += 1
                 if customer and detector.voiced >= 6400:
                     self.interrupt()
-                if chunk:
+                if self.use_streaming:
+                    if segment_queue is None and detector.active and detector.voiced >= 6400:
+                        segment_queue = asyncio.Queue(maxsize=650)
+                        segment_queue.put_nowait(bytes(detector.buffer))
+                        previous = self.task(self.stream_segment(segment_queue, speaker, identity, previous, secrets.token_hex(8)))
+                        self.recognition_tasks.add(previous)
+                        previous.add_done_callback(self.recognition_tasks.discard)
+                    elif segment_queue is not None:
+                        segment_queue.put_nowait(pcm)
+                    if was_active and not detector.active and segment_queue is not None:
+                        segment_queue.put_nowait(None)
+                        segment_queue = None
+                elif chunk:
                     try:
-                        self.queue.put_nowait(('Customer' if customer else 'Technician', chunk))
+                        self.queue.put_nowait((speaker, chunk))
                     except asyncio.QueueFull:
                         self.service.error(self.call_id, 'Transcription is falling behind. Please pause between sentences.')
         finally:
+            if segment_queue is not None:
+                segment_queue.put_nowait(None)
             self.streams.discard(stream)
             await stream.aclose()
 
@@ -415,17 +490,28 @@ class BrowserSession:
             if self.closed:
                 return
             async def publish():
-                pcm = await asyncio.to_thread(self.service.engine.synthesize, text)
-                if not pcm:
+                started, recorded = time.monotonic(), False
+                async def audio():
+                    if hasattr(self.service.engine, 'synthesize_stream'):
+                        async for pcm in self.service.engine.synthesize_stream(text):
+                            yield pcm
+                    else:
+                        yield await asyncio.to_thread(self.service.engine.synthesize, text)
+                async for pcm in audio():
+                    if not pcm:
+                        continue
+                    if not recorded:
+                        recorded = True
+                        logging.getLogger('uvicorn.error.voice').info('Speech first audio call=%s duration_ms=%.0f', self.call_id, (time.monotonic()-started)*1000)
+                        await asyncio.to_thread(self.service.add_turn, self.call_id, 'AI Agent', text)
+                    for start in range(0, len(pcm), 960):
+                        chunk = pcm[start:start + 960]
+                        if len(chunk) % 2:
+                            chunk = chunk[:-1]
+                        if chunk:
+                            await self.source.capture_frame(rtc.AudioFrame(chunk, 24000, 1, len(chunk) // 2))
+                if not recorded:
                     raise RuntimeError('Speech synthesis returned empty audio.')
-                # Only record an AI turn once audio has actually been generated.
-                self.service.add_turn(self.call_id, 'AI Agent', text)
-                for start in range(0, len(pcm), 960):
-                    chunk = pcm[start:start + 960]
-                    if len(chunk) % 2:
-                        chunk = chunk[:-1]
-                    if chunk:
-                        await self.source.capture_frame(rtc.AudioFrame(chunk, 24000, 1, len(chunk) // 2))
                 await self.source.wait_for_playout()
             self.speech_task = asyncio.create_task(publish())
             try:
@@ -447,18 +533,54 @@ class BrowserSession:
             self.service.error(self.call_id, 'Audio replies are unavailable. Your request is in the technician queue.')
         await asyncio.to_thread(self.service.mark_waiting, self.call_id)
 
-    async def process_utterance(self, speaker, chunk):
+    async def process_utterance(self, speaker, chunk, wait_response=True):
         if chunk is None:
             await asyncio.to_thread(self.service.add_turn, self.call_id, 'Customer', 'Please connect me with a technician.')
-            await self.escalate('Customer requested a technician')
+            if wait_response:
+                await self.escalate('Customer requested a technician')
+            else:
+                await self.responses.put(('escalate', self.turn_revision))
             return
+        started = time.monotonic()
         text = await asyncio.to_thread(self.service.engine.transcribe, 'utterance.wav', chunk)
+        logging.getLogger('uvicorn.error.voice').info('Batch STT call=%s duration_ms=%.0f', self.call_id, (time.monotonic()-started)*1000)
+        await self.record_text(speaker, text, wait_response)
+
+    async def record_text(self, speaker, text, wait_response=False):
         if not text.strip():
             return
         call = await asyncio.to_thread(self.service.add_turn, self.call_id, speaker, text)
+        if self.closed:
+            return
         if speaker == 'Customer' and call['status'] not in TERMINAL:
             self.request_knowledge()
+            self.turn_revision += 1
         if speaker != 'Customer' or call['status'] in TERMINAL | {'Connected', 'Ringing', 'Queued'}:
+            return
+        if wait_response:
+            await self.respond(self.turn_revision)
+        else:
+            # One worker handles reasoning/playback; STT continues independently.
+            if self.responses.full():
+                self.responses.get_nowait()
+                self.responses.task_done()
+            self.responses.put_nowait(('respond', self.turn_revision))
+
+    async def process_responses(self):
+        while not self.closed:
+            action, revision = await self.responses.get()
+            try:
+                if action == 'escalate':
+                    await self.escalate('Customer requested a technician')
+                elif revision == self.turn_revision:
+                    await self.respond(revision)
+            finally:
+                self.responses.task_done()
+
+    async def respond(self, revision):
+        speech_revision = self.speech_revision
+        call = await asyncio.to_thread(self.service.get, self.call_id)
+        if call['status'] in TERMINAL | {'Connected', 'Ringing', 'Queued'}:
             return
         if call['status'] == 'Triage':
             call = await asyncio.to_thread(self.service.triage, self.call_id)
@@ -466,9 +588,13 @@ class BrowserSession:
             await self.escalate('Technician assistance required')
         elif call['status'] == 'AI':
             reply = await asyncio.to_thread(self.service.reply, self.call_id)
-            if self.service.get(self.call_id)['status'] != 'AI':
+            current = await asyncio.to_thread(self.service.get, self.call_id)
+            if current['status'] != 'AI' or revision != self.turn_revision or speech_revision != self.speech_revision:
                 return
             await self.say(reply.reply)
+            current = await asyncio.to_thread(self.service.get, self.call_id)
+            if current['status'] != 'AI' or revision != self.turn_revision or speech_revision != self.speech_revision:
+                return
             if reply.escalate:
                 await self.escalate('AI requested technician assistance')
             elif reply.customer_confirmed_resolved:
@@ -484,14 +610,14 @@ class BrowserSession:
         while not self.closed:
             speaker, chunk = await self.queue.get()
             try:
-                await self.process_utterance(speaker, chunk)
+                await self.process_utterance(speaker, chunk, wait_response=False)
             except asyncio.CancelledError:
                 raise
             except Exception as error:
                 code = getattr(error, 'code', None)
                 safe_code = code if isinstance(code, (str, int)) else 'unknown'
                 detail = _safe_provider_error(error)
-                logging.getLogger(__name__).error('Voice turn failed (%s; provider code %s): %s', type(error).__name__, safe_code, detail)
+                logging.getLogger('uvicorn.error.voice').error('Voice turn failed (%s; provider code %s): %s', type(error).__name__, safe_code, detail)
                 self.service.error(self.call_id, 'ResolveAI could not process or speak that turn. The request is retained for technician assistance.')
                 call = self.service.get(self.call_id)
                 if call['status'] in {'Triage', 'AI'}:
@@ -506,10 +632,20 @@ class BrowserSession:
         self.closed = True
         self.interrupt()
         current = asyncio.current_task()
-        tasks = [task for task in self.tasks if task is not current]
+        tasks = [task for task in self.tasks if task is not current and task not in self.recognition_tasks]
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        if self.recognition_tasks:
+            # Capture cancellation closes the input streams. Keep their final words
+            # before finish() generates the incident from the conversation.
+            pending = asyncio.gather(*list(self.recognition_tasks), return_exceptions=True)
+            try:
+                await asyncio.wait_for(pending, timeout=8)
+            except asyncio.TimeoutError:
+                await asyncio.to_thread(self.service.error, self.call_id, 'The final transcript segment timed out during hang-up.')
+        if self.streaming_speech:
+            await self.streaming_speech.close()
         await self.room.disconnect()
         if self.source:
             await self.source.aclose()

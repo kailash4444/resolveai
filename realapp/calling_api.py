@@ -323,11 +323,12 @@ def install_calling(app, settings, store, engine, update_ticket):
     def accept(call_id: str, request: Request):
         actor = user(request, staff=True)
         call = service.claim_pickup(call_id, actor["id"])
-        return transport.offer(call_id, actor) if call["origin"] == "browser" else service.accept(call_id, actor["id"])
+        return transport.offer(call_id, actor, call) if call["origin"] == "browser" else service.accept(call_id, actor["id"])
 
     @router.post("/api/calling/{call_id}/connected")
     async def connected(call_id: str, request: Request):
-        return await transport.confirm_join(call_id, user(request, staff=True))
+        actor = await asyncio.to_thread(user, request, staff=True)
+        return await transport.confirm_join(call_id, actor)
 
     @router.post("/api/calling/{call_id}/decline")
     async def decline(call_id: str, request: Request):

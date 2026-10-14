@@ -112,6 +112,7 @@ def config(http: Request):
         "provider": settings.llm_provider,
         "model": settings.openai_model if settings.llm_provider == "openai" else settings.gemini_model,
         "transcription_model": settings.active_transcription_model,
+        "live_transcription_model": settings.active_live_transcription_model,
         "speech_model": settings.active_tts_model,
         "embedding_model": settings.openai_embedding_model if settings.llm_provider == "openai" else settings.embedding_model,
         "data_backend": settings.data_backend,

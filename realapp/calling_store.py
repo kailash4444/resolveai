@@ -15,7 +15,11 @@ class MemoryCallingStore:
         self.data = empty_state()
         self.lock = RLock()
 
-    def mutate(self, operation):
+    def get_call(self, call_id):
+        with self.lock:
+            return deepcopy(self.data['calls'].get(call_id))
+
+    def mutate(self, operation, call_ids=None):
         with self.lock:
             data = deepcopy(self.data)
             result = operation(data)
@@ -31,7 +35,12 @@ class SQLiteCallingStore:
             db.execute("CREATE TABLE IF NOT EXISTS routing (id INTEGER PRIMARY KEY, body TEXT NOT NULL)")
             db.execute("INSERT OR IGNORE INTO routing VALUES (1, ?)", (json.dumps(empty_state()),))
 
-    def mutate(self, operation):
+    def get_call(self, call_id):
+        with sqlite3.connect(self.path, timeout=20) as db:
+            data = json.loads(db.execute('SELECT body FROM routing WHERE id=1').fetchone()[0])
+            return data['calls'].get(call_id)
+
+    def mutate(self, operation, call_ids=None):
         with sqlite3.connect(self.path, timeout=20, isolation_level=None) as db:
             db.execute("BEGIN IMMEDIATE")
             try:
@@ -60,18 +69,28 @@ class FirestoreCallingStore:
         self.ref = self.client.collection(f"{collection}_routing").document("coordinator")
         self.calls = self.client.collection(f"{collection}_calls")
 
-    def mutate(self, operation):
+    def get_call(self, call_id):
+        snapshot = self.calls.document(call_id).get()
+        return snapshot.to_dict() if snapshot.exists else None
+
+    def mutate(self, operation, call_ids=None):
         from google.cloud import firestore
 
         @firestore.transactional
         def apply(transaction):
             snapshot = self.ref.get(transaction=transaction)
             original = snapshot.to_dict() if snapshot.exists else empty_state()
-            original["calls"] = {doc.id: doc.to_dict() for doc in self.calls.stream(transaction=transaction)}
+            # None means a queue-wide operation; an explicit set only reads those
+            # calls. Authentication/heartbeats pass () and never scan call history.
+            docs = (self.calls.stream(transaction=transaction) if call_ids is None else
+                    (self.calls.document(cid).get(transaction=transaction) for cid in call_ids))
+            original["calls"] = {doc.id: doc.to_dict() for doc in docs if doc.exists}
             data = deepcopy(original)
             result = operation(data)
             if data != original:
-                transaction.set(self.ref, {k: v for k, v in data.items() if k != "calls"})
+                routing = {k: v for k, v in data.items() if k != "calls"}
+                if routing != {k: v for k, v in original.items() if k != "calls"}:
+                    transaction.set(self.ref, routing)
                 for call_id, call in data["calls"].items():
                     if call != original["calls"].get(call_id):
                         transaction.set(self.calls.document(call_id), call)

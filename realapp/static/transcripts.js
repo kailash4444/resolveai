@@ -1,5 +1,5 @@
 let transcriptSources=[], transcriptSelected=null, callAnalyticsTimer;
-let transcriptOwner=null;
+let transcriptOwner=null, transcriptPage=1, transcriptFilterKey=null;
 function durationLabel(seconds) {
   if(seconds==null) return 'Not recorded';
   return `${Math.floor(seconds/60)}m ${Math.round(seconds%60)}s`;
@@ -12,7 +12,7 @@ function resetTranscriptFilters() {
 window.loadTranscripts = async () => {
   try {
     const userId=state.user?.id,sources=await api('/api/transcripts');
-    if(state.user?.id!==userId) return;
+    if(state.user?.id!==userId || state.currentView !== 'transcripts') return;
     transcriptSources=sources;
     analyticsOptions('#transcriptTechnicianFilter',sources.map(source=>source.technician),'All technicians');
     analyticsOptions('#transcriptServiceFilter',sources.map(source=>source.service || 'General'),'All services');
@@ -34,23 +34,38 @@ function renderTranscripts() {
   const invalid=!minInput.validity.valid || !maxInput.validity.valid || min>max;
   [minInput,maxInput].forEach(input=>input.setAttribute('aria-invalid',String(invalid)));
   $('#transcriptDurationLabel').textContent=invalid?'Enter non-negative lengths with minimum no greater than maximum.':allLengths?'All lengths':max===Infinity?`At least ${minInput.value} min`:minInput.value===''?`Up to ${maxInput.value} min`:`${minInput.value} – ${maxInput.value} min`;
+  const key=JSON.stringify([state.user?.id,query,technician,service,minInput.value,maxInput.value]);
+  if(key!==transcriptFilterKey) {transcriptPage=1;transcriptFilterKey=key;}
   const sources=invalid?[]:transcriptSources.filter(source=>(!query || [source.source_id,source.ticket_number,source.customer,source.technician,source.service].join(' ').toLowerCase().includes(query)) &&
     (!technician || source.technician===technician) && (!service || (source.service || 'General')===service) &&
     (allLengths || source.duration_seconds!=null && source.duration_seconds/60>=min && source.duration_seconds/60<=max));
   if(!sources.some(source=>source.source_id===transcriptSelected)) {transcriptSelected=null;$('#transcriptDetail').hidden=true;}
   $('#transcriptCount').textContent=`${sources.length} of ${transcriptSources.length} conversations`;
   $('#transcriptList').className=sources.length?'table-wrap':'empty-list';
-  $('#transcriptList').innerHTML=sources.length?`<table><thead><tr><th>Call / Source ID</th><th>Incident</th><th>Customer</th><th>Technician</th><th>Service</th><th>Call length</th><th></th></tr></thead><tbody>${sources.map(source=>`<tr class="transcript-list-row" data-transcript="${esc(source.source_id)}"><td>${esc(source.call_id || source.source_id)}</td><td>${esc(source.ticket_number || 'Pending')}</td><td>${esc(source.customer)}</td><td>${esc(source.technician)}</td><td>${esc(source.service)}</td><td>${durationLabel(source.duration_seconds)}</td><td><button class="text-button" data-transcript="${esc(source.source_id)}">View transcript</button></td></tr>`).join('')}</tbody></table>`:'No conversations match these filters.';
+  transcriptPage=Math.min(transcriptPage,Math.max(1,Math.ceil(sources.length/PAGE_SIZE)));
+  updatePagination('#transcriptPagination',transcriptPage,sources.length);
+  const pageSources=sources.slice((transcriptPage-1)*PAGE_SIZE,transcriptPage*PAGE_SIZE);
+  $('#transcriptList').innerHTML=sources.length?`<table><thead><tr><th>Call / Source ID</th><th>Incident</th><th>Customer</th><th>Technician</th><th>Service</th><th>Call length</th><th></th></tr></thead><tbody>${pageSources.map(source=>`<tr class="transcript-list-row" data-transcript="${esc(source.source_id)}"><td>${esc(source.call_id || source.source_id)}</td><td>${esc(source.ticket_number || 'Pending')}</td><td>${esc(source.customer)}</td><td>${esc(source.technician)}</td><td>${esc(source.service)}</td><td>${durationLabel(source.duration_seconds)}</td><td><button class="text-button" data-transcript="${esc(source.source_id)}">View transcript</button></td></tr>`).join('')}</tbody></table>`:'No conversations match these filters.';
   if(invalid) {$('#transcriptCount').textContent='Check the call length range.';$('#transcriptList').textContent='Enter a valid call length range to view matching transcripts.';}
 }
 
-async function openTranscript(id) {
+window.openTranscript = async function openTranscript(id, navigate=true) {
   transcriptSelected=id;
-  const source=await api(`/api/transcripts/${encodeURIComponent(id)}`);
-  if (transcriptSelected!==id) return;
-  const detail=$('#transcriptDetail');detail.hidden=false;
-  detail.innerHTML=`<div class="panel-head"><div><p class="eyebrow">${esc(source.call_id || 'INCIDENT CONVERSATION')}</p><h3>${esc(source.ticket_number || source.source_id)}</h3><p class="helper">Customer: ${esc(source.customer)} · Technician: ${esc(source.technician)}</p></div><a class="secondary transcript-download" href="/api/transcripts/${encodeURIComponent(id)}/download">Download transcript</a></div><div class="live-transcript">${source.transcript.map(turn=>`<div class="transcript-turn"><b>${esc(turn.speaker)} · ${esc(turn.speaker_name || (turn.speaker==='AI Agent'?'ResolveAI':turn.speaker==='Customer'?source.customer:source.technician))}</b><small>${turn.timestamp?esc(new Date(turn.timestamp).toLocaleTimeString()):''}</small><p>${esc(turn.text)}</p></div>`).join('')}</div>${source.quality_audit?`<section class="transcript-assessment"><h4>Call quality assessment</h4><p class="overall-score">${esc(overallLabel(source.overall_quality))}</p><p class="helper">${esc(source.quality_audit.model)} · ${new Date(source.quality_audit.assessed_at).toLocaleString()}</p>${Object.entries(source.quality_audit.metrics).map(([key,metric])=>`<details><summary>${esc(key.replaceAll('_',' '))} · ${metric.score===null?'Not enough evidence':metric.score+'/100'}</summary><blockquote>${esc(metric.evidence)}</blockquote><p>${esc(metric.explanation)}</p><p><b>Improvement:</b> ${esc(metric.improvement)}</p></details>`).join('')}</section>`:''}`;
-  detail.scrollIntoView({behavior:'smooth',block:'start'});
+  const userId=state.user?.id;
+  if(navigate) {
+    const listUrl=new URL(location.href);['transcript','ticket','case','next'].forEach(key=>listUrl.searchParams.delete(key));listUrl.searchParams.set('view','transcripts');
+    if(state.currentView==='transcripts')history.replaceState({},'',listUrl);
+    const url=new URL(listUrl);url.searchParams.delete('view');url.searchParams.set('transcript',id);history.pushState({},'',url);
+  }
+  showView('transcript-detail');
+  const detail=$('#transcriptDetail');detail.hidden=false;detail.textContent='Loading transcript…';
+  window.scrollTo({top:0});
+  let source;
+  try { source=await api(`/api/transcripts/${encodeURIComponent(id)}`); }
+  catch(error) { if(transcriptSelected===id && state.currentView==='transcript-detail') detail.textContent=error.message; return; }
+  if(transcriptSelected!==id || state.user?.id!==userId || state.currentView!=='transcript-detail')return;
+  detail.innerHTML=`<div class="panel-head"><div><p class="eyebrow">${esc(source.call_id || 'INCIDENT CONVERSATION')}</p><h3>${esc(source.ticket_number || source.source_id)}</h3><p class="helper">Customer: ${esc(source.customer)} · Technician: ${esc(source.technician)}</p></div><a class="secondary transcript-download" href="/api/transcripts/${encodeURIComponent(id)}/download">Download transcript</a></div><div class="live-transcript">${source.transcript.slice().reverse().map(turn=>`<div class="transcript-turn"><b>${esc(turn.speaker)} · ${esc(turn.speaker_name || (turn.speaker==='AI Agent'?'ResolveAI':turn.speaker==='Customer'?source.customer:source.technician))}</b><small>${turn.timestamp?esc(new Date(turn.timestamp).toLocaleTimeString()):''}</small><p>${esc(turn.text)}</p></div>`).join('')}</div>${source.quality_audit?`<section class="transcript-assessment"><h4>Call quality assessment</h4><p class="overall-score">${esc(overallLabel(source.overall_quality))}</p><p class="helper">${esc(source.quality_audit.model)} · ${new Date(source.quality_audit.assessed_at).toLocaleString()}</p>${Object.entries(source.quality_audit.metrics).map(([key,metric])=>`<details><summary>${esc(key.replaceAll('_',' '))} · ${metric.score===null?'Not enough evidence':metric.score+'/100'}</summary><blockquote>${esc(metric.evidence)}</blockquote><p>${esc(metric.explanation)}</p><p><b>Improvement:</b> ${esc(metric.improvement)}</p></details>`).join('')}</section>`:''}`;
+  document.title=`${source.call_id || source.source_id} · Transcript · ResolveAI`;
 }
 
 function overallLabel(overall) {
@@ -80,6 +95,8 @@ window.loadCallAnalytics=async () => {
 };
 
 let callQaSources=[], callQaSelected=null;
+const callQaPager={page:1,key:null};
+bindPagination('#callQaPagination',callQaPager,()=>{callQaSelected=null;$('#callQaDetail').hidden=true;renderCallQA();});
 window.loadCallQA=async () => {
   try {
     const userId=state.user?.id;
@@ -94,14 +111,15 @@ window.loadCallQA=async () => {
 function renderCallQA() {
   const query=$('#callQaSearch').value.trim().toLowerCase();
   const sources=callQaSources.filter(source=>!query || [source.call_id,source.ticket_number,source.customer,source.technician].join(' ').toLowerCase().includes(query));
-  $('#callQaList').innerHTML=sources.length?`<table><thead><tr><th>Call ID</th><th>Incident</th><th>Customer</th><th>Technician</th><th>Call status</th><th>Overall quality</th><th></th></tr></thead><tbody>${sources.map(source=>`<tr><td>${esc(source.call_id)}</td><td>${esc(source.ticket_number || 'Pending')}</td><td>${esc(source.customer)}</td><td>${esc(source.technician)}</td><td>${esc(source.status)}</td><td>${esc(overallLabel(source.overall_quality))}</td><td><button class="text-button" data-call-qa="${esc(source.source_id)}">Review audit</button></td></tr>`).join('')}</tbody></table>`:'No completed call conversations match this search.';
+  const page=paginateItems(sources,callQaPager,JSON.stringify([state.user?.id,query]),'#callQaPagination');
+  $('#callQaList').innerHTML=sources.length?`<table><thead><tr><th>Call ID</th><th>Incident</th><th>Customer</th><th>Technician</th><th>Call status</th><th>Overall quality</th><th></th></tr></thead><tbody>${page.map(source=>`<tr><td>${esc(source.call_id)}</td><td>${esc(source.ticket_number || 'Pending')}</td><td>${esc(source.customer)}</td><td>${esc(source.technician)}</td><td>${esc(source.status)}</td><td>${esc(overallLabel(source.overall_quality))}</td><td><button class="text-button" data-call-qa="${esc(source.source_id)}">Review audit</button></td></tr>`).join('')}</tbody></table>`:'No completed call conversations match this search.';
 }
 async function openCallQA(id, scroll=true) {
   callQaSelected=id;
   const userId=state.user?.id,source=await api(`/api/transcripts/${encodeURIComponent(id)}`);
   if(callQaSelected!==id || state.user?.id!==userId) return;
   const audit=source.quality_audit,detail=$('#callQaDetail');detail.hidden=false;
-  detail.innerHTML=`<div class="panel-head"><div><p class="eyebrow">CALL QUALITY AUDIT</p><h3>${esc(source.call_id)}</h3><p class="helper">Incident: ${esc(source.ticket_number || 'Pending')} · Customer: ${esc(source.customer)} · Technician: ${esc(source.technician)}</p></div></div><p class="overall-score">Overall quality: ${esc(overallLabel(source.overall_quality))}</p>${audit?`<div class="transcript-assessment"><p class="helper">${esc(audit.model)} · ${new Date(audit.assessed_at).toLocaleString()}</p>${Object.entries(audit.metrics).map(([key,metric])=>`<details open><summary>${esc(key.replaceAll('_',' '))} · ${metric.score===null?'Not enough evidence':metric.score+'/100'}</summary><blockquote>${esc(metric.evidence)}</blockquote><p>${esc(metric.explanation)}</p><p><b>Improvement:</b> ${esc(metric.improvement)}</p></details>`).join('')}</div>`:'<h4>QA pending</h4><p>Call quality is assessed in the background. Use Evaluate completed calls to assess existing conversations.</p>'}<details class="incident-transcript"><summary>View transcript</summary><div class="live-transcript">${source.transcript.map(turn=>`<div class="transcript-turn"><b>${esc(turn.speaker)} · ${esc(turn.speaker_name || (turn.speaker==='AI Agent'?'ResolveAI':turn.speaker==='Customer'?source.customer:source.technician))}</b><p>${esc(turn.text)}</p></div>`).join('')}</div></details>`;
+  detail.innerHTML=`<div class="panel-head"><div><p class="eyebrow">CALL QUALITY AUDIT</p><h3>${esc(source.call_id)}</h3><p class="helper">Incident: ${esc(source.ticket_number || 'Pending')} · Customer: ${esc(source.customer)} · Technician: ${esc(source.technician)}</p></div></div><p class="overall-score">Overall quality: ${esc(overallLabel(source.overall_quality))}</p>${audit?`<div class="transcript-assessment"><p class="helper">${esc(audit.model)} · ${new Date(audit.assessed_at).toLocaleString()}</p>${Object.entries(audit.metrics).map(([key,metric])=>`<details open><summary>${esc(key.replaceAll('_',' '))} · ${metric.score===null?'Not enough evidence':metric.score+'/100'}</summary><blockquote>${esc(metric.evidence)}</blockquote><p>${esc(metric.explanation)}</p><p><b>Improvement:</b> ${esc(metric.improvement)}</p></details>`).join('')}</div>`:'<h4>QA pending</h4><p>Call quality is assessed in the background. Use Evaluate completed calls to assess existing conversations.</p>'}<details class="incident-transcript"><summary>View transcript</summary><div class="live-transcript">${source.transcript.slice().reverse().map(turn=>`<div class="transcript-turn"><b>${esc(turn.speaker)} · ${esc(turn.speaker_name || (turn.speaker==='AI Agent'?'ResolveAI':turn.speaker==='Customer'?source.customer:source.technician))}</b><p>${esc(turn.text)}</p></div>`).join('')}</div></details>`;
   if(scroll) detail.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
@@ -118,12 +136,15 @@ async function refreshCallAudit() {
   }
 }
 
+$('#transcriptPagination').addEventListener('click',event=>{const button=event.target.closest('[data-page-step]');if(button && !button.disabled){transcriptPage+=Number(button.dataset.pageStep);renderTranscripts();}});
+window.addEventListener('popstate',()=>{const params=new URLSearchParams(location.search);if(!state.user)return;if(params.has('transcript'))window.openTranscript(params.get('transcript'),false);else showView(params.get('view') || (state.user.role==='customer'?'customer-home':'overview'));});
 $('#transcriptSearch').addEventListener('input',renderTranscripts);
 ['transcriptTechnicianFilter','transcriptServiceFilter'].forEach(id=>$('#'+id).addEventListener('change',renderTranscripts));
 ['Min','Max'].forEach(bound=>$('#transcriptDuration'+bound).addEventListener('input',renderTranscripts));
 $('#clearTranscriptFilters').addEventListener('click',()=>{resetTranscriptFilters();renderTranscripts();});
 $('#callQaSearch').addEventListener('input',renderCallQA);
 document.addEventListener('click',async event=>{
+  if(event.target.closest('[data-transcript-back]')) {showView('transcripts');return;}
   const target=event.target.closest('[data-transcript]');
   if(target) {try{await openTranscript(target.dataset.transcript);}catch(error){toast(error.message);}}
   const audit=event.target.closest('[data-call-qa]');

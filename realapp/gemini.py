@@ -134,6 +134,35 @@ class GeminiEngine:
                     return transcription.text.strip()
         return (response.text or '').strip()
 
+    async def synthesize_stream(self, text: str):
+        """Yield audio as it arrives; keep incomplete WAV containers until decodable."""
+        from google.genai import types
+        responses = await self._client_or_raise().aio.models.generate_content_stream(
+            model=self.settings.gemini_tts_model,
+            contents=[types.Content(role='user', parts=[types.Part(text=text)])],
+            config=types.GenerateContentConfig(response_modalities=['AUDIO'],
+                speech_config=types.SpeechConfig(voice_config=types.VoiceConfig(voice=self.settings.gemini_voice))))
+        pending = bytearray()
+        try:
+            async for response in responses:
+                for candidate in response.candidates or []:
+                    for part in (candidate.content.parts if candidate.content else []) or []:
+                        if not part.inline_data or not part.inline_data.data:
+                            continue
+                        data, mime = part.inline_data.data, part.inline_data.mime_type
+                        if pending or data.startswith(b'RIFF'):
+                            pending.extend(data)
+                            if len(pending) < 8 or len(pending) < int.from_bytes(pending[4:8], 'little') + 8:
+                                continue
+                            yield self._pcm(bytes(pending), mime)
+                            pending.clear()
+                        else:
+                            yield self._pcm(data, mime)
+            if pending:
+                raise RuntimeError('Gemini returned incomplete speech audio.')
+        finally:
+            await responses.aclose()
+
     def synthesize(self, text: str) -> bytes:
         from google.genai import types
         response = self._client_or_raise().models.generate_content(

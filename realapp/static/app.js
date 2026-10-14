@@ -49,15 +49,17 @@ document.addEventListener('keydown', event => {
   selectReportTab(tab.dataset.report, target); $(`#${tab.dataset.report}-${target}-tab`).focus();
 });
 function showView(name) {
+  if (state.user && name !== 'transcript-detail' && new URLSearchParams(location.search).has('transcript')) { const url = new URL(location.href); url.searchParams.delete('transcript'); url.searchParams.set('view', name); history.pushState({}, '', url); }
   if (name === 'call-analytics') {name = 'analytics'; reportTabs.analytics = 'calls';}
   if (!state.user) name = 'signin';
-  else if (state.user.role === 'customer' && !['customer-home','customer-create','tickets','ticket-detail','knowledge','transcripts'].includes(name)) name = 'customer-home';
+  else if (state.user.role === 'customer' && !['customer-home','customer-create','tickets','ticket-detail','knowledge','transcripts','transcript-detail'].includes(name)) name = 'customer-home';
   else if (state.user.role === 'technician' && name === 'technicians') name = 'calls';
   $$(".view").forEach(el => el.classList.toggle("active", el.id === `view-${name}`));
-  $$(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.view === name));
+  $$(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.view === (name === 'transcript-detail' ? 'transcripts' : name)));
   const titles = { overview: "Operations overview", case: "New support case", tickets: "Tickets", "ticket-detail": "Ticket details", "time-machine": "Incident Time Machine", analytics: "Analytics", "resolution-radar": "Resolution Debt Radar", knowledge: "Knowledge management", qa: "Quality audit", calls: "Calls & queue", technicians: "Technicians" };
   document.title = ({"transcripts":"Transcripts","call-analytics":"Call analytics","customer-home":"My support","customer-create":"Create an incident","signin":"Welcome","technicians":"User management"})[name] || titles[name] || "ResolveAI";
 
+  state.currentView = name;
   if (name === "customer-home") loadCustomerCalls();
   if (name === "tickets") loadCases();
   if (name === "knowledge") loadKnowledge();
@@ -268,6 +270,8 @@ function visibleAuditChecks(checks) {
 }
 
 function renderQA(item) {
+  ++ticketQaRequest;
+  $("#ticketQaPagination").hidden = true;
   if (state.user?.role !== 'admin' && item.ticket.assigned_user_id !== state.user?.id) {
     toast('You can review audits for tickets assigned to you.'); showView('qa'); return;
   }
@@ -295,14 +299,23 @@ function renderQA(item) {
   $("#qaWorkspace").innerHTML = `<button class="text-button qa-back" data-view="qa">← Back to audits</button>${heading}${audit.legacy ? '<p class="helper">This saved score used the earlier audit format. Rerun QA to update it.</p>' : ''}<div>${checks || "No checks returned."}</div><div class="action-row"><span class="helper">The audit compares the resolved ticket with the source conversation.</span><button class="primary" id="rerunQa">Rerun AI QA</button></div>`;
 }
 
+let ticketQaCases = [], ticketQaRequest = 0;
+const ticketQaPager = {page:1, key:null};
 async function loadQA() {
+  const request = ++ticketQaRequest;
   const userId = state.user?.id, cases = await api('/api/reporting/tickets');
-  if (state.user?.id !== userId) return;
+  if (state.user?.id !== userId || request !== ticketQaRequest) return;
   const resolved = cases.filter(item => item.ticket.state === "Resolved");
   state.qaResolvedCount = resolved.length;
   refreshBulkQA();
+  ticketQaCases = resolved;
+  renderTicketQAList();
+}
+function renderTicketQAList() {
+  const resolved = ticketQaCases;
+  const page = paginateItems(resolved, ticketQaPager, state.user?.id, '#ticketQaPagination');
   $("#qaWorkspace").className = resolved.length ? "panel table-wrap" : "panel empty-list";
-  $("#qaWorkspace").innerHTML = resolved.length ? `<table><thead><tr><th>Ticket</th><th>Issue</th><th>Service</th><th>Priority</th><th>QA status</th></tr></thead><tbody>${resolved.map(item => `<tr data-qa-case-id="${esc(item.id)}"><td><strong>${esc(item.ticket.id)}</strong></td><td>${esc(item.ticket.short_description)}</td><td>${esc(item.ticket.service)}</td><td><span class="tag">${esc(item.ticket.priority)}</span></td><td><b>${item.quality_score == null ? "Pending" : `${item.quality_score}%`}</b></td></tr>`).join("")}</tbody></table>` : "No resolved tickets yet. Resolved tickets appear here immediately while AI QA runs in the background.";
+  $("#qaWorkspace").innerHTML = resolved.length ? `<table><thead><tr><th>Ticket</th><th>Issue</th><th>Service</th><th>Priority</th><th>QA status</th></tr></thead><tbody>${page.map(item => `<tr data-qa-case-id="${esc(item.id)}"><td><strong>${esc(item.ticket.id)}</strong></td><td>${esc(item.ticket.short_description)}</td><td>${esc(item.ticket.service)}</td><td><span class="tag">${esc(item.ticket.priority)}</span></td><td><b>${item.quality_score == null ? "Pending" : `${item.quality_score}%`}</b></td></tr>`).join("")}</tbody></table>` : "No resolved tickets yet. Resolved tickets appear here immediately while AI QA runs in the background.";
 }
 
 
@@ -334,6 +347,29 @@ $('#rerunAllQa').addEventListener('click', async () => {
   } catch(error) { $('#bulkQaStatus').textContent = error.message; button.disabled = false; }
 });
 
+let ticketPage = 1, ticketFilterKey = null;
+const PAGE_SIZE = 10;
+function updatePagination(id, page, total) {
+  const count = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const host = $(id);
+  host.hidden = total === 0;
+  host.innerHTML = `<button type="button" class="secondary small" data-page-step="-1" ${page === 1 ? "disabled" : ""}>Previous</button><span role="status" aria-live="polite">Page ${page} of ${count} · ${total ? (page-1)*PAGE_SIZE+1 : 0}–${Math.min(page*PAGE_SIZE,total)} of ${total}</span><button type="button" class="secondary small" data-page-step="1" ${page === count ? "disabled" : ""}>Next</button>`;
+}
+
+function paginateItems(items, pager, key, target) {
+  if(pager.key !== key) {pager.page=1;pager.key=key;}
+  pager.page=Math.max(1,Math.min(pager.page,Math.max(1,Math.ceil(items.length/PAGE_SIZE))));
+  updatePagination(target,pager.page,items.length);
+  return items.slice((pager.page-1)*PAGE_SIZE,pager.page*PAGE_SIZE);
+}
+function bindPagination(target,pager,render) {
+  $(target).addEventListener('click',event=>{
+    const button=event.target.closest('[data-page-step]');
+    if(button && !button.disabled){pager.page+=Number(button.dataset.pageStep);render();}
+  });
+}
+bindPagination('#ticketQaPagination',ticketQaPager,renderTicketQAList);
+
 async function loadCases() {
   const userId = state.user?.id;
   const cases = await api('/api/cases');
@@ -349,14 +385,19 @@ async function loadCases() {
 function renderTickets() {
   const number = $('#ticketSearch').value.trim().toLowerCase(), assignee = $('#ticketAssignee').value;
   const status = $('#ticketStateFilter').value, priority = $('#ticketPriorityFilter').value;
+  const key = JSON.stringify([state.user?.id, number, assignee, status, priority]);
+  if (key !== ticketFilterKey) { ticketPage = 1; ticketFilterKey = key; }
   const cases = state.cases.filter(item => item.ticket.id.toLowerCase().includes(number) &&
     (!status || item.ticket.state === status) && (!priority || item.ticket.priority === priority) &&
     (!assignee || (assignee === '__unassigned__' ? !item.ticket.assigned_to : item.ticket.assigned_to === assignee)));
   $('#ticketResultCount').textContent = `${cases.length} of ${state.cases.length} tickets`;
   $('#ticketsEmpty').hidden = cases.length > 0;
   $('#ticketsEmpty').textContent = state.cases.length ? 'No tickets match these filters.' : 'No tickets yet.';
-  $('#ticketRows').innerHTML = cases.map(item => `<tr data-case-id="${esc(item.id)}"><td><strong>${esc(item.ticket.id)}</strong></td><td>${esc(item.ticket.short_description)}</td><td>${esc(item.ticket.service)}</td><td><span class="tag">${esc(item.ticket.priority)}</span></td><td>${esc(item.ticket.assigned_to || 'Unassigned')}</td><td>${esc(item.ticket.state)}</td></tr>`).join('');
+  ticketPage = Math.min(ticketPage, Math.max(1, Math.ceil(cases.length / PAGE_SIZE)));
+  updatePagination('#ticketPagination', ticketPage, cases.length);
+  $('#ticketRows').innerHTML = cases.slice((ticketPage-1)*PAGE_SIZE, ticketPage*PAGE_SIZE).map(item => `<tr data-case-id="${esc(item.id)}"><td><strong>${esc(item.ticket.id)}</strong></td><td>${esc(item.ticket.short_description)}</td><td>${esc(item.ticket.service)}</td><td><span class="tag">${esc(item.ticket.priority)}</span></td><td>${esc(item.ticket.assigned_to || 'Unassigned')}</td><td>${esc(item.ticket.state)}</td></tr>`).join('');
 }
+$('#ticketPagination').addEventListener('click', event => { const button=event.target.closest('[data-page-step]'); if(button && !button.disabled) { ticketPage+=Number(button.dataset.pageStep); renderTickets(); } });
 $('#ticketSearch').addEventListener('input', renderTickets);
 $('#ticketAssignee').addEventListener('change', renderTickets);
 $('#ticketStateFilter').addEventListener('change', renderTickets);
@@ -438,10 +479,13 @@ function renderTicketAnalytics() {
 ['Id','Technician','Service'].forEach(field=>$('#ticketAnalytics'+field+'Filter').addEventListener(field==='Id'?'input':'change',renderTicketAnalytics));
 $('#ticketAnalyticsResetFilters').addEventListener('click',()=>{['Id','Technician','Service'].forEach(field=>$('#ticketAnalytics'+field+'Filter').value='');renderTicketAnalytics();});
 
+const knowledgePager = {page:1,key:null};
+bindPagination('#knowledgePagination',knowledgePager,()=>renderKnowledge($("#knowledgeSearch").value));
 function renderKnowledge(query = "") {
   const term = query.trim().toLowerCase();
   const articles = state.knowledge.filter(article => !term || [article.id, article.title, article.product, article.symptoms, article.tags.join(" "), article.steps.join(" ")].join(" ").toLowerCase().includes(term));
-  $("#knowledgeList").innerHTML = articles.length ? articles.map(article => `<article class="article-card"><h4>${esc(article.id)} · ${esc(article.title)}</h4><p><b>${esc(article.product)}</b> · ${esc(article.tags.join(", "))}</p><p>${esc(article.symptoms)}</p><details><summary>Resolution steps</summary><ol>${article.steps.map(step => `<li>${esc(step)}</li>`).join("")}</ol><p><b>Expected outcome:</b> ${esc(article.resolution)}</p>${article.source_ticket_ids?.length ? `<p class="helper">Source incidents: ${article.source_ticket_ids.map(number => `<button type="button" class="text-button" data-source-ticket="${esc(number)}">${esc(number)}</button>`).join(", ")}</p>` : ""}</details></article>`).join("") : `<div class="empty-list">No knowledge articles match “${esc(query)}”.</div>`;
+  const page = paginateItems(articles, knowledgePager, JSON.stringify([state.user?.id,term]), '#knowledgePagination');
+  $("#knowledgeList").innerHTML = articles.length ? page.map(article => `<article class="article-card"><h4>${esc(article.id)} · ${esc(article.title)}</h4><p><b>${esc(article.product)}</b> · ${esc(article.tags.join(", "))}</p><p>${esc(article.symptoms)}</p><details><summary>Resolution steps</summary><ol>${article.steps.map(step => `<li>${esc(step)}</li>`).join("")}</ol><p><b>Expected outcome:</b> ${esc(article.resolution)}</p>${article.source_ticket_ids?.length ? `<p class="helper">Source incidents: ${article.source_ticket_ids.map(number => `<button type="button" class="text-button" data-source-ticket="${esc(number)}">${esc(number)}</button>`).join(", ")}</p>` : ""}</details></article>`).join("") : `<div class="empty-list">No knowledge articles match “${esc(query)}”.</div>`;
 }
 
 async function addKnowledge(event) {
@@ -579,6 +623,10 @@ $("#knowledgeSearch").addEventListener("input", event => renderKnowledge(event.t
 window.applyAccountRole = user => {
   if (state.user?.id !== user?.id) {
     state.cases = []; state.users = []; state.current = null;
+    $('#transcriptDetail').innerHTML = ''; $('#transcriptDetail').hidden = true;
+    $('#ticketPagination').hidden = $('#transcriptPagination').hidden = true;
+    ['knowledgePagination','ticketQaPagination','callQaPagination','radarPagination'].forEach(id=>$('#'+id).hidden=true);
+    ticketQaCases=[]; ++ticketQaRequest;
     $('#ticketRows').innerHTML = ''; $('#ticketDetailPage').innerHTML = '';
     $('#ticketDurability').hidden = true; $('#ticketDurability').innerHTML = '';
     $('#ticketSearch').value = ''; $('#ticketAssignee').innerHTML = '<option value="">All assigned names</option>';
@@ -652,6 +700,7 @@ window.loadApplication = async () => {
     if(auth.user.role==='admin')state.users=await api('/api/users');
     const params=new URLSearchParams(location.search);
     if(params.get('next')==='support'){location.href='/support';return;}
+    if(params.get('transcript'))return window.openTranscript(params.get('transcript'), false);
     if(params.get('ticket'))return openTicketDetails(params.get('ticket'));
     if(params.get('case'))return openTicketDetails(params.get('case'));
     showView(params.get('view') || (auth.user.role==='customer'?'customer-home':auth.user.role==='technician'?'calls':'overview'));

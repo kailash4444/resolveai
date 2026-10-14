@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     voice_tts_model: str = "gpt-4o-mini-tts"
     voice_tts_voice: str = "coral"
     voice_activity_threshold: int = 450
+    # auto uses ADC streaming on Vertex; other providers keep their file STT.
+    live_transcription_backend: str = 'auto'
+    speech_model: str = 'chirp_3'
+    speech_location: str = 'us'
+    speech_language: str = 'en-IN'
+    voice_silence_ms: int = 400
+    voice_max_segment_seconds: int = 12
     call_reservation_seconds: int = 25
     technician_heartbeat_seconds: int = 45
     call_queue_timeout_seconds: int = 300
@@ -43,6 +50,15 @@ class Settings(BaseSettings):
     enable_demo_data: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @property
+    def streaming_transcription_enabled(self) -> bool:
+        return self.live_transcription_backend == 'google_streaming' or (
+            self.live_transcription_backend == 'auto' and self.llm_provider == 'vertex')
+
+    @property
+    def active_live_transcription_model(self) -> str:
+        return self.speech_model if self.streaming_transcription_enabled else self.active_transcription_model
 
     @property
     def active_transcription_model(self) -> str:

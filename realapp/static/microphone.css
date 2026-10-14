@@ -1,1 +1,4 @@
 .microphone-panel{padding:18px 22px;margin:18px 0;border:1px solid #d3e5dc;border-radius:14px;background:#f1f7f3;text-align:left}.microphone-panel p{font-size:13px;margin:6px 0}.microphone-panel meter{display:block;width:100%;height:16px;margin:8px 0}.microphone-panel label{display:block;font-size:13px;margin:10px 0}.microphone-panel select{display:block;width:100%;padding:9px;border:1px solid #cddacf;border-radius:8px;background:white;color:#153e30}.microphone-panel [data-mic-error]{color:#a2342b}.microphone-panel [data-mic-error]:empty{display:none}
+
+.live-captions{background:#eef6f0;border:1px solid #dce5df;border-radius:12px;padding:14px 18px;margin:14px 0;color:#142923;font:14px/1.6 'DM Sans',sans-serif}
+.live-captions[hidden]{display:none}.live-captions p{margin:6px 0;overflow-wrap:anywhere}

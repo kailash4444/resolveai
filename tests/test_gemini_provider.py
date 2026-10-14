@@ -30,7 +30,7 @@ def test_google_engine_uses_single_text_embedding_requests_and_separate_models()
     calls = value._client.models.embed_content.call_args_list
     assert [call.kwargs['contents'] for call in calls] == ['first', 'second']
     assert all(call.kwargs['model'] == 'gemini-embedding-001' for call in calls)
-    value._client.models.generate_content.return_value = SimpleNamespace(text='The browser is frozen.')
+    value._client.models.generate_content.return_value = SimpleNamespace(candidates=[], text='The browser is frozen.')
     assert value.transcribe('utterance.wav', b'RIFFtest-audio') == 'The browser is frozen.'
     request = value._client.models.generate_content.call_args.kwargs
     assert request['model'] == value.settings.gemini_transcription_model
@@ -95,10 +95,10 @@ def test_gemini_admin_key_and_upload_are_shared_and_customer_cannot_configure(ac
     assert response.status_code == 200 and saved == [key]
     assert key not in response.text
     assert value.settings.gemini_api_key == key
-    assert accounts.admin.get('/api/config').json()['transcription_model'] == 'gemini-3.8-flash'
+    assert accounts.admin.get('/api/config').json()['transcription_model'] == value.settings.gemini_transcription_model
     monkeypatch.setattr(value, 'transcribe', lambda filename, content: 'Google transcript')
     result = accounts.tech_a.post('/api/transcribe', files={'file': ('speech.wav', b'audio', 'audio/wav')})
-    assert result.json() == {'text': 'Google transcript', 'model': 'gemini-3.8-flash'}
+    assert result.json() == {'text': 'Google transcript', 'model': value.settings.gemini_transcription_model}
     assert accounts.customer_a.post('/api/transcribe', files={'file': ('speech.wav', b'audio')}).status_code == 403
 
 
@@ -115,3 +115,10 @@ def test_gemini_key_persists_separately_from_openai_and_livekit(tmp_path, monkey
     assert b'new-isolated-gemini-key' not in (tmp_path/'google.dpapi').read_bytes()
     assert old == [(tmp_path/name).read_bytes() for name in ['openai.dpapi', 'livekit.dpapi']]
     assert local_secrets.load_local_openai_key() == 'old-isolated-openai-key'
+
+
+def test_google_transcription_reads_audio_transcription_response():
+    value = engine()
+    value._client.models.generate_content.return_value = SimpleNamespace(text=None, candidates=[
+        SimpleNamespace(content=SimpleNamespace(parts=[SimpleNamespace(audio_transcription=SimpleNamespace(text='The printer is offline.'))]))])
+    assert value.transcribe('utterance.wav', b'RIFFtest-audio') == 'The printer is offline.'

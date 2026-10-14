@@ -224,11 +224,13 @@ def test_audio_worker_failure_is_reported_instead_of_silenced(service):
     async def run():
         call = service.create_call('Customer', 'browser')
         session = BrowserSession(LiveKitTransport(service.settings, service), call['id'])
+        session.recover_voice_failure = AsyncMock()
         async def failed_capture():
             raise RuntimeError('capture stopped')
         session.task(failed_capture())
         await asyncio.sleep(.02)
-        assert 'Audio processing was interrupted' in service.get(call['id'])['last_error']
+        assert 'could not produce a voice response' in service.get(call['id'])['last_error']
+        session.recover_voice_failure.assert_awaited_once()
     asyncio.run(run())
 
 

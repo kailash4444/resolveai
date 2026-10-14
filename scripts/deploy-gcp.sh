@@ -11,9 +11,9 @@ STORE="${DATA_BACKEND:-firestore}"
 ATTACHMENT_BUCKET="${ATTACHMENT_BUCKET:-}"
 
 gcloud config set project "$PROJECT_ID"
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com aiplatform.googleapis.com firestore.googleapis.com storage.googleapis.com
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com aiplatform.googleapis.com speech.googleapis.com firestore.googleapis.com storage.googleapis.com
 
-ENV_VARS="ENVIRONMENT=production,LLM_PROVIDER=$PROVIDER,GEMINI_PROVIDER=$PROVIDER,GEMINI_MODEL=$MODEL,GEMINI_TRANSCRIPTION_MODEL=$TRANSCRIPTION_MODEL,GEMINI_TTS_MODEL=gemini-3.8-flash-lite-tts,EMBEDDING_MODEL=gemini-embedding-001,DATA_BACKEND=$STORE,CALLING_BACKEND=$STORE,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global"
+ENV_VARS="ENVIRONMENT=production,LLM_PROVIDER=$PROVIDER,GEMINI_PROVIDER=$PROVIDER,GEMINI_MODEL=$MODEL,GEMINI_TRANSCRIPTION_MODEL=$TRANSCRIPTION_MODEL,GEMINI_TTS_MODEL=gemini-3.8-flash-lite-tts,EMBEDDING_MODEL=gemini-embedding-001,DATA_BACKEND=$STORE,CALLING_BACKEND=$STORE,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,LIVE_TRANSCRIPTION_BACKEND=auto,SPEECH_MODEL=chirp_3,SPEECH_LOCATION=${SPEECH_LOCATION:-us},SPEECH_LANGUAGE=${SPEECH_LANGUAGE:-en-IN}"
 if [[ -n "$ATTACHMENT_BUCKET" ]]; then
   ENV_VARS="$ENV_VARS,ATTACHMENT_BUCKET=$ATTACHMENT_BUCKET"
 fi

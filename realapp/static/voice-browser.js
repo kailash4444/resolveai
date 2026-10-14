@@ -84,6 +84,25 @@ window.ResolveAIVoice = {
       audioCaptureDefaults:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},
     });
     const elements = new Set();
+    const captions = document.createElement('section');
+    captions.className = 'live-captions'; captions.setAttribute('aria-label', 'Live captions');
+    captions.hidden = true;
+    const captionHost = document.querySelector('[data-live-caption-host]') || document.querySelector('[data-microphone-panel]');
+    captionHost?.append(captions);
+    const captionRows = new Map();
+    room.on(LivekitClient.RoomEvent.DataReceived, (payload, participant, kind, topic) => {
+      if (topic !== 'resolveai.caption' || participant?.identity !== `agent:${connection.room.replace('resolveai-', '').toUpperCase()}`) return;
+      try {
+        const data = JSON.parse(new TextDecoder().decode(payload));
+        if (!['Customer','Technician'].includes(data.speaker) || typeof data.text !== 'string' || typeof data.segment !== 'string') return;
+        captions.hidden = false;
+        let row = captionRows.get(data.segment);
+        if (!row) { row = document.createElement('p'); captions.append(row); captionRows.set(data.segment, row); }
+        row.textContent = `${data.speaker}: ${data.text.slice(0, 4000)}${data.final ? '' : ' …'}`;
+        row.className = data.final ? 'small' : 'small sec';
+        while (captionRows.size > 4) { const key = captionRows.keys().next().value; captionRows.get(key).remove(); captionRows.delete(key); }
+      } catch (_) {}
+    });
     room.on(LivekitClient.RoomEvent.TrackSubscribed, track => {
       if (track.kind !== LivekitClient.Track.Kind.Audio) return;
       const element = track.attach(); element.autoplay = true;
@@ -92,7 +111,7 @@ window.ResolveAIVoice = {
     });
     room.on(LivekitClient.RoomEvent.TrackUnsubscribed, track => track.detach().forEach(element => {elements.delete(element);element.remove();}));
     room.on(LivekitClient.RoomEvent.Disconnected, () => {
-      elements.forEach(element => element.remove()); elements.clear(); onDisconnected?.();
+      elements.forEach(element => element.remove()); elements.clear(); captions.remove(); onDisconnected?.();
     });
     try {
       await room.startAudio();

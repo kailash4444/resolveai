@@ -3,9 +3,16 @@ const radarDate = value => value ? new Date(value).toLocaleString() : '—';
 const radarPercent = value => value == null ? 'Insufficient data' : `${Math.round(value * 100)}%`;
 const radarArray = value => (value || []).map(esc).join('<br>') || '<span class="helper">No evidence recorded.</span>';
 
+let radarClusters=[], radarListKey=null, radarRequest=0;
+const radarPager={page:1,key:null};
+bindPagination('#radarPagination',radarPager,renderRadarList);
 async function loadResolutionRadarData() {
+  const request=++radarRequest,userId=state.user?.id;
   const params = new URLSearchParams(Object.entries(radarState).filter(([key, value]) => key !== 'clusterId' && value));
   const data = await api(`/api/resolution-radar?${params}`);
+  if(request!==radarRequest || state.user?.id!==userId)return;
+  radarClusters=data.clusters;
+  radarListKey=JSON.stringify([userId,params.toString()]);
   $('#radarOpen').textContent = data.summary.open_systemic_issues;
   $('#radarHigh').textContent = data.summary.high_debt_issues;
   $('#radarRepeats').textContent = data.summary.recurring_incidents;
@@ -19,13 +26,16 @@ async function loadResolutionRadarData() {
   service.innerHTML = '<option value="">All services</option>' + data.filters.services.map(value =>
     `<option value="${esc(value)}">${esc(value)}</option>`).join('');
   service.value = selected;
-  $('#radarRows').innerHTML = data.clusters.map(cluster => {
+  renderRadarList();
+}
+function renderRadarList() {
+  $('#radarRows').innerHTML = paginateItems(radarClusters,radarPager,radarListKey,'#radarPagination').map(cluster => {
     const coverage = Math.round((cluster.evidence_coverage || 0) * 100);
     const score = cluster.debt_score == null ? 'Insufficient evidence' : `${cluster.debt_score} · ${esc(cluster.score_band)}`;
     const observed = cluster.missing_signals?.length ? `Missing: ${cluster.missing_signals.join(', ')}` : 'All score signals available';
     return `<tr data-radar-open="${esc(cluster.id)}"><td><strong>${esc(cluster.summary)}</strong><br><small>${esc(cluster.service)} · ${cluster.incident_count} matching incident${cluster.incident_count === 1 ? '' : 's'}</small></td><td title="${esc(observed)} · ${coverage}% score evidence coverage"><b>${score}</b><small class="radar-coverage">${coverage}% evidence</small></td><td><span class="tag">${esc(cluster.priority)}</span></td><td>${cluster.incident_count}</td><td>${cluster.customer_count ?? '—'}</td><td>${cluster.recurrence_count}${cluster.recurrence_rate == null ? '' : ` · ${Math.round(cluster.recurrence_rate * 100)}%`}</td><td>${cluster.workaround_count}${cluster.workaround_rate == null ? '' : ` · ${Math.round(cluster.workaround_rate * 100)}%`}</td><td>${radarDate(cluster.latest_occurrence)}</td><td>${radarDate(cluster.last_analysis_at)}</td><td><span class="tag status-${esc(cluster.status)}">${esc(cluster.status)}</span></td></tr>`;
   }).join('');
-  $('#radarEmpty').hidden = data.clusters.length > 0;
+  $('#radarEmpty').hidden = radarClusters.length > 0;
 }
 
 function renderRadarDetail(data) {

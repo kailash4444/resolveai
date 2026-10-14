@@ -85,7 +85,7 @@ class CallingService:
         self.on_finished = None
 
     def has_users(self):
-        return self.repository.mutate(lambda db: bool(db["technicians"]))
+        return self.repository.mutate(lambda db: bool(db["technicians"]), call_ids=())
 
     def create_technician(self, value, first=False):
         salt = secrets.token_hex(16)
@@ -104,7 +104,7 @@ class CallingService:
                     "voice_ready": False, "last_seen": 0, "last_assigned": 0, "current_call_id": None}
             db["technicians"][tech["id"]] = tech
             return public_technician(tech)
-        return self.repository.mutate(create)
+        return self.repository.mutate(create, call_ids=())
 
     def login(self, value, peer):
         key = hashlib.sha256((peer + value.username.lower()).encode()).hexdigest()
@@ -118,7 +118,7 @@ class CallingService:
             record["count"] += 1
             return next((t for t in db["technicians"].values() if t["username"] == value.username.lower()), None), False
 
-        tech, blocked = self.repository.mutate(attempt)
+        tech, blocked = self.repository.mutate(attempt, call_ids=())
         if blocked:
             raise HTTPException(429, "Too many attempts. Try again in five minutes.")
         salt = tech["salt"] if tech else "00" * 16
@@ -135,7 +135,7 @@ class CallingService:
             current = db['technicians'][tech['id']]
             if current['role'] != 'customer' and not current['current_call_id']:
                 current['status'] = public_technician(current)['availability']
-        self.repository.mutate(save)
+        self.repository.mutate(save, call_ids=())
         return token, self.authenticate(token)
 
     def authenticate(self, token):
@@ -145,7 +145,7 @@ class CallingService:
             session = db["sessions"].get(hashed)
             if session and session["expires"] > self.now():
                 return public_technician(db["technicians"][session["technician_id"]])
-        return self.repository.mutate(read)
+        return self.repository.mutate(read, call_ids=())
 
     def logout(self, token, tech_id):
         def remove(db):
@@ -154,7 +154,7 @@ class CallingService:
             tech["voice_ready"] = False
             if not tech["current_call_id"]:
                 tech["status"] = "Offline"
-        self.repository.mutate(remove)
+        self.repository.mutate(remove, call_ids=())
 
     def heartbeat(self, tech_id, voice_ready):
         def update(db):
@@ -167,7 +167,7 @@ class CallingService:
             if not tech['current_call_id']:
                 tech['status'] = tech['availability']
             return public_technician(tech)
-        return self.repository.mutate(update)
+        return self.repository.mutate(update, call_ids=())
 
     def presence(self, tech_id, status):
         def update(db):
@@ -178,7 +178,7 @@ class CallingService:
                 raise HTTPException(409, "Finish or decline the current call before changing availability.")
             tech.update(status=status, availability=status, last_seen=self.now())
             return public_technician(tech)
-        return self.repository.mutate(update)
+        return self.repository.mutate(update, call_ids=())
 
     def call_settings(self, tech_id, enabled):
         def update(db):
@@ -191,7 +191,7 @@ class CallingService:
             if not enabled:
                 tech['voice_ready'] = False
             return public_technician(tech)
-        return self.repository.mutate(update)
+        return self.repository.mutate(update, call_ids=())
 
     def snapshot(self, actor=None):
         def read(db):
@@ -220,7 +220,7 @@ class CallingService:
         return self.repository.mutate(read)
 
     def get(self, call_id):
-        call = self.repository.mutate(lambda db: db["calls"].get(call_id))
+        call = self.repository.get_call(call_id)
         if not call:
             raise HTTPException(404, "Call not found.")
         return call
@@ -252,7 +252,7 @@ class CallingService:
             call["transcript"].append({"speaker": speaker, "text": text[:8000], "timestamp": stamp()})
             call["transcript"] = call["transcript"][-150:]
             return call
-        call = self.repository.mutate(append)
+        call = self.repository.mutate(append, call_ids=(call_id,))
         if call["case_id"]:
             case = self.case_store.get_case(call["case_id"])
             if case:
@@ -297,7 +297,7 @@ class CallingService:
             return
         def status(db):
             db['calls'][call_id]['knowledge_status'] = 'searching'
-        self.repository.mutate(status)
+        self.repository.mutate(status, call_ids=(call_id,))
         try:
             matches = self.knowledge_engine.retrieve(query, limit=5)
             result, error = [m.model_dump() for m in matches], ''
@@ -309,7 +309,7 @@ class CallingService:
                 return  # A later customer utterance supersedes this search.
             current.update(knowledge_matches=result, knowledge_status='error' if error else 'ready',
                            knowledge_error=error, knowledge_updated_at=stamp())
-        self.repository.mutate(save)
+        self.repository.mutate(save, call_ids=(call_id,))
 
     def triage(self, call_id):
         call = self.get(call_id)
@@ -363,7 +363,7 @@ class CallingService:
                     self._set_handoff_brief(current, case.routing.rationale)
                 history(current, f"Routed to {'AI' if ai else 'technician queue'}: {case.routing.rationale}")
             return current
-        return self.repository.mutate(save)
+        return self.repository.mutate(save, call_ids=(call_id,))
 
     def enqueue(self, call_id, reason):
         def update(db):
@@ -461,7 +461,7 @@ class CallingService:
             call.update(status="Connected", connected_at=self.now(), reserved_until=None)
             history(call, f"Accepted by {call['technician_name']}")
             return call, True
-        call, changed = self.repository.mutate(update)
+        call, changed = self.repository.mutate(update, call_ids=(call_id,))
         if not changed:
             return call
         case = self.case_store.get_case(call["case_id"]) if call["case_id"] else None
@@ -506,7 +506,7 @@ class CallingService:
                 tech.update(status='Busy',current_call_id=call_id,last_assigned=self.now())
             call['pickup_claimed'] = True
             return call
-        return self.repository.mutate(claim)
+        return self.repository.mutate(claim, call_ids=(call_id,))
 
     def mark_waiting(self, call_id):
         def update(db):
@@ -514,7 +514,7 @@ class CallingService:
             if call["status"] == "Queued" and call.get("ready_at") is None:
                 call["ready_at"] = self.now() + 2
             return call
-        return self.repository.mutate(update)
+        return self.repository.mutate(update, call_ids=(call_id,))
 
     def finish(self, call_id, status="Completed"):
         def update(db):
@@ -581,7 +581,7 @@ class CallingService:
             if call.get('last_error') != message:
                 call["last_error"] = message
                 history(call, message)
-        self.repository.mutate(update)
+        self.repository.mutate(update, call_ids=(call_id,))
 
     def reply(self, call_id):
         call = self.get(call_id)
@@ -616,7 +616,7 @@ class CallingService:
             reply = self.engine._generate(instruction + "\n" + context, VoiceReply)
         if call["ai_turns"] >= 6:
             reply = VoiceReply(reply="I will bring in a technician to help you further.", escalate=True, customer_confirmed_resolved=False)
-        self.repository.mutate(lambda db: db["calls"][call_id].update(ai_turns=call["ai_turns"] + 1))
+        self.repository.mutate(lambda db: db["calls"][call_id].update(ai_turns=call["ai_turns"] + 1), call_ids=(call_id,))
         return reply
 
     @staticmethod

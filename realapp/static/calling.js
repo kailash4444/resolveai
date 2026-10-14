@@ -1,6 +1,10 @@
-const calling = { user: null, data: null, selected: null, room: null, roomCallId: null, ready: false, auth: null, loading: false, notice: null };
+const calling = { user: null, data: null, selected: null, room: null, roomCallId: null, ready: false, auth: null, loading: false, notice: null, answering: null };
 
-function elapsed(at) { return at ? `${Math.max(0, Math.floor((Date.now() / 1000 - at) / 60))} min` : '—'; }
+function elapsed(at) {
+  if(!at)return '—';
+  const days=Math.max(0,Math.floor((Date.now()/1000-at)/86400));
+  return days===0?'Less than 1 day':`${days} ${days===1?'day':'days'}`;
+}
 function callBadge(status) { return `<span class="call-status status-${esc(status.toLowerCase().replaceAll(' ', '-'))}">${esc(status)}</span>`; }
 
 function handoffCard(call) {
@@ -24,7 +28,7 @@ window.openTechnicianAuth = async () => {
 };
 
 window.loadCalling = async () => {
-  if (calling.loading) return;
+  if (calling.loading || calling.answering) return;
   calling.loading = true;
   try {
     const auth = await api('/api/auth/status');
@@ -57,6 +61,7 @@ window.loadCalling = async () => {
 };
 
 function renderCalling() {
+  if(calling.answering)return;
   const { metrics, voice: telephony } = calling.data;
   const query = $('#callSearch').value.trim().toLowerCase();
   const calls = calling.data.calls.filter(call => !query || [call.id,call.caller,call.technician_name,call.service,call.summary].join(' ').toLowerCase().includes(query));
@@ -190,7 +195,7 @@ async function enablePhone() {
   finally { button.disabled = false; }
 }
 
-async function acceptBrowserCall(id, connection) {
+async function acceptBrowserCall(id, connection, microphone) {
   let room;
   try {
     room = await ResolveAIVoice.connect(connection, () => {
@@ -200,12 +205,43 @@ async function acceptBrowserCall(id, connection) {
     calling.room = room; calling.roomCallId = id;
     await api(`/api/calling/${id}/connected`, {method:'POST',body:'{}'});
     for(let i=0;i<40 && !room.localParticipant.permissions?.canPublish;i++) await new Promise(resolve=>setTimeout(resolve,50));
-    await room.localParticipant.setMicrophoneEnabled(true);
-    await ResolveAIVoice.microphonePanel(room);
+    if (!room.localParticipant.permissions?.canPublish) throw new Error('Microphone permission confirmation timed out. Please retry.');
+    const capture = microphone ? await microphone : null;
+    if (capture?.error) throw capture.error;
+    if (capture?.track) await room.localParticipant.publishTrack(capture.track, {source: LivekitClient.Track.Source.Microphone});
+    else await room.localParticipant.setMicrophoneEnabled(true);
+    // Device enumeration is supplementary and must not delay the connected state.
+    ResolveAIVoice.microphonePanel(room).catch(() => {});
   } catch(error) {
     await room?.disconnect(); calling.room=null;calling.roomCallId=null;
     try {await api(`/api/calling/${id}/transfer`,{method:'POST',body:'{}'});} catch(_) {}
     throw error;
+  }
+}
+
+async function answerCall(id) {
+  if(calling.answering || calling.roomCallId)return;
+  calling.answering=id;calling.selected=id;
+  const started=performance.now();
+  const call=[...(calling.data?.calls || []),...(calling.data?.incoming_calls || [])].find(c=>c.id===id);
+  const buttons=[...document.querySelectorAll('[data-pickup-call], [data-call-action="accept"]')];
+  buttons.forEach(button=>{button.dataset.idleLabel=button.textContent;button.disabled=true;button.setAttribute('aria-busy','true');button.textContent='Connecting…';});
+  $('#callAnswerStatus').textContent='Connecting your call…';
+  const microphone=call?.origin==='browser' ? Promise.resolve().then(()=>LivekitClient.createLocalAudioTrack({echoCancellation:true,noiseSuppression:true,autoGainControl:true})).then(track=>({track}),error=>({error})) : null;
+  try {
+    const result=await api(`/api/calling/${id}/accept`,{method:'POST',body:'{}'});
+    if(result.token)await acceptBrowserCall(id,result,microphone);
+    $('#callAnswerStatus').textContent='Call connected.';
+    console.info('Call pickup duration (ms)',Math.round(performance.now()-started));
+    showView('calls');
+  } catch(error) {
+    $('#callAnswerStatus').textContent=`Could not connect: ${error.message}`;
+    throw error;
+  } finally {
+    microphone?.then(capture=>{if(capture?.track && calling.roomCallId!==id)capture.track.stop();});
+    calling.answering=null;
+    buttons.forEach(button=>{button.disabled=false;button.removeAttribute('aria-busy');button.textContent=button.dataset.idleLabel;delete button.dataset.idleLabel;});
+    await loadCalling();
   }
 }
 
@@ -219,16 +255,11 @@ document.addEventListener('click', async event => {
     const ticket = event.target.closest('[data-call-ticket]');
     if (ticket) await openTicketDetails(ticket.dataset.callTicket);
     const pickup = event.target.closest('[data-pickup-call]');
-    if (pickup) {
-      pickup.disabled=true; const id=pickup.dataset.pickupCall;
-      const result=await api(`/api/calling/${id}/accept`,{method:'POST',body:'{}'});
-      calling.selected=id;
-      if(result.token)await acceptBrowserCall(id,result);
-      showView('calls');await loadCalling();
-    }
+    if (pickup) { await answerCall(pickup.dataset.pickupCall); }
     const action = event.target.closest('[data-call-action]');
     if (action) {
       const id = calling.selected, kind = action.dataset.callAction;
+      if(kind==='accept') {await answerCall(id);return;}
       action.disabled = true;
       const result = await api(`/api/calling/${id}/${kind}`, {method:'POST',body:'{}'});
       if (kind === 'accept' && result.token) await acceptBrowserCall(id, result);

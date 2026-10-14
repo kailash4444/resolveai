@@ -172,3 +172,34 @@ The private repository includes a restorable JSON snapshot in [`snapshots/curren
 Public incident numbers use `INC0000001` (seven digits); knowledge numbers use `KB00001` (five digits). Memory locks, SQLite write transactions, and Firestore transactions allocate increasing numbers and preserve them during edits and restarts. Existing public numbers are migrated chronologically for incidents; internal case/call IDs, owners and assignments stay stable. Transcript references, activity text, knowledge matches and KB source-incident references are converted too. Counters and legacy mappings remain in database metadata. Re-export the demo pack with the importer to refresh its numbers.
 
 **Call analytics** shows scoped call totals, completion rate, average duration and queue wait, volume by service/day, statuses, and technician performance. Its six conversation metrics are Greeting, Problem-solving ability, Empathy, Communication clarity, Verification, and Closure. Each uses a 0–100 score, explanation, exact transcript evidence and an improvement. Insufficient or unverifiable evidence is unscored and excluded from averages. Text assessments do not infer tone of voice, and appropriate escalation/approval waits are not treated as failed resolutions. New completed calls are assessed in the background; **Evaluate completed calls** refreshes existing calls visible to the current staff account. Results are retained on call records and invalidated if transcript text changes. Batch progress is per user and in memory; after restarting a worker, rerun an interrupted batch. Call conversation assessment is separate from incident-field QA, which still requires a resolved ticket. The configured Gemini/Vertex provider performs the live assessments.
+
+### Low-latency browser calls
+
+With Vertex/ADC, `LIVE_TRANSCRIPTION_BACKEND=auto` uses Google Speech-to-Text V2
+`chirp_3` (`SPEECH_LOCATION=us`, `SPEECH_LANGUAGE=en-IN`). Audio is streamed as
+speech arrives, with temporary live captions and finalized, speaker-labeled
+transcripts stored for incidents/audits. Partial hypotheses are never audited.
+Streams end at utterance boundaries and are capped at 12 seconds; they reconnect
+for each new segment using the same client. Speech and AI response processing run
+independently, and Gemini speech output plays incrementally.
+
+Install `requirements-real.txt`, enable `speech.googleapis.com`, and grant
+`roles/speech.client` to the Cloud Run runtime service account. The Cloud Shell
+deployment script configures these. Use ADC locally; no additional API key is
+required. `SPEECH_LOCATION` must support Chirp 3 streaming for the chosen language;
+`us` was verified for this project, while `asia-southeast1` rejected `en-IN`.
+Set `LIVE_TRANSCRIPTION_BACKEND=batch` to explicitly return to the configured
+Gemini/OpenAI file-transcription path. Other providers use batch in `auto` mode.
+
+Keep the voice worker on an always-allocated CPU with at least one warm instance.
+The deployment scripts use one instance because active voice workers live in
+process memory; do not scale this implementation across instances without shared
+worker dispatch. These settings incur idle compute charges. Provider timings
+(first speech audio, transcription, pickup confirmation) are logged without
+transcript text or credentials. Uploaded audio transcription is unchanged.
+
+### Conversation lists and navigation
+
+Tickets, Transcripts, Knowledge, Resolution debt, and both ticket and call Quality audit lists show 10 records per page. Previous/Next controls work on the filtered results; changing a filter starts at page 1. Opening a transcript shows a dedicated detail page with the newest message first and a shareable `?transcript=...` URL. Back to transcripts retains the current filters and page during the session. Call activity displays elapsed days (including “Less than 1 day” for recent calls).
+
+Answer gives immediate connection feedback and starts microphone capture alongside the call reservation. The server still confirms room membership and publishing permission before microphone audio is published.
