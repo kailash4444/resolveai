@@ -1613,42 +1613,42 @@
         "greeting": {
           "score": 100,
           "evidence": "Thank you for reaching out to Pizza Hut, this is Wes, how can we help you today?",
-          "explanation": "The technician clearly introduced the service desk, provided his name, and invited the customer to explain the issue.",
-          "improvement": "Maintain this consistent and professional greeting standard on all calls."
+          "explanation": "The technician clearly identified the organisation, stated their name, and courteously invited the customer to explain the issue.",
+          "improvement": "Maintain this standard greeting on future calls."
         },
         "problem_solving": {
-          "score": 95,
-          "evidence": "uh, could you please go to the uh, my printer or my print services in your laptop and on the connect to printer",
-          "explanation": "The technician quickly gathered the relevant workstation and printer details and provided accurate instructions that resolved the connection issue immediately.",
-          "improvement": "Offer to send a quick test page after connecting to ensure print jobs process smoothly."
+          "score": 90,
+          "evidence": "could you please go to the uh, my printer or my print services in your laptop and on the connect to printer",
+          "explanation": "The technician collected necessary details and directed the customer to the correct application, resolving the connection issue swiftly.",
+          "improvement": "Recommend having the customer run a test print to confirm full end-to-end functionality."
         },
         "empathy": {
-          "score": 70,
+          "score": 80,
           "evidence": "definitely",
-          "explanation": "The technician was polite, cooperative, and willing to assist, but did not explicitly acknowledge the impact or frustration caused by the printer issue.",
-          "improvement": "Acknowledge the inconvenience of being unable to print before moving into troubleshooting."
+          "explanation": "The technician was receptive and willing to help, though did not explicitly acknowledge any impact the issue had on the user.",
+          "improvement": "Acknowledge the inconvenience of printer issues before moving directly to troubleshooting."
         },
         "communication": {
           "score": 85,
           "evidence": "uh, could you please go to the uh, my printer or my print services in your laptop and on the connect to printer",
-          "explanation": "The technician provided clear and actionable guidance that allowed the customer to successfully connect to the printer on the first attempt.",
-          "improvement": "Avoid slight hesitation or filler words when directing the customer to applications."
+          "explanation": "Instructions were easy to follow and guided the customer successfully to the application, despite minor verbal fillers.",
+          "improvement": "Eliminate filler words to make spoken instructions even crisper."
         },
         "verification": {
-          "score": 60,
-          "evidence": "and workstation number",
-          "explanation": "The technician collected the workstation number and printer details, but did not have the customer run a test print to verify that printing actually worked.",
-          "improvement": "Ask the customer to perform a test print to verify full functionality beyond just establishing the connection."
+          "score": 70,
+          "evidence": "Printer number and workstation number",
+          "explanation": "The technician gathered identifying machine numbers before proceeding, but did not perform identity verification or verify with a test print.",
+          "improvement": "Perform a test print verification to confirm that print jobs actually go through."
         },
         "closure": {
           "score": 0,
           "evidence": "Oh, thank you so much for your help. Appreciate that.",
-          "explanation": "The technician provided no closing statement, summary, or confirmation of further assistance before the call concluded.",
-          "improvement": "Provide a proper wrap-up by asking if there is anything else needed, summarizing the resolution, and offering a polite farewell."
+          "explanation": "The call ended immediately after the customer's thanks without any closing summary, confirmation of further needs, or formal sign-off from the technician.",
+          "improvement": "Provide a proper wrap-up by asking if any additional assistance is needed and offering a polite farewell."
         }
       },
       "fingerprint": "839fbfc4494ce6d1f04030b70e7a1adf1987e70f272c2e7bc544368945054b25",
-      "assessed_at": "2026-10-13T13:42:50.341604+00:00",
+      "assessed_at": "2026-10-13T14:41:57.399157+00:00",
       "provider": "vertex",
       "model": "gemini-3.8-flash"
     }
@@ -1881,44 +1881,44 @@
     "quality_audit": {
       "metrics": {
         "greeting": {
-          "score": 100,
+          "score": 95,
           "evidence": "Hey Raj, thank you for calling IT service desk. How could I help you today?",
-          "explanation": "The technician properly identified the service desk, addressed the user, and invited them to state the issue.",
-          "improvement": "Include your own name in the greeting to provide a more personalized introduction."
+          "explanation": "The technician warmly greeted the customer by name, identified the service desk, and invited the customer to explain the problem.",
+          "improvement": "Introduce yourself by name to provide a fully professional and personalized opening."
         },
         "problem_solving": {
           "score": 90,
           "evidence": "Okay uh below the monitor, there would be some buttons on the right most there would be one button please click the button.",
-          "explanation": "The technician diagnosed the issue as a simple power issue and provided effective instructions that immediately resolved the problem.",
-          "improvement": "Ask diagnostic questions first, such as checking if the monitor's power LED is illuminated, before advising on button presses."
+          "explanation": "The technician quickly identified the likely issue and provided accurate, straightforward instructions to turn on the monitor, resolving the problem.",
+          "improvement": "Check whether the monitor's power indicator light is already visible before instructing the user to press buttons."
         },
         "empathy": {
-          "score": 60,
+          "score": 75,
           "evidence": "Oh, sure, I can help you with that.",
-          "explanation": "The technician showed willingness to help in a polite manner, but did not acknowledge the inconvenience of not having a display.",
-          "improvement": "Acknowledge how disruptive a blank monitor can be to the user's work before moving straight to troubleshooting."
+          "explanation": "The technician responded with a helpful and supportive attitude, though there was no explicit acknowledgment of impact.",
+          "improvement": "Acknowledge how disruptive hardware display issues can be to the customer's work."
         },
         "communication": {
           "score": 85,
-          "evidence": "below the monitor, there would be some buttons on the right most there would be one button please click the button.",
-          "explanation": "The instructions were plain and clear, though the technician had to backtrack slightly to mention ensuring the power was on.",
-          "improvement": "Deliver instructions in a structured sequence by asking to ensure main power is connected before instructing the user to press the power button."
+          "evidence": "Uh, before that, please ensure that the power is on.",
+          "explanation": "The instructions were clear and easy to follow, although ordering the steps chronologically rather than adding a prerequisite after the fact would be clearer.",
+          "improvement": "Guide the customer through steps in chronological order so they check the main power before looking for the monitor button."
         },
         "verification": {
-          "score": 30,
-          "evidence": "Uh, before that, please ensure that the power is on.",
-          "explanation": "The technician did not verify user identity or confirm that the display was fully functional after the action; the caller simply declared success.",
-          "improvement": "Explicitly ask the user to verify that the screen is displaying the desktop correctly after powering it on."
+          "score": 50,
+          "evidence": "Oh, sure, I can help you with that.",
+          "explanation": "The technician did not verify the caller's credentials or account details, nor did they explicitly confirm the outcome before the interaction ended.",
+          "improvement": "Verify caller identity according to desk protocol and explicitly verify that the display is functioning properly."
         },
         "closure": {
           "score": 0,
           "evidence": "Thank you for helping me.",
-          "explanation": "The technician offered no closing remarks, summary of the fix, or final check for additional questions before the call ended.",
-          "improvement": "Provide a proper wrap-up by summarizing the fix, checking if further help is needed, and giving a professional farewell."
+          "explanation": "The technician did not provide any closing statements, summary of resolution, or offer for further assistance before the transcript ended.",
+          "improvement": "Deliver a complete closing statement summarizing the fix and asking if the customer needs assistance with anything else."
         }
       },
       "fingerprint": "5199821c70f7e3e7faa6848f13c7406b036669af7df7d0996627b1c79c0bb9a7",
-      "assessed_at": "2026-10-13T13:42:39.659986+00:00",
+      "assessed_at": "2026-10-13T14:41:45.801373+00:00",
       "provider": "vertex",
       "model": "gemini-3.8-flash"
     }
@@ -2264,44 +2264,44 @@
     "quality_audit": {
       "metrics": {
         "greeting": {
-          "score": 100,
+          "score": 95,
           "evidence": "Welcome to ResolveAI. This call is transcribed. Please describe the issue you are having.",
-          "explanation": "The agent successfully introduces the service desk and explicitly invites the customer to describe their issue.",
-          "improvement": "Continue providing clear and direct opening greetings."
+          "explanation": "The AI agent clearly introduces the service desk, discloses call transcription, and invites the customer to describe their issue.",
+          "improvement": "Inquire for the customer's name to make the greeting more personal."
         },
         "problem_solving": {
-          "score": 80,
+          "score": 75,
           "evidence": "I am connecting you to an available technician. Please stay on the call.",
-          "explanation": "When the customer provided an unclear initial response, the agent promptly escalated to an available technician without penalizing the call.",
-          "improvement": "Attempt a brief clarifying question before immediately routing the user to a technician."
+          "explanation": "Upon receiving an unclear response, the AI agent escalated the caller to a human technician rather than leaving them stranded.",
+          "improvement": "Ask a clarifying question to attempt basic triage before escalating to a human technician."
         },
         "empathy": {
           "score": null,
           "evidence": "",
-          "explanation": "The customer did not express any distress or emotional impact, providing insufficient context to evaluate empathy.",
-          "improvement": "Acknowledge the customer's needs and express readiness to help if they voice frustration."
+          "explanation": "The caller did not express any emotion, difficulty, or impact, leaving insufficient evidence to evaluate empathy.",
+          "improvement": "Acknowledge the caller's situation respectfully whenever an issue or frustration is mentioned."
         },
         "communication": {
           "score": 90,
           "evidence": "I am connecting you to an available technician. Please stay on the call.",
-          "explanation": "The instructions were clear, concise, and easy to understand without jargon.",
-          "improvement": "Inform the caller about estimated wait times or what information to have ready for the technician."
+          "explanation": "The instructions provided by the AI agent were clear, concise, and easy to understand.",
+          "improvement": "Provide an estimated wait time or explanation of what will happen during the transfer."
         },
         "verification": {
           "score": null,
           "evidence": "",
-          "explanation": "There was no requirement or opportunity to verify caller identity or troubleshoot outcomes during this brief interaction.",
-          "improvement": "Perform identity checks whenever account-specific actions or access requests are initiated."
+          "explanation": "No identity check or outcome verification was required or attempted during this brief routing phase.",
+          "improvement": "Collect basic identifying details such as an account or employee ID prior to routing."
         },
         "closure": {
           "score": null,
           "evidence": "",
-          "explanation": "The interaction terminated during routing after the customer posed a question, so no closure phase took place.",
-          "improvement": "Ensure proper call conclusion by confirming issues are addressed and detailing next steps before ending the interaction."
+          "explanation": "The interaction was ongoing and transferred rather than concluded, providing insufficient evidence for closure.",
+          "improvement": "Ensure a complete summary of the resolution and confirmation of satisfaction is performed at the conclusion of the call."
         }
       },
       "fingerprint": "ed4ed16a00ad365c605a936861e807fc0cd8b74bf1eeaa70a1621161788f526e",
-      "assessed_at": "2026-10-13T13:42:14.605907+00:00",
+      "assessed_at": "2026-10-13T14:41:36.186453+00:00",
       "provider": "vertex",
       "model": "gemini-3.8-flash"
     }
@@ -2422,44 +2422,44 @@
     "quality_audit": {
       "metrics": {
         "greeting": {
-          "score": 85,
+          "score": 90,
           "evidence": "Thank you calling service desk, how can I help you today?",
-          "explanation": "The handler greets the customer, names the service desk, and invites the caller to state their issue, but does not provide their own name initially.",
-          "improvement": "Introduce your name along with the service desk name in the initial opening statement."
+          "explanation": "The technician welcomed the caller, introduced the service desk, and invited the caller to explain the issue, but did not introduce his own name until a later turn.",
+          "improvement": "State your name alongside the service desk greeting at the start of the call."
         },
         "problem_solving": {
           "score": 95,
           "evidence": "The directory account is deactivated. I have raised a reactivation request with the identity team and asked your manager for approval.",
-          "explanation": "The technician clarified symptoms, diagnosed the deactivation, and followed the proper escalation pathway to the identity team with manager approval.",
-          "improvement": "Provide an expected turnaround time or SLA for the identity team's reactivation process."
+          "explanation": "The technician effectively clarified the symptoms, diagnosed the account state, and initiated the proper escalation and approval workflow without inappropriate promises.",
+          "improvement": "Provide an estimated turnaround time for the identity team to process the request once approval is received."
         },
         "empathy": {
           "score": 55,
           "evidence": "I am Arjun Reddy. What is the exact sign-in message, and when did you last use the account?",
-          "explanation": "The technician did not acknowledge the customer's stated frustration about delays to their morning tasks upon returning from leave.",
-          "improvement": "Acknowledge the impact of the disruption by validating the urgency of the morning tasks before asking technical questions."
+          "explanation": "The technician remained polite throughout the call but did not acknowledge the caller's stated frustration regarding delays to their morning tasks.",
+          "improvement": "Directly acknowledge the impact on the customer's morning tasks before moving straight into technical diagnostic questions."
         },
         "communication": {
           "score": 95,
           "evidence": "That is expected while approval is pending. Can you confirm your manager received the approval request?",
-          "explanation": "Clear explanations were provided regarding the account state, avoiding jargon and confirming understanding directly.",
-          "improvement": "Summarize what actions the customer or manager should take if the approval notification is not received promptly."
+          "explanation": "The technician communicated clearly, explained why access was still unavailable, and actively checked understanding regarding the approval request.",
+          "improvement": "Reassure the customer explicitly that their workstation will function normally as soon as the identity team completes reactivation."
         },
         "verification": {
           "score": 100,
           "evidence": "I will verify your identity through our approved process and check the account status. Please do not share a password or verification code.",
-          "explanation": "The handler directed identity verification through an approved method, proactively protected secrets, and accurately verified that access remained disabled pending approval.",
-          "improvement": "Maintain these robust verification and credential-protection practices on every call."
+          "explanation": "The technician followed an approved identity verification process and explicitly reminded the customer to protect sensitive credentials like passwords and verification codes.",
+          "improvement": "Continue applying security best practices consistently across all identity verification scenarios."
         },
         "closure": {
           "score": 95,
           "evidence": "I will put this incident On Hold pending manager approval and identity-team reactivation. The incident number is INC0000001 and the call reference is CALL-DEMO-0001. You can follow progress in ResolveAI.",
-          "explanation": "The technician thoroughly explained the pending work, gave reference numbers, and instructed where to track progress.",
-          "improvement": "Ask if there is anything else the customer needs help with before concluding the call."
+          "explanation": "The technician provided clear ticket references, stated the ticket status and pending actions, and explained how the customer can track progress.",
+          "improvement": "Ask the customer if they have any additional questions or need assistance with anything else before ending the call."
         }
       },
       "fingerprint": "82acdcc232b2773b44b10e7303d9179f0274ac08ba339791bb6e59db72d961de",
-      "assessed_at": "2026-10-13T13:27:01.133932+00:00",
+      "assessed_at": "2026-10-13T14:02:21.453020+00:00",
       "provider": "vertex",
       "model": "gemini-3.8-flash"
     }
@@ -2576,7 +2576,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 90,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician greets the caller, identifies the service desk, and invites them to explain the issue, though her personal name was not provided until the subsequent turn.",
+          "improvement": "Introduce your name along with the service desk greeting in the very first statement."
+        },
+        "problem_solving": {
+          "score": 95,
+          "evidence": "The directory account is deactivated. I have raised a reactivation request with the identity team and asked your manager for approval.",
+          "explanation": "The technician clarified symptoms, diagnosed the status accurately, followed appropriate escalation pathways for identity reactivation, and set the ticket on hold correctly.",
+          "improvement": "Provide an estimated timeframe for how long the identity team typically takes to reactivate an account once manager approval is granted."
+        },
+        "empathy": {
+          "score": 45,
+          "evidence": "I am Priya Sharma. What is the exact sign-in message, and when did you last use the account?",
+          "explanation": "The technician moved directly into troubleshooting without acknowledging the customer's statement that the issue was delaying their morning tasks.",
+          "improvement": "Acknowledge the impact on the customer's morning workload before asking diagnostic questions, for example by saying you understand how disruptive account lockouts are to morning tasks."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "That is expected while approval is pending. Can you confirm your manager received the approval request?",
+          "explanation": "The technician communicated clearly, set proper expectations regarding system behavior during pending approvals, and checked understanding without using confusing jargon.",
+          "improvement": "Confirm whether the customer has alternate communication channels to contact their manager if needed."
+        },
+        "verification": {
+          "score": 100,
+          "evidence": "I will verify your identity through our approved process and check the account status. Please do not share a password or verification code.",
+          "explanation": "The technician carried out identity verification through an approved channel and proactively warned the customer not to share passwords or security codes.",
+          "improvement": "Maintain this standard of clearly instructing users to protect credentials during identity verification."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "I will put this incident On Hold pending manager approval and identity-team reactivation. The incident number is INC0000002 and the call reference is CALL-DEMO-0002. You can follow progress in ResolveAI.",
+          "explanation": "The technician explained pending work, gave the specific incident and call reference numbers, and instructed the user on where to track progress.",
+          "improvement": "Offer a final check to see if the customer has any other questions before ending the interaction."
+        }
+      },
+      "fingerprint": "55edc726ec37be56a9fee21e4461987de9371e25baad53ee10012ec4ca6db1a0",
+      "assessed_at": "2026-10-13T14:02:11.677945+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0003",
@@ -2690,7 +2734,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 90,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician introduces the service desk and invites the caller to state the issue, though he introduces his name in the next turn.",
+          "improvement": "State your name directly in the initial opening greeting along with the service desk introduction."
+        },
+        "problem_solving": {
+          "score": 95,
+          "evidence": "The directory account is deactivated. I have raised a reactivation request with the identity team and asked your manager for approval.",
+          "explanation": "The technician asks relevant diagnostic questions, identifies the root cause of the login failure, and executes the proper escalation workflow.",
+          "improvement": "Provide an estimated turnaround time for the identity team's action once manager approval is granted."
+        },
+        "empathy": {
+          "score": 55,
+          "evidence": "I am Rahul Verma. What is the exact sign-in message, and when did you last use the account?",
+          "explanation": "The technician jumps straight into troubleshooting without acknowledging the customer's stated delay to morning tasks.",
+          "improvement": "Acknowledge the impact on the customer's morning tasks with a supportive statement before asking troubleshooting questions."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "That is expected while approval is pending. Can you confirm your manager received the approval request?",
+          "explanation": "The technician communicates clearly, explains the reason for the ongoing lock, and verifies the manager's receipt of the request.",
+          "improvement": "Ensure you explicitly ask if the customer has any questions about monitoring the incident status."
+        },
+        "verification": {
+          "score": 100,
+          "evidence": "I will verify your identity through our approved process and check the account status. Please do not share a password or verification code.",
+          "explanation": "The technician follows an approved identity verification process and proactively instructs the customer to safeguard credentials.",
+          "improvement": "Continue following this rigorous security practice on all verification requests."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "I will put this incident On Hold pending manager approval and identity-team reactivation. The incident number is INC0000003 and the call reference is CALL-DEMO-0003. You can follow progress in ResolveAI.",
+          "explanation": "The technician clearly outlines the pending actions, ticket status, ticket references, and tracking methods.",
+          "improvement": "Include a polite closing question to confirm if any further assistance is required before concluding."
+        }
+      },
+      "fingerprint": "f2459c7fdfe7174b675ebe0503fe0cec153609a6cf5dc6936c2b8344a4edc112",
+      "assessed_at": "2026-10-13T14:02:00.484044+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0004",
@@ -2804,7 +2892,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 90,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician welcomed the caller, introduced the service desk, and invited the customer to explain the issue, though her name was shared in a subsequent turn.",
+          "improvement": "Include your name in the initial opening sentence alongside the service desk greeting."
+        },
+        "problem_solving": {
+          "score": 95,
+          "evidence": "The directory account is deactivated. I have raised a reactivation request with the identity team and asked your manager for approval.",
+          "explanation": "The technician asked appropriate diagnostic questions, verified the status, and correctly initiated the escalation and approval workflow for an inactive directory account.",
+          "improvement": "Outline expected turnaround times for identity-team provisioning once manager approval is granted."
+        },
+        "empathy": {
+          "score": 55,
+          "evidence": "Thank you, Neha. I will verify your identity through our approved process and check the account status.",
+          "explanation": "The technician remained polite and professional, but did not acknowledge the customer's urgency regarding the scheduled team handover.",
+          "improvement": "Acknowledge the impact of the lockout on the customer's team handover before transitioning into verification."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "That is expected while approval is pending. Can you confirm your manager received the approval request?",
+          "explanation": "The technician communicated clearly, set proper expectations regarding system behavior during approval, and checked understanding.",
+          "improvement": "Offer guidance on what the customer should do if the manager does not receive the automated approval email."
+        },
+        "verification": {
+          "score": 100,
+          "evidence": "Please do not share a password or verification code.",
+          "explanation": "The technician used an approved verification process, proactively protected sensitive credentials, and confirmed the account state.",
+          "improvement": "Maintain these robust verification and security practices."
+        },
+        "closure": {
+          "score": 100,
+          "evidence": "I will put this incident On Hold pending manager approval and identity-team reactivation. The incident number is INC0000004 and the call reference is CALL-DEMO-0004. You can follow progress in ResolveAI.",
+          "explanation": "The technician thoroughly explained next steps, provided the ticket and call reference numbers, and instructed the caller where to track progress.",
+          "improvement": "Offer to proactively notify the user once the identity team completes the reactivation."
+        }
+      },
+      "fingerprint": "1308663cfd28fe423f8e42b094907cda97633cb7cbbdb2a92ca6b1ee072e360f",
+      "assessed_at": "2026-10-13T14:01:46.096611+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0005",
@@ -2918,7 +3050,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 85,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician welcomed the caller to the service desk and invited them to explain the issue, but did not state their name until later in the conversation.",
+          "improvement": "Introduce your name at the start of the call along with the department greeting."
+        },
+        "problem_solving": {
+          "score": 95,
+          "evidence": "The directory account is deactivated. I have raised a reactivation request with the identity team and asked your manager for approval.",
+          "explanation": "The technician clarified symptoms, identified that the account was deactivated, and executed the supported escalation path requiring identity team reactivation and manager approval.",
+          "improvement": "Provide an estimated turnaround time for the identity team's action once manager approval is granted."
+        },
+        "empathy": {
+          "score": 50,
+          "evidence": "I am Vikram Rao. What is the exact sign-in message, and when did you last use the account?",
+          "explanation": "The technician did not acknowledge the customer's stated urgency regarding needing access for today's team handover.",
+          "improvement": "Acknowledge the customer's deadline by validating the impact of not having access for their team handover."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "That is expected while approval is pending. Can you confirm your manager received the approval request?",
+          "explanation": "The technician communicated clearly, set proper expectations regarding current system access, and confirmed understanding.",
+          "improvement": "Continue maintaining clear and concise phrasing when setting user expectations."
+        },
+        "verification": {
+          "score": 100,
+          "evidence": "I will verify your identity through our approved process and check the account status. Please do not share a password or verification code.",
+          "explanation": "The technician properly used an approved verification process and proactively warned the customer not to disclose credentials or secret codes.",
+          "improvement": "Maintain these strong verification and credential protection practices."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "I will put this incident On Hold pending manager approval and identity-team reactivation. The incident number is INC0000005 and the call reference is CALL-DEMO-0005. You can follow progress in ResolveAI.",
+          "explanation": "The technician clearly outlined the ticket status, pending actions, next steps, tracking portal, and provided incident references.",
+          "improvement": "Ask if the customer has any additional questions before concluding the interaction."
+        }
+      },
+      "fingerprint": "9046c65a4b2292806676f1aba7273529875082e66fdf22b3b3832d2f99d71af5",
+      "assessed_at": "2026-10-13T14:01:34.789909+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0006",
@@ -3032,7 +3208,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 90,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician greets the caller, mentions the service desk, and invites the customer to state the issue, though personal introduction was delayed to the second turn.",
+          "improvement": "Include your name in the opening sentence alongside the service desk greeting."
+        },
+        "problem_solving": {
+          "score": 95,
+          "evidence": "Can you reach the approved password-reset portal, and is another sign-in method already registered?",
+          "explanation": "The technician methodically guides the caller to self-service password reset and ensures all related logins work properly.",
+          "improvement": "Guide the user through any common password policy requirements beforehand to prevent reset errors."
+        },
+        "empathy": {
+          "score": 70,
+          "evidence": "Thank you, Nandini. Use your corporate account in the reset portal.",
+          "explanation": "The technician is polite and respectful, but does not acknowledge the user's stated urgency regarding the upcoming team handover.",
+          "improvement": "Acknowledge the impact directly, such as recognizing the urgency of the team handover."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "Choose a new password that meets the displayed requirements, submit it, and try signing in to the corporate workstation.",
+          "explanation": "Instructions are direct, concise, and easy to follow without technical jargon.",
+          "improvement": "Confirm whether the customer understands the steps before prompting them to submit."
+        },
+        "verification": {
+          "score": 100,
+          "evidence": "Complete verification there; do not read the password or verification code to me.",
+          "explanation": "The technician protects credentials proactively and thoroughly verifies outcomes across both workstation unlocking and the employee portal.",
+          "improvement": "Continue to enforce credential security guidelines as standard operating procedure."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000006 and the call reference is CALL-DEMO-0006.",
+          "explanation": "The technician summarizes the successful checks, confirms resolution, and provides tracking reference numbers.",
+          "improvement": "Offer an explicit final check asking if there is anything else needed before ending the call."
+        }
+      },
+      "fingerprint": "ceac3a23e74f7b5568b5679ad1ffe7a0b168fd058e089f2e15a5165e9e2c49e3",
+      "assessed_at": "2026-10-13T14:01:26.967151+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0007",
@@ -3146,7 +3366,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 90,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician thanked the customer, identified the service desk, and invited the customer to explain the issue, though he did not share his name until the next turn.",
+          "improvement": "Include your name in the initial opening greeting along with the service desk identification."
+        },
+        "problem_solving": {
+          "score": 100,
+          "evidence": "Choose a new password that meets the displayed requirements, submit it, and try signing in to the corporate workstation.",
+          "explanation": "The technician diagnosed the issue immediately, guided the customer through the self-service reset portal, and systematically verified the resolution.",
+          "improvement": "Continue applying systematic, policy-aligned troubleshooting steps."
+        },
+        "empathy": {
+          "score": 50,
+          "evidence": "I am Karthik Menon. Can you reach the approved password-reset portal, and is another sign-in method already registered?",
+          "explanation": "The technician remained polite but completely overlooked the customer's stated afternoon deadline and potential stress.",
+          "improvement": "Acknowledge the customer's deadline explicitly to validate their concern and provide reassurance."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "Use your corporate account in the reset portal. Complete verification there; do not read the password or verification code to me.",
+          "explanation": "Instructions were concise, clear, and easy to follow without confusing jargon.",
+          "improvement": "Check in with the customer to confirm understanding before delivering multiple instructions at once."
+        },
+        "verification": {
+          "score": 100,
+          "evidence": "Complete verification there; do not read the password or verification code to me.",
+          "explanation": "The technician actively protected credentials by advising against sharing secrets and thoroughly verified the outcome across multiple systems.",
+          "improvement": "Maintain this high standard of credential protection and outcome verification on all calls."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000007 and the call reference is CALL-DEMO-0007.",
+          "explanation": "The technician summarized the successful checks, stated the resolution status, and provided both incident and call reference numbers.",
+          "improvement": "Ask the customer if they require any additional assistance before closing the call."
+        }
+      },
+      "fingerprint": "1a57ba29610463be30412547c751cbd39ce2aed93536b0e5d626cee0b771010e",
+      "assessed_at": "2026-10-13T14:01:17.300615+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0008",
@@ -3260,7 +3524,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 90,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician introduces the service desk and invites the customer to explain the issue, but introduces her name only in the second turn.",
+          "improvement": "State your name upfront along with the service desk introduction."
+        },
+        "problem_solving": {
+          "score": 95,
+          "evidence": "Can you reach the approved password-reset portal, and is another sign-in method already registered?",
+          "explanation": "The technician quickly identifies the correct self-service path and guides the user through resetting and testing access.",
+          "improvement": "Continue diagnosing and guiding users step by step through self-service recovery portals."
+        },
+        "empathy": {
+          "score": 50,
+          "evidence": "I am Pooja Deshmukh. Can you reach the approved password-reset portal, and is another sign-in method already registered?",
+          "explanation": "The technician does not acknowledge the customer's stated afternoon deadline or express understanding of the urgency.",
+          "improvement": "Acknowledge the customer's deadline and validate their urgency before jumping straight into troubleshooting questions."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "Use your corporate account in the reset portal. Complete verification there; do not read the password or verification code to me.",
+          "explanation": "The technician provides concise, direct instructions and clearly communicates security requirements.",
+          "improvement": "Ask a brief check-for-understanding question if a user ever seems hesitant."
+        },
+        "verification": {
+          "score": 100,
+          "evidence": "Please lock and unlock the workstation once, then open the employee portal to confirm the same account works.",
+          "explanation": "The technician protects credentials proactively and thoroughly verifies resolution with multiple functional checks.",
+          "improvement": "Maintain these strict security reminders and thorough post-fix functional checks."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000008 and the call reference is CALL-DEMO-0008. You can follow progress in ResolveAI.",
+          "explanation": "The technician confirms resolution, explains that the ticket is being resolved, and shares reference details.",
+          "improvement": "Offer an explicit final check asking if the user needs help with anything else before closing."
+        }
+      },
+      "fingerprint": "480d772dfc524a3052536a8b6dd3eb0afccc022dcf4cbaf41d2d359f7aa7f9c2",
+      "assessed_at": "2026-10-13T14:01:03.967691+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0009",
@@ -3374,7 +3682,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 90,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician introduces the service desk and warmly invites the caller to state the issue, though he introduces his name only in the subsequent response.",
+          "improvement": "State your name upfront alongside the department greeting during the initial greeting."
+        },
+        "problem_solving": {
+          "score": 95,
+          "evidence": "Choose a new password that meets the displayed requirements, submit it, and try signing in to the corporate workstation.",
+          "explanation": "The technician logically guided the customer through using the self-service portal, ensuring appropriate steps were followed sequentially to full resolution.",
+          "improvement": "Offer proactive tips or self-service documentation links to help prevent similar portal confusion in the future."
+        },
+        "empathy": {
+          "score": 60,
+          "evidence": "I am Rohit Patel. Can you reach the approved password-reset portal, and is another sign-in method already registered?",
+          "explanation": "The technician remained polite but failed to acknowledge the customer's stated deadline pressure.",
+          "improvement": "Acknowledge the customer's afternoon deadline directly to provide reassurance that the issue will be resolved promptly."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "Please lock and unlock the workstation once, then open the employee portal to confirm the same account works.",
+          "explanation": "Instructions were clear, concise, step-by-step, and easy for the user to understand without technical jargon.",
+          "improvement": "Continue maintaining this concise phrasing while checking in to confirm the user is ready before moving to subsequent verification steps."
+        },
+        "verification": {
+          "score": 95,
+          "evidence": "Complete verification there; do not read the password or verification code to me.",
+          "explanation": "The technician explicitly protected customer secrets by instructing them not to share passwords or codes, and thoroughly verified troubleshooting outcomes across systems.",
+          "improvement": "Explicitly confirm standard identity verification details before proceeding with account-related instructions."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000009 and the call reference is CALL-DEMO-0009. You can follow progress in ResolveAI.",
+          "explanation": "The technician summarized the successful checks, stated that the ticket would be resolved, provided ticket references, and explained where to track progress.",
+          "improvement": "Ask if the customer has any additional questions or concerns before formally closing the call."
+        }
+      },
+      "fingerprint": "1e4a425532a4b480bf87f25e4743ab949ec79d7f5b790b473b02963350e5816b",
+      "assessed_at": "2026-10-13T14:00:51.521696+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0010",
@@ -3488,7 +3840,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 85,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician introduces the service desk and invites the customer to explain the issue, but does not provide their name until the second turn.",
+          "improvement": "Introduce your name alongside the service desk greeting right at the start of the call."
+        },
+        "problem_solving": {
+          "score": 95,
+          "evidence": "Choose a new password that meets the displayed requirements, submit it, and try signing in to the corporate workstation.",
+          "explanation": "The technician logically identifies the supported self-service reset flow and provides structured steps that successfully resolve the login issue.",
+          "improvement": "Ask if the customer requires assistance with any other accounts linked to their domain profile before concluding."
+        },
+        "empathy": {
+          "score": 65,
+          "evidence": "I am Divya Krishnan. Can you reach the approved password-reset portal, and is another sign-in method already registered?",
+          "explanation": "The technician is professional and polite, but fails to acknowledge the customer's need to complete their current shift's work.",
+          "improvement": "Acknowledge the urgency directly by stating that you understand they need to get back to their shift work promptly."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "Please lock and unlock the workstation once, then open the employee portal to confirm the same account works.",
+          "explanation": "The instructions are clear, well-paced, and guide the user through testing without jargon.",
+          "improvement": "Continue checking if the customer has any questions before moving between testing steps."
+        },
+        "verification": {
+          "score": 95,
+          "evidence": "Complete verification there; do not read the password or verification code to me.",
+          "explanation": "The technician actively protects security credentials by instructing the user not to share passwords or codes, and thoroughly verifies the outcome.",
+          "improvement": "Explicitly confirm user identity details before initiating assistance with domain credentials."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000010 and the call reference is CALL-DEMO-0010.",
+          "explanation": "The technician summarizes the outcome, confirms resolution, and provides tracking identifiers for future reference.",
+          "improvement": "Ask the customer if there is anything else they require assistance with before concluding."
+        }
+      },
+      "fingerprint": "0b63658176d2abd57d563b8ccbe4ae80fa51fb588618fff9a6a9f442277ef7f0",
+      "assessed_at": "2026-10-13T14:00:43.634214+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0011",
@@ -3602,7 +3998,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 85,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician introduces the service desk and invites the caller to state their request, though he only introduces his name later.",
+          "improvement": "State your name alongside the service desk greeting at the very beginning of the interaction."
+        },
+        "problem_solving": {
+          "score": 100,
+          "evidence": "I have checked the account directory. The approved sign-in format for this screen is your corporate email address.",
+          "explanation": "The technician effectively identified the cause of the sign-in error by asking for the username format and checking the directory, providing the exact solution needed.",
+          "improvement": "Maintain this systematic approach to diagnosing authentication and sign-in format discrepancies."
+        },
+        "empathy": {
+          "score": 60,
+          "evidence": "I am Siddharth Gupta. What username format are you entering?",
+          "explanation": "While professional and polite, the technician did not acknowledge the customer's time sensitivity or work impact regarding completing their shift.",
+          "improvement": "Acknowledge the customer's situation and urgency when they mention being blocked from completing their shift."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "Select Other user and enter your corporate email address exactly as shown in the employee portal, then enter the password privately.",
+          "explanation": "The technician provided clear, concise instructions step by step without jargon.",
+          "improvement": "Ask a quick check-in question to ensure the user understands the instructions before they attempt them."
+        },
+        "verification": {
+          "score": 90,
+          "evidence": "Please open your home folder and the employee portal to confirm you are in the correct account.",
+          "explanation": "The technician actively protected secrets by reminding the user not to share passwords and thoroughly verified the successful login outcome.",
+          "improvement": "Conduct formal user identity verification before assisting with account directory lookups and login guidance."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000011 and the call reference is CALL-DEMO-0011.",
+          "explanation": "The technician confirmed resolution, provided reference numbers, and noted the incident status clearly.",
+          "improvement": "Ask whether the customer needs help with any other issues before concluding the call."
+        }
+      },
+      "fingerprint": "9df9a602742f968ed2b2a724227ad128fdf8985fe20879c9e0796967fbc3c4c8",
+      "assessed_at": "2026-10-13T14:00:33.453131+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0012",
@@ -3716,7 +4156,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 90,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician thanked the customer, identified the service desk, and invited the customer to explain the issue, though self-introduction was omitted until the next turn.",
+          "improvement": "Introduce yourself by name in the initial greeting alongside the service desk identification."
+        },
+        "problem_solving": {
+          "score": 100,
+          "evidence": "I have checked the account directory. The approved sign-in format for this screen is your corporate email address.",
+          "explanation": "The technician clarified the format being attempted, looked up the user in the directory, identified the correct logon format, and guided the customer to a successful login.",
+          "improvement": "Maintain this logical approach to clarifying input and checking backend directories."
+        },
+        "empathy": {
+          "score": 70,
+          "evidence": "Thank you, Ritika. I have checked the account directory.",
+          "explanation": "The technician remained polite and respectful throughout, but did not acknowledge the customer's stated urgency regarding completing the current shift's work.",
+          "improvement": "Acknowledge the impact of the issue on the customer's work, such as validating their concern about finishing their shift on time."
+        },
+        "communication": {
+          "score": 100,
+          "evidence": "Select Other user and enter your corporate email address exactly as shown in the employee portal, then enter the password privately.",
+          "explanation": "Instructions were concise, step-by-step, and free of confusing jargon.",
+          "improvement": "Continue to provide direct and clear actionable guidance."
+        },
+        "verification": {
+          "score": 100,
+          "evidence": "Please open your home folder and the employee portal to confirm you are in the correct account.",
+          "explanation": "The technician protected credentials by instructing the customer not to share passwords and thoroughly verified the outcome by checking access to the portal and home folder.",
+          "improvement": "Continue prompting users to verify profile accuracy after initial login."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000012 and the call reference is CALL-DEMO-0012. You can follow progress in ResolveAI.",
+          "explanation": "The technician confirmed resolution, summarized the outcome, and provided complete incident and reference numbers.",
+          "improvement": "Ask if the customer requires assistance with anything else before concluding the interaction."
+        }
+      },
+      "fingerprint": "d068d785a1d0d807ebfc5773c3b062cf1b511dc1392043c450bd52a378e60bd6",
+      "assessed_at": "2026-10-13T14:00:19.775790+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0013",
@@ -3830,7 +4314,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 90,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician introduces the service desk and invites the caller to state the issue, though he omitted his own name in the initial greeting.",
+          "improvement": "Include your name along with the service desk name in the opening statement."
+        },
+        "problem_solving": {
+          "score": 100,
+          "evidence": "I have checked the account directory. The approved sign-in format for this screen is your corporate email address.",
+          "explanation": "The technician effectively clarified the issue, checked the account directory, and provided the correct sign-in format to resolve the login failure.",
+          "improvement": "Continue applying quick directory lookups to resolve credential format issues."
+        },
+        "empathy": {
+          "score": 50,
+          "evidence": "I am Aditya Kulkarni. What username format are you entering? Please share the format, not your password.",
+          "explanation": "The technician remained polite but did not acknowledge the caller's stated impact that their regular work was interrupted.",
+          "improvement": "Acknowledge the impact of the work interruption before proceeding directly to troubleshooting."
+        },
+        "communication": {
+          "score": 100,
+          "evidence": "Select Other user and enter your corporate email address exactly as shown in the employee portal, then enter the password privately.",
+          "explanation": "The technician gave unambiguous, concise instructions and ensured clarity on which fields to select.",
+          "improvement": "Continue giving precise, step-by-step instructions to prevent user confusion."
+        },
+        "verification": {
+          "score": 100,
+          "evidence": "Please open your home folder and the employee portal to confirm you are in the correct account.",
+          "explanation": "The technician explicitly reminded the caller not to share passwords and thoroughly verified the outcome by checking access to account resources.",
+          "improvement": "Maintain consistent verification of post-login access and password security reminders."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000013 and the call reference is CALL-DEMO-0013.",
+          "explanation": "The technician confirmed resolution, summarized the outcome, and shared reference numbers clearly.",
+          "improvement": "Ask if there is anything else the customer needs help with before finalizing the call."
+        }
+      },
+      "fingerprint": "653e0ce6471e13fcccdd61999153de506684edcae80bf785af26f9c12493ac23",
+      "assessed_at": "2026-10-13T14:00:12.175985+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0014",
@@ -3944,7 +4472,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 85,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician greets the user, names the service desk, and invites the customer to explain their issue, though she does not state her name until the next turn.",
+          "improvement": "Include your name directly in the opening greeting alongside the service desk welcome."
+        },
+        "problem_solving": {
+          "score": 100,
+          "evidence": "I have checked the account directory. The approved sign-in format for this screen is your corporate email address.",
+          "explanation": "The technician diagnosed the logon failure logically by asking for username format details, checking the directory, and guiding the user to the correct input.",
+          "improvement": "Maintain this systematic approach to diagnosing authentication errors."
+        },
+        "empathy": {
+          "score": 70,
+          "evidence": "Thank you, Aditi. I have checked the account directory.",
+          "explanation": "The technician remains polite and respectful throughout, but does not explicitly acknowledge the customer's statement that her regular work was interrupted.",
+          "improvement": "Acknowledge the impact of the disruption on the user's work before moving to troubleshooting."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "Select Other user and enter your corporate email address exactly as shown in the employee portal, then enter the password privately.",
+          "explanation": "Instructions were concise, step-by-step, and easy to follow without technical jargon.",
+          "improvement": "Check understanding by asking if the customer has any questions before executing the step."
+        },
+        "verification": {
+          "score": 100,
+          "evidence": "Please open your home folder and the employee portal to confirm you are in the correct account.",
+          "explanation": "The technician actively protects secrets by reminding the customer not to share passwords, and verifies the resolution thoroughly with post-login checks.",
+          "improvement": "Continue ensuring sensitive credentials remain private while validating account access."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000014 and the call reference is CALL-DEMO-0014.",
+          "explanation": "The technician confirms resolution, outlines the outcome, provides incident and call references, and specifies tracking steps.",
+          "improvement": "Ask if there is anything else the customer needs help with before concluding the call."
+        }
+      },
+      "fingerprint": "97290ef9e71f6bb1b5ecf9092d2213aded661c2372996ef96e23d48ba862e478",
+      "assessed_at": "2026-10-13T13:59:59.709706+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0015",
@@ -4058,7 +4630,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 85,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician greeted the customer, introduced the service desk, and invited them to explain the issue, though he omitted his own name until the next turn.",
+          "improvement": "Include your name in the opening greeting to introduce yourself immediately alongside the service desk."
+        },
+        "problem_solving": {
+          "score": 95,
+          "evidence": "The approved sign-in format for this screen is your corporate email address.",
+          "explanation": "The technician clarified the format being used, checked the account directory, and provided the exact supported resolution steps to solve the login issue.",
+          "improvement": "Proactively explain why the username format differs from the display name to prevent recurring login confusion."
+        },
+        "empathy": {
+          "score": 65,
+          "evidence": "Thank you, Ganesh. I have checked the account directory.",
+          "explanation": "The technician was polite and addressed the customer by name, but did not acknowledge the customer's statement that their regular work was interrupted.",
+          "improvement": "Acknowledge the impact of the disruption on the customer's daily tasks before jumping into diagnostics."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "Select Other user and enter your corporate email address exactly as shown in the employee portal, then enter the password privately.",
+          "explanation": "Instructions were clear, concise, step-by-step, and free of confusing jargon.",
+          "improvement": "Check for understanding after providing multi-step instructions to ensure the user is comfortable before proceeding."
+        },
+        "verification": {
+          "score": 95,
+          "evidence": "Please open your home folder and the employee portal to confirm you are in the correct account.",
+          "explanation": "The technician actively protected secrets by reminding the user not to share passwords and verified the outcome by testing access to resources.",
+          "improvement": "Complete a standard identity verification check before confirming account directory details."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000015 and the call reference is CALL-DEMO-0015.",
+          "explanation": "The technician clearly confirmed the resolution, summarized that checks succeeded, and provided ticket references.",
+          "improvement": "Ask if there is anything else the customer requires assistance with before concluding the interaction."
+        }
+      },
+      "fingerprint": "396ef9036cdc16db9dcca6d96d4bce41f1daf8a3915ee418fc05a45ec3070542",
+      "assessed_at": "2026-10-13T13:59:50.286055+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0016",
@@ -4176,44 +4792,44 @@
     "quality_audit": {
       "metrics": {
         "greeting": {
-          "score": 90,
+          "score": 85,
           "evidence": "Thank you calling service desk, how can I help you today?",
-          "explanation": "The technician introduces the service desk and invites the customer to explain the issue, but omits their personal name until the second message.",
-          "improvement": "Include your name in the opening greeting alongside the service desk introduction."
+          "explanation": "The technician greeted the caller, named the service desk, and invited the issue description, but omitted her own name until a later turn.",
+          "improvement": "Introduce yourself by name in the initial greeting alongside the service desk identification."
         },
         "problem_solving": {
-          "score": 100,
+          "score": 95,
           "evidence": "Is the monitor power indicator lit, and does the workstation itself appear to be running?",
-          "explanation": "The technician systematically isolates the problem between the workstation and the monitor, provides safe troubleshooting steps, and successfully fixes the issue.",
-          "improvement": "Continue applying this structured, safety-oriented troubleshooting methodology."
+          "explanation": "The technician systematically isolated the problem by checking indicator lights and power connections, leading directly to the resolution of the disconnected power strip socket.",
+          "improvement": "Continue applying structured isolation techniques when handling hardware faults."
         },
         "empathy": {
           "score": 50,
           "evidence": "I am Shreya Banerjee. Is the monitor power indicator lit, and does the workstation itself appear to be running?",
-          "explanation": "The technician does not acknowledge the customer's stated issue that the power loss is delaying morning tasks.",
-          "improvement": "Acknowledge the impact of the disruption on the customer's work before moving into troubleshooting questions."
+          "explanation": "The technician remained polite but did not acknowledge the customer's stated delay to morning sales tasks.",
+          "improvement": "Acknowledge the customer's inconvenience directly with a phrase like 'I understand this is holding up your morning sales work, let's get this sorted quickly.'"
         },
         "communication": {
-          "score": 100,
+          "score": 95,
           "evidence": "With the equipment switched off, securely reconnect the intact plug, turn on the approved power socket, and press the monitor power button.",
-          "explanation": "The instructions are clear, sequential, safety-conscious, and easy for the customer to follow.",
-          "improvement": "Continue to provide concise and step-by-step procedural directions."
+          "explanation": "The technician provided clear, step-by-step instructions accompanied by practical safety guidance.",
+          "improvement": "Maintain this level of structured instruction while ensuring pace matches the customer's actions."
         },
         "verification": {
-          "score": 95,
+          "score": 90,
           "evidence": "Please sign in and confirm that the screen stays on while you open a document.",
-          "explanation": "The technician thoroughly verifies the troubleshooting outcome by asking the user to sign in and open a document to confirm display stability.",
-          "improvement": "Verify user identity credentials against the workstation reference if standard protocol requires it."
+          "explanation": "The technician verified the operational stability of the monitor after the initial display recovery.",
+          "improvement": "Confirm the user's workstation and identity details formally against system records before concluding."
         },
         "closure": {
           "score": 95,
-          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000016 and the call reference is CALL-DEMO-0016. You can follow progress in ResolveAI.",
-          "explanation": "The technician summarises the successful outcome, provides incident and call reference numbers, and details where to track information.",
-          "improvement": "Ask if there are any other issues the customer needs help with before concluding the call."
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000016 and the call reference is CALL-DEMO-0016.",
+          "explanation": "The technician summarised the resolution status, confirmed the incident was resolved, and provided clear ticket and reference numbers.",
+          "improvement": "Ask if there is anything else the customer needs help with before concluding the call."
         }
       },
       "fingerprint": "13552acc672e502f784ae80c456305d10ed85e972e8f98d6b945e0dd542c9577",
-      "assessed_at": "2026-10-13T13:27:11.113054+00:00",
+      "assessed_at": "2026-10-13T13:59:36.571996+00:00",
       "provider": "vertex",
       "model": "gemini-3.8-flash"
     }
@@ -4330,7 +4946,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 85,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician introduces the service desk and invites the customer to explain the issue, but omits his own name until the next turn.",
+          "improvement": "Include your name in the opening sentence alongside the service desk greeting."
+        },
+        "problem_solving": {
+          "score": 100,
+          "evidence": "With the equipment switched off, securely reconnect the intact plug, turn on the approved power socket, and press the monitor power button.",
+          "explanation": "The technician methodically isolates the problem to power, gives safe physical troubleshooting steps, and successfully resolves the issue.",
+          "improvement": "Continue applying logical isolation and clear safety precautions during hardware troubleshooting."
+        },
+        "empathy": {
+          "score": 40,
+          "evidence": "I am Harish Kumar. Is the monitor power indicator lit, and does the workstation itself appear to be running?",
+          "explanation": "The technician moves immediately into diagnosis without acknowledging the customer's reported delay to morning tasks.",
+          "improvement": "Acknowledge the impact on the customer's work schedule before proceeding with diagnostic questions."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "Please check the accessible monitor power connector and the switch on the power strip. Do not open the monitor or touch damaged wiring.",
+          "explanation": "The technician provides concise, step-by-step instructions accompanied by safety warnings.",
+          "improvement": "Confirm the user is comfortable performing physical checks before giving the instructions."
+        },
+        "verification": {
+          "score": 95,
+          "evidence": "Please sign in and confirm that the screen stays on while you open a document.",
+          "explanation": "The technician thoroughly verifies the resolution under normal working conditions before concluding the call.",
+          "improvement": "Verify caller identity or credentials against the workstation reference if mandated by policy."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000017 and the call reference is CALL-DEMO-0017. You can follow progress in ResolveAI.",
+          "explanation": "The technician confirms resolution, provides reference numbers, and outlines tracking details clearly.",
+          "improvement": "Ask if the customer requires help with anything else before ending the call."
+        }
+      },
+      "fingerprint": "1c8fcd0e981f351c9cc3e67c6c725d0fc5c9ac2a3501b4eec2104ebda133cd6a",
+      "assessed_at": "2026-10-13T13:59:28.137757+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0018",
@@ -4444,7 +5104,8 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_error": "Call assessment failed. Check the AI connection and retry."
   },
   {
     "id": "CALL-DEMO-0019",
@@ -4558,7 +5219,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 90,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician greeted the caller, identified the service desk, and invited the caller to state the issue, though he did not provide his name until the subsequent turn.",
+          "improvement": "Introduce yourself by name in the initial greeting alongside the service desk identification."
+        },
+        "problem_solving": {
+          "score": 95,
+          "evidence": "Is the monitor power indicator lit, and does the workstation itself appear to be running?",
+          "explanation": "The technician systematically isolated the issue to power delivery, incorporated safety guidance, and resolved the problem step by step.",
+          "improvement": "Continue utilizing this structured diagnostic approach for peripheral hardware troubleshooting."
+        },
+        "empathy": {
+          "score": 65,
+          "evidence": "I am Manoj Yadav. Is the monitor power indicator lit, and does the workstation itself appear to be running?",
+          "explanation": "The technician was polite and professional, but did not acknowledge the customer's stated time constraint regarding the upcoming team handover.",
+          "improvement": "Acknowledge the customer's urgency and deadline directly before jumping straight into diagnostic questions."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "With the equipment switched off, securely reconnect the intact plug, turn on the approved power socket, and press the monitor power button.",
+          "explanation": "Instructions were concise, sequential, and clearly communicated safety precautions.",
+          "improvement": "Check in with the customer between multi-step actions to ensure they can easily follow along."
+        },
+        "verification": {
+          "score": 95,
+          "evidence": "Please sign in and confirm that the screen stays on while you open a document.",
+          "explanation": "The technician tested and verified the outcome under regular operational use rather than concluding after power restoration alone.",
+          "improvement": "Perform identity or account verification at the start of the interaction in accordance with standard support procedures."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000019 and the call reference is CALL-DEMO-0019. You can follow progress in ResolveAI.",
+          "explanation": "The technician clearly confirmed resolution, summarized the outcome, and shared relevant tracking numbers and tools.",
+          "improvement": "Ask if the customer has any additional questions or concerns before ending the call."
+        }
+      },
+      "fingerprint": "6d132ae3bd432af5dbd35d8249174a402b7088cce30b8cb3bbc80022edff13e4",
+      "assessed_at": "2026-10-13T13:58:34.819637+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0020",
@@ -4672,7 +5377,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 85,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician introduces the service desk and invites the caller to state the issue, but omits introducing their own name until the next turn.",
+          "improvement": "Introduce your name along with the service desk name in the initial opening statement."
+        },
+        "problem_solving": {
+          "score": 95,
+          "evidence": "With the equipment switched off, securely reconnect the intact plug, turn on the approved power socket, and press the monitor power button.",
+          "explanation": "The technician methodically isolates the problem to power delivery, provides safe physical troubleshooting steps, and successfully restores the display.",
+          "improvement": "Avoid re-asking questions the customer already answered, such as asking whether the monitor power indicator is lit after they mentioned it was off."
+        },
+        "empathy": {
+          "score": 55,
+          "evidence": "I am Lakshmi Narayanan. Is the monitor power indicator lit, and does the workstation itself appear to be running?",
+          "explanation": "The technician maintains a polite tone but does not acknowledge the user's business impact or urgency regarding the upcoming team handover.",
+          "improvement": "Acknowledge the customer's time sensitivity by validating the need for the handover before diving straight into diagnostic questions."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "Please check the accessible monitor power connector and the switch on the power strip. Do not open the monitor or touch damaged wiring.",
+          "explanation": "The technician gives clear, step-by-step instructions accompanied by practical safety precautions without confusing jargon.",
+          "improvement": "Continue maintaining clear safety warnings while confirming the user feels comfortable checking physical cables."
+        },
+        "verification": {
+          "score": 95,
+          "evidence": "Please sign in and confirm that the screen stays on while you open a document.",
+          "explanation": "The technician actively verifies that the resolution holds under normal operational conditions rather than just assuming the fix worked when the screen turned on.",
+          "improvement": "Confirm the caller's identity or contact details according to service desk verification policies before proceeding."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000020 and the call reference is CALL-DEMO-0020.",
+          "explanation": "The technician confirms resolution, explains the ticket status, and provides the incident number and reference system.",
+          "improvement": "Include a final offer of further assistance, such as asking if there is anything else the customer needs help with before ending the interaction."
+        }
+      },
+      "fingerprint": "c117e6a3e3a3c83f8d6145ca55c47ffbb1bb71f85ad6e49e636c439f70883304",
+      "assessed_at": "2026-10-13T13:58:18.527708+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0021",
@@ -4786,7 +5535,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 85,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician welcomed the caller, stated the service desk name, and invited the user to state the problem, but did not introduce his own name until a later turn.",
+          "improvement": "State your name upfront in the initial opening greeting along with the service desk name."
+        },
+        "problem_solving": {
+          "score": 95,
+          "evidence": "Choose Extend these displays, arrange the screens to match the desk, and select the recommended resolution and a comfortable approved scale.",
+          "explanation": "The technician effectively diagnosed the issue by clarifying display symptoms and providing accurate, sequential troubleshooting steps to resolve the display mirroring and scaling issue.",
+          "improvement": "Ensure all diagnostic observations are explicitly confirmed with the user before applying settings changes."
+        },
+        "empathy": {
+          "score": 55,
+          "evidence": "I am Arjun Reddy. Does the monitor show a picture, and what is different from your normal display setup?",
+          "explanation": "The technician was polite but failed to acknowledge the customer's stated business impact and time pressure regarding the team handover.",
+          "improvement": "Acknowledge the customer's deadline and validate their urgency before jumping straight into diagnostic questions."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "Please move a document between the screens and reopen the application that was difficult to use.",
+          "explanation": "Instructions were concise, unambiguous, and easy to follow throughout the interaction.",
+          "improvement": "Check in with the caller to ensure they are comfortable following the steps before proceeding."
+        },
+        "verification": {
+          "score": 90,
+          "evidence": "Please move a document between the screens and reopen the application that was difficult to use.",
+          "explanation": "The technician thoroughly validated the functional outcome by asking the user to test window movement and application scaling across displays.",
+          "improvement": "Verify caller identity or workstation ownership where organizational policy requires authentication."
+        },
+        "closure": {
+          "score": 95,
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000021 and the call reference is CALL-DEMO-0021. You can follow progress in ResolveAI.",
+          "explanation": "The technician clearly confirmed resolution, provided the incident and call reference numbers, and explained where to track progress.",
+          "improvement": "Offer any further assistance and give a formal closing farewell before ending the interaction."
+        }
+      },
+      "fingerprint": "db8e053b1cedcc1ba87af2a609e972a455704f70fb8a509177ddc4b694ebf4c6",
+      "assessed_at": "2026-10-13T13:58:08.602129+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0022",
@@ -4900,7 +5693,51 @@
     "ready_at": null,
     "demo_dataset": "indian-service-desk-demo-v1",
     "knowledge_matches": [],
-    "knowledge_status": "ready"
+    "knowledge_status": "ready",
+    "quality_audit": {
+      "metrics": {
+        "greeting": {
+          "score": 90,
+          "evidence": "Thank you calling service desk, how can I help you today?",
+          "explanation": "The technician introduces the service desk and invites the caller to state the issue, though her personal name is introduced only in the subsequent turn.",
+          "improvement": "Include your name in the opening greeting alongside the service desk identification."
+        },
+        "problem_solving": {
+          "score": 100,
+          "evidence": "Choose Extend these displays, arrange the screens to match the desk, and select the recommended resolution and a comfortable approved scale.",
+          "explanation": "The technician logically diagnosed the symptoms, clarified the display behavior, and applied the exact settings needed to fix the duplicate and scaling issue.",
+          "improvement": "Maintain this structured and logical approach to diagnosing display and peripheral issues."
+        },
+        "empathy": {
+          "score": 40,
+          "evidence": "I am Priya Sharma. Does the monitor show a picture, and what is different from your normal display setup?",
+          "explanation": "The technician overlooked the caller's mention of an upcoming afternoon deadline and did not acknowledge the urgency or impact on the user's work.",
+          "improvement": "Acknowledge the caller's time-sensitive deadline with an empathetic statement before moving into technical troubleshooting."
+        },
+        "communication": {
+          "score": 95,
+          "evidence": "Please move a document between the screens and reopen the application that was difficult to use.",
+          "explanation": "Instructions were concise, clear, and easy to follow without technical jargon or ambiguity.",
+          "improvement": "Break multi-action instructions into smaller sequential steps to ensure effortless comprehension."
+        },
+        "verification": {
+          "score": 95,
+          "evidence": "Please move a document between the screens and reopen the application that was difficult to use.",
+          "explanation": "The technician ensured thorough verification of the troubleshooting outcome by having the user test window movement and application scaling across screens.",
+          "improvement": "Explicitly confirm the caller's identity against the provided workstation reference early in the interaction."
+        },
+        "closure": {
+          "score": 90,
+          "evidence": "The checks are successful, so I will resolve the incident. The incident number is INC0000022 and the call reference is CALL-DEMO-0022. You can follow progress in ResolveAI.",
+          "explanation": "The technician confirmed resolution, provided both incident and call reference numbers, and indicated where to review progress.",
+          "improvement": "Ask if the user needs any additional assistance before concluding the call."
+        }
+      },
+      "fingerprint": "095f63d9077b84b0a51713568d43f8a9c8f73e7010e7616ba7a9b9763a6c7076",
+      "assessed_at": "2026-10-13T13:57:59.594286+00:00",
+      "provider": "vertex",
+      "model": "gemini-3.8-flash"
+    }
   },
   {
     "id": "CALL-DEMO-0023",

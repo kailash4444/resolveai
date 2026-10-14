@@ -2,6 +2,8 @@
 
 This snapshot contains the local application's users, incidents (including activity, comments and ticket QA), calls (including transcripts, events and call QA), knowledge articles and numbering metadata. IDs and ownership relationships are preserved. Most records are the requested synthetic demo dataset; earlier application records are also included.
 
+The current snapshot also includes saved Resolution Debt Radar assessments, issue clusters and engineering follow-ups. Incident Time Machine results stored in incident records are included. Snapshot schema version 2 adds the radar files; the restore command also accepts the older version 1 snapshots. Uploaded media and raw audio are not included in this JSON snapshot.
+
 The export date, record counts and file checksums are in `manifest.json`. These files contain application data and belong in this private repository.
 
 Passwords, password hashes, session tokens, login attempts, API keys, cloud credentials and voice access tokens are excluded. Configuration and credentials must be supplied separately. Raw audio is not part of this database snapshot.

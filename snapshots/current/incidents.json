@@ -78,67 +78,70 @@
           "text": "State : Resolved was In Progress\nResolution notes : Explained the problem to the customer was Empty",
           "created_at": "2026-10-12T14:56:50.236215Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [
       {
         "field": "Short description",
         "result": "FAIL",
         "observed": "I am having Blue screen of death issue on my laptop",
-        "recommended": "Update short description to reflect the reported issue: Laptop unusable for work",
-        "evidence": "Customer stated only: 'I am not able to use my laptop for work'; BSOD was never reported."
+        "recommended": "User unable to use laptop for work",
+        "evidence": "Customer: \"I am not able to use my laptop for work\""
       },
       {
         "field": "Description",
         "result": "PASS",
         "observed": "I am not able to use my laptop for work",
-        "recommended": "Maintain existing description as it accurately reflects the user statement.",
-        "evidence": "Customer: 'I am not able to use my laptop for work'"
+        "recommended": "Maintain verbatim record of user's issue and capture additional technical details when probed",
+        "evidence": "Customer: \"I am not able to use my laptop for work\""
       },
       {
         "field": "Category / Subcategory",
         "result": "FAIL",
         "observed": "WorkStation / Display",
-        "recommended": "Reclassify to Hardware / Laptop or Software / Operating System",
-        "evidence": "Customer reported being unable to use laptop; no display defect was identified in transcript."
+        "recommended": "Hardware / Laptop or Operating System / Crash",
+        "evidence": "Customer: \"I am not able to use my laptop for work\""
       },
       {
         "field": "Service",
         "result": "PASS",
         "observed": "Laptop",
-        "recommended": "Retain Laptop as the selected service.",
-        "evidence": "Customer: 'I am not able to use my laptop for work'"
+        "recommended": "Laptop or End User Computing",
+        "evidence": "Customer: \"not able to use my laptop for work\""
       },
       {
         "field": "Priority",
         "result": "PASS",
         "observed": "P3",
-        "recommended": "Maintain P3 for a single user affected with no enterprise-wide impact established.",
-        "evidence": "Single user impacted: 'I am not able to use my laptop for work'"
+        "recommended": "P3",
+        "evidence": "Single user affected: \"I am not able to use my laptop for work\""
       },
       {
         "field": "Assignment group",
         "result": "PASS",
         "observed": "Service Desk",
-        "recommended": "Maintain Service Desk as the initial triage and support group.",
-        "evidence": "Standard front-line assignment for an initial laptop usability issue."
+        "recommended": "Service Desk",
+        "evidence": "Handled by frontline technician Bharani"
       },
       {
         "field": "Resolution",
         "result": "FAIL",
         "observed": "Explained the problem to the customer",
-        "recommended": "Do not resolve until incident is verified resolved with confirmed laptop usability or valid workarounds.",
-        "evidence": "Work note states 'we cannot help unless they resolve', confirming the user issue remains unresolved."
+        "recommended": "Do not close ticket as resolved while device remains unusable; follow vendor recovery procedure or keep in pending status",
+        "evidence": "Technician note: \"we cannot help unless they resolve. Please wait till they update their BIOS\""
       },
       {
         "field": "Work notes",
         "result": "WARN",
         "observed": "This is an issue from crowdstrike , we cannot help unless they resolve. Please wait till they update their BIOS",
-        "recommended": "Document verified diagnostic findings, accurate technical guidance, and tracking details rather than unverified technical claims.",
-        "evidence": "Technician note references CrowdStrike BIOS updates without documenting triage, error logs, or verification."
+        "recommended": "Record accurate troubleshooting steps, official vendor incident tracking, and correct remediation steps rather than speculative guidance",
+        "evidence": "Technician note: \"This is an issue from crowdstrike , we cannot help unless they resolve. Please wait till they update their BIOS\""
       }
     ],
-    "quality_score": 50
+    "quality_score": 52,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-148B91A324E5",
@@ -385,67 +388,70 @@
           "text": "State : Resolved was New\nResolution notes : Told the customer to press the button below the monitor and it helped was Empty",
           "created_at": "2026-10-12T15:27:47.617610Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [
       {
         "field": "Short description",
         "result": "PASS",
         "observed": "No display on monitor - Power button guidance",
-        "recommended": "Maintain clear, concise phrasing summarizing caller issue and topic.",
-        "evidence": "Customer: 'There is no display on my monitor'"
+        "recommended": "Retain current short description.",
+        "evidence": "Customer: There is no display on my monitor, how to switch on the display?"
       },
       {
         "field": "Description",
         "result": "PASS",
         "observed": "Caller reported that their monitor had no display and requested instructions on how to switch it on. Technician instructed caller to check power and press the button on the right underside of the monitor.",
-        "recommended": "Maintain detailed summaries outlining customer issue and technician troubleshooting steps.",
-        "evidence": "Customer: 'how to switch on the display?' and Technician: 'below the monitor, there would be some buttons on the right most there would be one button please click the button.'"
+        "recommended": "Retain current description.",
+        "evidence": "Technician: below the monitor, there would be some buttons on the right most there would be one button please click the button."
       },
       {
         "field": "Category / Subcategory",
         "result": "PASS",
-        "observed": "Hardware / Monitor",
-        "recommended": "Retain Hardware / Monitor classification.",
-        "evidence": "Customer: 'There is no display on my monitor'"
+        "observed": "Category: Hardware / Subcategory: Monitor",
+        "recommended": "Retain Category: Hardware and Subcategory: Monitor.",
+        "evidence": "Customer: There is no display on my monitor"
       },
       {
         "field": "Service",
         "result": "PASS",
         "observed": "Desktop Services",
-        "recommended": "Maintain Desktop Services mapping for monitor hardware assistance.",
-        "evidence": "Customer: 'There is no display on my monitor, how to switch on the display?'"
+        "recommended": "Retain Desktop Services.",
+        "evidence": "Customer: There is no display on my monitor, how to switch on the display?"
       },
       {
         "field": "Priority",
         "result": "PASS",
         "observed": "P4",
-        "recommended": "Maintain P4 priority as it is an isolated single-user display power query with no broader business disruption.",
-        "evidence": "Customer: 'Uh, there is no display on my monitor, how to switch on the display?'"
+        "recommended": "Retain P4 priority for single-user minor monitor inquiry.",
+        "evidence": "Customer: There is no display on my monitor, how to switch on the display?"
       },
       {
         "field": "Assignment group",
         "result": "PASS",
         "observed": "Service Desk",
-        "recommended": "Retain Service Desk ownership for first-contact resolution inquiries.",
-        "evidence": "Technician: 'Hey Raj, thank you for calling IT service desk.'"
+        "recommended": "Retain Service Desk as handling group.",
+        "evidence": "Technician: Hey Raj, thank you for calling IT service desk. How could I help you today?"
       },
       {
         "field": "Resolution",
         "result": "WARN",
         "observed": "Told the customer to press the button below the monitor and it helped",
-        "recommended": "Document a professional, standardized resolution note explicitly stating that customer verified display powered on successfully.",
-        "evidence": "Customer: 'Oh, it's so simple. Thank you for helping me.'"
+        "recommended": "Provide a formal resolution statement confirming the display issue was verified resolved: Guided user to turn on power and press the monitor power button on the bottom right; user confirmed display powered on.",
+        "evidence": "Customer: Oh, it's so simple. Thank you for helping me."
       },
       {
         "field": "Work notes",
         "result": "WARN",
-        "observed": "No work notes logged",
-        "recommended": "Add ongoing troubleshooting or call context notes when handling interactions.",
-        "evidence": "Technician: 'below the monitor, there would be some buttons on the right most there would be one button please click the button.'"
+        "observed": "[]",
+        "recommended": "Record brief real-time interaction notes detailing troubleshooting and caller confirmation even for first-contact resolutions.",
+        "evidence": "Customer: Okay, right there, clicking"
       }
     ],
-    "quality_score": 90
+    "quality_score": 88,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-17E64368",
@@ -567,67 +573,70 @@
           "text": "State : Resolved was In Progress\nResolution notes : customer reoslved by themselves was Empty",
           "created_at": "2026-10-11T12:35:47.477141Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [
       {
         "field": "Short description",
         "result": "PASS",
         "observed": "Request to clear cache",
-        "recommended": "Maintain clear and concise summary of the caller's stated request.",
-        "evidence": "Customer: 'I want to reset my cache.'"
+        "recommended": "Maintain current short description.",
+        "evidence": "Customer stated: 'I want to reset my cache.'"
       },
       {
         "field": "Description",
         "result": "PASS",
         "observed": "Customer requested to reset their cache. The browser or application was not identified. Clarification is needed before providing instructions.",
-        "recommended": "Maintain accurate problem capture noting that specific application details remain unconfirmed.",
-        "evidence": "Customer: 'I want to reset my cache.'"
+        "recommended": "Maintain current description.",
+        "evidence": "Accurately captures customer request and highlights needed clarification from transcript."
       },
       {
         "field": "Category / Subcategory",
         "result": "WARN",
-        "observed": "Category: Software / Subcategory: Browser",
-        "recommended": "Set subcategory to a generic option or leave unassigned until the user confirms whether they need browser or application cache cleared.",
-        "evidence": "Description notes: 'The browser or application was not identified.'"
+        "observed": "Software / Browser",
+        "recommended": "Set Subcategory to General or Unassigned until the specific application or browser is confirmed.",
+        "evidence": "Description notes 'The browser or application was not identified', making the Browser subcategory an unverified assumption."
       },
       {
         "field": "Service",
         "result": "WARN",
         "observed": "Browser Support",
-        "recommended": "Assign to general IT Support or defer service assignment until the target software is confirmed.",
-        "evidence": "Customer: 'I want to reset my cache.' without specifying browser or software."
+        "recommended": "Assign to a broader service such as End User Computing or Desktop Support until the application type is verified.",
+        "evidence": "Customer only specified 'reset my cache' without identifying whether it was a web browser or internal application."
       },
       {
         "field": "Priority",
         "result": "PASS",
         "observed": "P4",
-        "recommended": "Maintain P4 as a standard non-critical individual user request with minimal business impact.",
-        "evidence": "Customer stated simple inquiry: 'I want to reset my cache.'"
+        "recommended": "Maintain P4 priority.",
+        "evidence": "Single-user informational/routine request with no reported business disruption."
       },
       {
         "field": "Assignment group",
         "result": "PASS",
         "observed": "Service Desk",
-        "recommended": "Maintain Service Desk for intake and initial triage.",
-        "evidence": "AI Agent: 'I am connecting you to an available technician.'"
+        "recommended": "Maintain Service Desk assignment.",
+        "evidence": "AI Agent indicated connecting caller to an available technician; Service Desk is appropriate for initial intake."
       },
       {
         "field": "Resolution",
         "result": "FAIL",
         "observed": "customer reoslved by themselves",
-        "recommended": "Remove premature resolution and document the actual disposition or leave ticket open pending customer contact.",
-        "evidence": "Transcript ends with AI Agent: 'Please stay on the call.' with no evidence of self-resolution or customer confirmation."
+        "recommended": "Do not mark ticket resolved without verified resolution notes or confirmation from the user.",
+        "evidence": "Transcript ends with 'Please stay on the call' while transferring; there is zero evidence the customer self-resolved."
       },
       {
         "field": "Work notes",
         "result": "FAIL",
-        "observed": "Empty (no notes recorded)",
-        "recommended": "Document call transfer, customer contact attempts, or justification for closing the ticket.",
-        "evidence": "work_notes is an empty array despite the ticket being resolved."
+        "observed": "No work notes recorded.",
+        "recommended": "Document call handling, transfer outcome, and reason for ticket closure.",
+        "evidence": "Work notes array is empty despite ticket having a resolution status entered."
       }
     ],
-    "quality_score": 60
+    "quality_score": 62,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-47E2D0A2",
@@ -783,67 +792,70 @@
           "text": "State : Resolved was In Progress\nResolution notes : customer was able to clear the browse after the instructions was Empty",
           "created_at": "2026-10-11T11:20:38.970131Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [
       {
         "field": "Short description",
         "result": "PASS",
         "observed": "Request for browser cache-clearing instructions",
-        "recommended": "Maintain current short description as it accurately captures the user's inquiry.",
-        "evidence": "Customer: 'How do I clear the cache in browser?'"
+        "recommended": "Maintain current concise short description summarizing the user's inquiry.",
+        "evidence": "Customer: How do I clear the cache in browser?"
       },
       {
         "field": "Description",
         "result": "FAIL",
         "observed": "Customer asked how to clear the browser cache. The browser has not been identified.",
-        "recommended": "Update the description to record that the customer identified their browser as Chrome.",
-        "evidence": "Customer: 'Chrome браузер.'"
+        "recommended": "Update description to note that the customer specifically identified Google Chrome ('Chrome браузер').",
+        "evidence": "Customer: Chrome браузер."
       },
       {
         "field": "Category / Subcategory",
         "result": "PASS",
-        "observed": "Category: How-to, Subcategory: Browser",
-        "recommended": "Keep current classification as How-to / Browser.",
-        "evidence": "Customer: 'How do I clear the cache in browser?'"
+        "observed": "How-to / Browser",
+        "recommended": "Retain How-to / Browser classification.",
+        "evidence": "Customer: How do I clear the cache in browser?"
       },
       {
         "field": "Service",
         "result": "PASS",
         "observed": "End User Computing",
-        "recommended": "Maintain End User Computing as the relevant service.",
-        "evidence": "Customer asks for help clearing browser cache on client machine."
+        "recommended": "Maintain End User Computing as the associated service.",
+        "evidence": "Customer: How do I clear the cache in browser?"
       },
       {
         "field": "Priority",
         "result": "PASS",
         "observed": "P4",
-        "recommended": "Maintain P4 priority for general informational how-to queries without outage or work stoppage.",
-        "evidence": "Customer: 'How do I clear the cache in browser?'"
+        "recommended": "Maintain P4 priority for a standard non-critical informational how-to request.",
+        "evidence": "Customer: How do I clear the cache in browser?"
       },
       {
         "field": "Assignment group",
         "result": "PASS",
         "observed": "Service Desk",
-        "recommended": "Maintain Service Desk as the assigned group for first-contact resolution.",
-        "evidence": "AI Agent: 'Would you like me to connect you with a support agent?'"
+        "recommended": "Maintain assignment to Service Desk.",
+        "evidence": "AI Agent: Would you like me to connect you with a support agent?"
       },
       {
         "field": "Resolution",
         "result": "FAIL",
         "observed": "customer was able to clear the browse after the instructions",
-        "recommended": "Record that the customer declined technician assistance and that resolution was unverified.",
-        "evidence": "Customer: 'No.' after AI offered to connect with a technician; no confirmation of cache clearance was provided."
+        "recommended": "Record that the customer declined technician transfer and disconnected without resolution.",
+        "evidence": "Customer: No."
       },
       {
         "field": "Work notes",
         "result": "FAIL",
         "observed": "Advised the caregiver to go to settings and select clear cache.",
-        "recommended": "Record accurate interaction details; remove references to a caregiver not present in the call and note that user declined transfer.",
-        "evidence": "Transcript shows customer answered 'No.' to technician connection, with no mention of a caregiver."
+        "recommended": "Document factual interaction notes reflecting that the caller declined escalation rather than logging unsupported advice to a caregiver.",
+        "evidence": "AI Agent: I am connecting you to an available technician. Please stay on the call. Customer: No."
       }
     ],
-    "quality_score": 62
+    "quality_score": 50,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-6F4BBD9D",
@@ -1110,67 +1122,70 @@
           "text": "State : Resolved was In Progress\nResolution notes : showed the customer the wifi options are availble and he isa ble to reconnect was Empty",
           "created_at": "2026-10-11T11:08:45.265376Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [
       {
         "field": "Short description",
         "result": "PASS",
         "observed": "Guidance requested to reconnect to Wi-Fi",
-        "recommended": "Guidance requested to reconnect to Wi-Fi",
-        "evidence": "Customer: 'How do I reconnect to Wi-Fi?'"
+        "recommended": "Maintain current concise summary describing the user inquiry.",
+        "evidence": "Customer asks: 'How do I reconnect to Wi-Fi?'"
       },
       {
         "field": "Description",
         "result": "PASS",
         "observed": "Customer asks how to reconnect to Wi-Fi. Device, network, and any error details are not provided.",
-        "recommended": "Customer asks how to reconnect to Wi-Fi. Device, network, and any error details are not provided.",
-        "evidence": "Customer: 'I am not able to connect to my Wi-Fi.'"
+        "recommended": "Maintain current description accurately summarizing initial contact and lack of technical details.",
+        "evidence": "Customer states: 'How do I reconnect to Wi-Fi?' and 'I am not able to connect to my Wi-Fi.'"
       },
       {
         "field": "Category / Subcategory",
         "result": "PASS",
         "observed": "Category: Network / Subcategory: Wi-Fi",
-        "recommended": "Category: Network / Subcategory: Wi-Fi",
-        "evidence": "Customer: 'How do I reconnect to Wi-Fi?'"
+        "recommended": "Maintain Network / Wi-Fi classification.",
+        "evidence": "Customer asks: 'How do I reconnect to Wi-Fi?'"
       },
       {
         "field": "Service",
         "result": "PASS",
         "observed": "Wireless Network",
-        "recommended": "Wireless Network",
-        "evidence": "Technician: 'Click on the symbol, Wi-Fi symbol.'"
+        "recommended": "Maintain Wireless Network as the affected service.",
+        "evidence": "Transcript discussion centers entirely on connecting to Wi-Fi."
       },
       {
         "field": "Priority",
         "result": "PASS",
         "observed": "P4",
-        "recommended": "P4",
-        "evidence": "Single user asking how to connect a device to Wi-Fi represents low impact and urgency."
+        "recommended": "Maintain P4 priority as this is a single-user request with minimal business disruption.",
+        "evidence": "Single customer requesting basic guidance on reconnecting a personal laptop/device to Wi-Fi."
       },
       {
         "field": "Assignment group",
         "result": "WARN",
         "observed": "Network Support",
-        "recommended": "Service Desk",
-        "evidence": "Basic client-side guidance on the Windows taskbar Wi-Fi icon is typically handled by frontline Service Desk rather than Network Support."
+        "recommended": "Route basic client-side Wi-Fi connection how-to requests to Service Desk rather than Tier 2 Network Support.",
+        "evidence": "Guidance provided was basic client-side OS navigation ('go to the taskbar at the bottom of your laptop. Click on the symbol, Wi-Fi symbol')."
       },
       {
         "field": "Resolution",
         "result": "FAIL",
         "observed": "showed the customer the wifi options are availble and he isa ble to reconnect",
-        "recommended": "Guided customer to laptop taskbar Wi-Fi icon to select network; call ended without confirmation of successful reconnection.",
-        "evidence": "Customer never confirmed reconnection was successful ('Customer: ya da. Technician: Yeah, that's it.'). Resolution makes an unverified claim with poor spelling."
+        "recommended": "Correct spelling errors and document only verified actions; note that final reconnection was unconfirmed by the customer.",
+        "evidence": "Customer never confirmed successful connection before the call ended ('ya da', Technician: 'Yeah, that's it')."
       },
       {
         "field": "Work notes",
-        "result": "FAIL",
-        "observed": "[]",
-        "recommended": "Document steps provided to customer (directing to laptop taskbar Wi-Fi icon) and outcome of the call.",
-        "evidence": "Work notes are empty despite an active troubleshooting dialogue between customer and technician."
+        "result": "WARN",
+        "observed": "No work notes recorded.",
+        "recommended": "Document troubleshooting steps and call progress in work notes, including steps provided to user.",
+        "evidence": "Work notes array is empty despite troubleshooting steps being provided over the call."
       }
     ],
-    "quality_score": 72
+    "quality_score": 75,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-7A01D8A9",
@@ -1281,10 +1296,13 @@
           "text": "Short description : Unable to log in to Epic account\nDescription : Customer reports being unable to log in to their Epic account. Exact error message and cause are not yet known. Verify identity and check account status and security holds before proceeding with unlock or password-reset steps.\nCategory : Access\nSubcategory : Login\nService : Epic\nPriority : P3\nAssignment group : Service Desk\nState : New",
           "created_at": "2026-10-11T10:53:36.778714Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-7C53FACC",
@@ -1441,10 +1459,13 @@
           "text": "Assigned to : Bharath was Empty\nState : In Progress was New",
           "created_at": "2026-10-11T12:12:26.254443Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-8B824D48",
@@ -1726,67 +1747,70 @@
           "text": "State : Resolved was In Progress\nResolution notes : Told the customer to open my print app and connect the printer and it resolved was Empty",
           "created_at": "2026-10-12T15:07:42.443899Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [
       {
         "field": "Short description",
         "result": "PASS",
         "observed": "Can not connect printer to my workstation",
-        "recommended": "User unable to connect workstation to printer",
-        "evidence": "Customer stated: 'I'm not able to connect my workstation to the printer.'"
+        "recommended": "Maintain current short description as it concisely captures the core issue.",
+        "evidence": "Customer: 'I'm not able to connect my workstation to the printer.'"
       },
       {
         "field": "Description",
-        "result": "FAIL",
+        "result": "WARN",
         "observed": "Can not connect printer to my workstation. printer details and workstation details are told in call.",
-        "recommended": "Customer unable to connect workstation WKSBH12051 to printer at IP 12.1.3.6.",
-        "evidence": "Customer provided exact details: 'workstation number is W K S B H 1 2 0 5 1' and IP '12.1. 3.6', which were omitted."
+        "recommended": "Include the specific asset identifiers provided during the call (Workstation: WKSBH12051, Printer IP: 12.1.3.6) rather than referencing that they were stated on the call.",
+        "evidence": "Customer: 'So, the workstation number is W K S B H 1 2 0 5 1. and the printer number printer number. I can share the IP address. It's 12.1. 3.6'"
       },
       {
         "field": "Category / Subcategory",
         "result": "FAIL",
-        "observed": "Inquiry / Unassigned",
-        "recommended": "Hardware / Print (or Printing / Configuration)",
-        "evidence": "Call was an incident regarding peripheral connectivity: 'my printer is not working. I need help connecting it to the... workstation'."
+        "observed": "Category: Inquiry / Subcategory: Unassigned",
+        "recommended": "Reclassify to Category: Hardware (or Printing) / Subcategory: Printer.",
+        "evidence": "Customer: 'Uh, my printer is not working. I need help connecting it to the connecting my workstation to the printer'"
       },
       {
         "field": "Service",
         "result": "WARN",
         "observed": "IT Service Desk",
-        "recommended": "Printing Services (or End User Computing)",
-        "evidence": "The interaction related specifically to workstation printing setup via MyPrint app."
+        "recommended": "Align service to a specific business or technical service such as 'Print Services' or 'Endpoint Management' rather than the support team name.",
+        "evidence": "Technician: 'could you please go to the uh, my printer or my print services in your laptop and on the connect to printer'"
       },
       {
         "field": "Priority",
         "result": "PASS",
         "observed": "P4",
-        "recommended": "P4 (Low)",
-        "evidence": "Single user printing issue with low operational impact."
+        "recommended": "Keep P4 priority as the issue represents a single-user non-critical workstation incident.",
+        "evidence": "Customer: 'I'm not able to connect my workstation to the printer.'"
       },
       {
         "field": "Assignment group",
         "result": "PASS",
         "observed": "Service Desk Tier 1",
-        "recommended": "Service Desk Tier 1",
-        "evidence": "Resolved directly on the initial call by first-line technician Wes."
+        "recommended": "Keep Service Desk Tier 1 as the handling group for first-contact resolution.",
+        "evidence": "Technician: 'Thank you for reaching out to Pizza Hut, this is Wes, how can we help you today?'"
       },
       {
         "field": "Resolution",
         "result": "PASS",
         "observed": "Told the customer to open my print app and connect the printer and it resolved",
-        "recommended": "Advised user to open MyPrint app and connect to the printer; user verified successful connection.",
-        "evidence": "Customer verified: 'okay got the MyPrint app... clicked it. Oh, bam, connected.'"
+        "recommended": "Maintain current resolution summary detailing the fix and confirmed user outcome.",
+        "evidence": "Customer: 'Yeah I can see my printer and I clicked it. Oh, bam, connected. Oh, thank you so much for your help.'"
       },
       {
         "field": "Work notes",
         "result": "WARN",
-        "observed": "None logged (empty list)",
-        "recommended": "Log captured asset identifiers (Workstation: WKSBH12051, Printer IP: 12.1.3.6) and troubleshooting steps in work notes.",
-        "evidence": "Specific asset details were shared during the call but left unrecorded in the notes."
+        "observed": "Empty array / no notes recorded",
+        "recommended": "Document contemporaneous troubleshooting steps and captured asset details (Workstation WKSBH12051, Printer IP 12.1.3.6) in work notes.",
+        "evidence": "Customer: 'So, the workstation number is W K S B H 1 2 0 5 1. and the printer number printer number. I can share the IP address. It's 12.1. 3.6'"
       }
     ],
-    "quality_score": 68
+    "quality_score": 72,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-8D6D4D16",
@@ -1893,67 +1917,70 @@
           "text": "State : Resolved was New\nResolution notes : the custoemr reolved its issue himself there is no need for additonal actions was Empty",
           "created_at": "2026-10-11T08:04:41.756460Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [
       {
         "field": "Short description",
         "result": "PASS",
         "observed": "Unable to log in to Citrix AD account",
-        "recommended": "Maintain concise summary of the reported login issue.",
-        "evidence": "Customer: I am not able to login into citrix ad account"
+        "recommended": "Keep as documented.",
+        "evidence": "Customer: 'I am not able to login into citrix ad account'"
       },
       {
         "field": "Description",
         "result": "PASS",
         "observed": "User reports being unable to log in to a Citrix AD account. Exact error message and account status are not yet known. Verify identity and check for account lock or security hold before attempting account recovery.",
-        "recommended": "Maintain detailed intake notes and append exact error messages once gathered.",
-        "evidence": "Customer: I am not able to login into citrix ad account"
+        "recommended": "Keep as documented; it clearly captures the reported issue and immediate guidance.",
+        "evidence": "Customer: 'I am not able to login into citrix ad account'"
       },
       {
         "field": "Category / Subcategory",
         "result": "PASS",
-        "observed": "Access / Account login",
-        "recommended": "Retain current category and subcategory mapping.",
-        "evidence": "Customer: I am not able to login into citrix ad account"
+        "observed": "Category: Access / Subcategory: Account login",
+        "recommended": "Retain current classification.",
+        "evidence": "Customer: 'I am not able to login into citrix ad account'"
       },
       {
         "field": "Service",
         "result": "PASS",
         "observed": "Citrix / Active Directory",
-        "recommended": "Maintain service mapping or select the specific authoritative directory service catalog item.",
-        "evidence": "Customer: I am not able to login into citrix ad account"
+        "recommended": "Retain current service mapping.",
+        "evidence": "Customer: 'citrix ad account'"
       },
       {
         "field": "Priority",
         "result": "PASS",
         "observed": "P3",
-        "recommended": "Keep P3 for a single user access issue without broader business outage.",
-        "evidence": "Customer: I am not able to login into citrix ad account"
+        "recommended": "Maintain P3 as it represents a single-user login issue without documented broader business impact.",
+        "evidence": "Customer: 'I am not able to login into citrix ad account'"
       },
       {
         "field": "Assignment group",
         "result": "PASS",
         "observed": "Identity and Access Management",
-        "recommended": "Maintain assignment to Identity and Access Management for AD authentication issues.",
-        "evidence": "Customer: I am not able to login into citrix ad account"
+        "recommended": "Retain IAM group for directory and login issues.",
+        "evidence": "Customer: 'citrix ad account'"
       },
       {
         "field": "Resolution",
         "result": "FAIL",
         "observed": "the custoemr reolved its issue himself there is no need for additonal actions",
-        "recommended": "Correct spelling errors and document a verified resolution rather than an unsupported claim of customer self-resolution.",
-        "evidence": "Customer: I am not able to login into citrix ad account"
+        "recommended": "Provide a factual, verified resolution note with proper spelling and confirm with the customer before closing.",
+        "evidence": "Transcript ends after initial statement; no customer confirmation or resolution details provided."
       },
       {
         "field": "Work notes",
         "result": "FAIL",
-        "observed": "Empty array",
-        "recommended": "Record all diagnostic steps, customer interactions, and validation steps prior to closure.",
-        "evidence": "work_notes: []"
+        "observed": "Empty array []",
+        "recommended": "Document technician investigation steps, communications, and verification of user resolution.",
+        "evidence": "Transcript shows no troubleshooting or investigation logged in work notes."
       }
     ],
-    "quality_score": 72
+    "quality_score": 72,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-8DA24E962185",
@@ -2111,10 +2138,13 @@
           "text": "Short description : Monitor screen is completely blank with no video output\nDescription : Customer stated that the monitor screen is completely blank and does not display any video output. Call transferred to live technician for further hardware diagnosis.\nCategory : Hardware\nSubcategory : Monitor\nService : Workstation Hardware Support\nPriority : P3\nAssignment group : Desktop Services\nAssigned to : Kailash\nState : New",
           "created_at": "2026-10-12T15:31:39.363416Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-A72B0967",
@@ -2343,10 +2373,13 @@
           "text": "Assigned to : Bharath was Empty\nState : In Progress was New",
           "created_at": "2026-10-11T12:40:10.460492Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-AC84FF63",
@@ -2618,67 +2651,70 @@
           "text": "State : Resolved was In Progress\nResolution notes : Unlocked his account was Empty",
           "created_at": "2026-10-12T14:48:45.151314Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [
       {
         "field": "Short description",
         "result": "FAIL",
         "observed": "Incomplete caller response during intake",
-        "recommended": "User unable to reset AD password / Account locked",
-        "evidence": "Customer: I'm not able to reset my password for AD account."
+        "recommended": "Update short description to reflect the actual issue: User locked out / unable to reset Active Directory password",
+        "evidence": "Customer: 'I want to reset my password for AD account.'"
       },
       {
         "field": "Description",
         "result": "FAIL",
         "observed": "User provided an incomplete response ('come to res') upon initial greeting. Clarification is required to determine the issue.",
-        "recommended": "User Rajesh reported being unable to reset his Active Directory password. Caller verification was completed, and the account was found blocked in SailPoint.",
-        "evidence": "Customer: I want to reset my password for AD account. / Technician: Oh, I see your account is blocked."
+        "recommended": "Document full issue details: User Rajesh was unable to reset AD password and account was blocked in SailPoint.",
+        "evidence": "Customer: 'I am not able to reset my AD account.' Technician: 'Oh, I see your account is blocked. I'm unblocking your account.'"
       },
       {
         "field": "Category / Subcategory",
         "result": "FAIL",
         "observed": "Category: Inquiry / Help, Subcategory: General Inquiry",
-        "recommended": "Category: Access & Identity, Subcategory: Account Unlock / Password Reset",
-        "evidence": "Customer: I want to reset my password for AD account. / Technician: I'm unblocking your account."
+        "recommended": "Set Category to User Account / Access and Subcategory to Account Unlock / Password Reset",
+        "evidence": "Technician: 'unblock you or see what is the problem in the SailPoint.'"
       },
       {
         "field": "Service",
         "result": "WARN",
         "observed": "IT Service Desk",
-        "recommended": "Active Directory / Identity & Access Management",
-        "evidence": "Customer: I want to reset my password for AD account. / Technician: unblock you or see what is the problem in the SailPoint."
+        "recommended": "Align service to the specific configuration item or business service, such as Active Directory or Identity Management",
+        "evidence": "Customer: 'I want to reset my password for AD account.'"
       },
       {
         "field": "Priority",
         "result": "PASS",
         "observed": "P4",
-        "recommended": "P4",
-        "evidence": "Customer: I'm not able to reset my password for AD account."
+        "recommended": "Maintain P4 priority as this is an isolated single-user access issue without wider impact",
+        "evidence": "Customer: 'I'm not able to reset my AD account.'"
       },
       {
         "field": "Assignment group",
         "result": "PASS",
         "observed": "Service Desk Tier 1",
-        "recommended": "Service Desk Tier 1",
-        "evidence": "Technician: It's my pleasure for helping you. Please reach out to Service Desk for any"
+        "recommended": "Maintain Service Desk Tier 1 assignment as the issue was handled and resolved at first contact",
+        "evidence": "Technician: 'Oh, I see your account is blocked. I'm unblocking your account.'"
       },
       {
         "field": "Resolution",
         "result": "WARN",
         "observed": "Unlocked his account",
-        "recommended": "Verified caller identity via security questions, unblocked account in SailPoint, and confirmed user successfully logged in.",
-        "evidence": "Customer: Oh thank you, I am able to login now, thank you for your service"
+        "recommended": "Expand resolution summary to note security verification via security questions and successful user login confirmation",
+        "evidence": "Customer: 'Oh thank you, I am able to login now, thank you for your service'"
       },
       {
         "field": "Work notes",
         "result": "FAIL",
-        "observed": "No work notes recorded",
-        "recommended": "Document verification of security questions (name Rajesh, born in Vijayawada), investigation in SailPoint showing blocked account, unblocking performed, and caller confirmation of access.",
-        "evidence": "Technician: uh let me verify you using some security questions... Oh, I see your account is blocked. I'm unblocking your account."
+        "observed": "[] (empty)",
+        "recommended": "Log technician actions including identity verification of caller Rajesh, SailPoint status check, unblock action, and user verification",
+        "evidence": "Technician: 'uh let me verify you using some security questions... what is the city you were born in?'"
       }
     ],
-    "quality_score": 38
+    "quality_score": 40,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-CEB4D20D",
@@ -2789,10 +2825,13 @@
           "text": "Short description : Customer requests password reset instructions\nDescription : Customer asked how to reset an enterprise account password. No reset was requested or performed. Follow the approved identity check and verify account status and security hold before issuing a one-time reset link.\nCategory : Accounts and Access\nSubcategory : Password Reset\nService : Enterprise Account\nPriority : P3\nAssignment group : Service Desk\nState : New",
           "created_at": "2026-10-11T10:54:34.166043Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0001",
@@ -2949,10 +2988,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-09-22T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0002",
@@ -3109,10 +3151,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-09-22T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0003",
@@ -3269,10 +3314,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-09-22T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0004",
@@ -3429,10 +3477,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-09-23T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0005",
@@ -3589,10 +3640,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-09-23T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0006",
@@ -3749,10 +3803,13 @@
           "text": "State : Resolved was In Progress\nResolution : Customer completed the approved self-service password reset and confirmed Windows and employee-portal access. was Empty",
           "created_at": "2026-09-23T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0007",
@@ -3909,10 +3966,13 @@
           "text": "State : Resolved was In Progress\nResolution : Customer completed the approved self-service password reset and confirmed Windows and employee-portal access. was Empty",
           "created_at": "2026-09-23T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0008",
@@ -4069,10 +4129,13 @@
           "text": "State : Resolved was In Progress\nResolution : Customer completed the approved self-service password reset and confirmed Windows and employee-portal access. was Empty",
           "created_at": "2026-09-24T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0009",
@@ -4229,10 +4292,13 @@
           "text": "State : Resolved was In Progress\nResolution : Customer completed the approved self-service password reset and confirmed Windows and employee-portal access. was Empty",
           "created_at": "2026-09-24T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0010",
@@ -4389,10 +4455,13 @@
           "text": "State : Resolved was In Progress\nResolution : Customer completed the approved self-service password reset and confirmed Windows and employee-portal access. was Empty",
           "created_at": "2026-09-24T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0011",
@@ -4549,10 +4618,13 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected the sign-in identifier from a display name to the configured corporate email format; customer verified access. was Empty",
           "created_at": "2026-09-24T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0012",
@@ -4709,10 +4781,13 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected the sign-in identifier from a display name to the configured corporate email format; customer verified access. was Empty",
           "created_at": "2026-09-25T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0013",
@@ -4869,10 +4944,13 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected the sign-in identifier from a display name to the configured corporate email format; customer verified access. was Empty",
           "created_at": "2026-09-25T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0014",
@@ -5029,10 +5107,13 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected the sign-in identifier from a display name to the configured corporate email format; customer verified access. was Empty",
           "created_at": "2026-09-25T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0015",
@@ -5189,10 +5270,13 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected the sign-in identifier from a display name to the configured corporate email format; customer verified access. was Empty",
           "created_at": "2026-09-25T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0016",
@@ -5349,10 +5433,13 @@
           "text": "State : Resolved was In Progress\nResolution : Restored the monitor power connection and confirmed stable display operation with the customer. was Empty",
           "created_at": "2026-09-26T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0017",
@@ -5509,10 +5596,13 @@
           "text": "State : Resolved was In Progress\nResolution : Restored the monitor power connection and confirmed stable display operation with the customer. was Empty",
           "created_at": "2026-09-26T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0018",
@@ -5669,10 +5759,13 @@
           "text": "State : Resolved was In Progress\nResolution : Restored the monitor power connection and confirmed stable display operation with the customer. was Empty",
           "created_at": "2026-09-26T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0019",
@@ -5829,10 +5922,13 @@
           "text": "State : Resolved was In Progress\nResolution : Restored the monitor power connection and confirmed stable display operation with the customer. was Empty",
           "created_at": "2026-09-26T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0020",
@@ -5989,10 +6085,13 @@
           "text": "State : Resolved was In Progress\nResolution : Restored the monitor power connection and confirmed stable display operation with the customer. was Empty",
           "created_at": "2026-09-27T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0021",
@@ -6149,10 +6248,13 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected display mode, arrangement, resolution and scaling; customer verified both screens. was Empty",
           "created_at": "2026-09-27T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0022",
@@ -6309,10 +6411,13 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected display mode, arrangement, resolution and scaling; customer verified both screens. was Empty",
           "created_at": "2026-09-27T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0023",
@@ -6469,10 +6574,13 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected display mode, arrangement, resolution and scaling; customer verified both screens. was Empty",
           "created_at": "2026-09-27T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0024",
@@ -6629,10 +6737,13 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected display mode, arrangement, resolution and scaling; customer verified both screens. was Empty",
           "created_at": "2026-09-28T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0025",
@@ -6789,10 +6900,13 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected display mode, arrangement, resolution and scaling; customer verified both screens. was Empty",
           "created_at": "2026-09-28T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0026",
@@ -6949,10 +7063,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-09-28T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0027",
@@ -7109,10 +7226,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-09-28T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0028",
@@ -7269,10 +7389,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-09-29T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0029",
@@ -7429,10 +7552,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-09-29T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0030",
@@ -7589,10 +7715,13 @@
           "text": "State : Resolved was In Progress\nResolution : Endpoint Security completed an approved sensor repair; customer verified a clean restart and normal application use. was Empty",
           "created_at": "2026-09-29T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0031",
@@ -7749,10 +7878,13 @@
           "text": "State : Resolved was In Progress\nResolution : Endpoint Security completed an approved sensor repair; customer verified a clean restart and normal application use. was Empty",
           "created_at": "2026-09-29T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0032",
@@ -7909,10 +8041,13 @@
           "text": "State : Resolved was In Progress\nResolution : Endpoint Security completed an approved sensor repair; customer verified a clean restart and normal application use. was Empty",
           "created_at": "2026-09-30T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0033",
@@ -8069,10 +8204,13 @@
           "text": "State : Resolved was In Progress\nResolution : Endpoint Security completed an approved sensor repair; customer verified a clean restart and normal application use. was Empty",
           "created_at": "2026-09-30T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0034",
@@ -8229,10 +8367,13 @@
           "text": "State : Resolved was In Progress\nResolution : Endpoint Security performed an approved sensor rollback, retained active protection and verified normal startup and application use. was Empty",
           "created_at": "2026-09-30T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0035",
@@ -8389,10 +8530,13 @@
           "text": "State : Resolved was In Progress\nResolution : Endpoint Security performed an approved sensor rollback, retained active protection and verified normal startup and application use. was Empty",
           "created_at": "2026-09-30T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0036",
@@ -8549,10 +8693,13 @@
           "text": "State : Resolved was In Progress\nResolution : Endpoint Security performed an approved sensor rollback, retained active protection and verified normal startup and application use. was Empty",
           "created_at": "2026-10-01T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0037",
@@ -8709,10 +8856,13 @@
           "text": "State : Resolved was In Progress\nResolution : Endpoint Security performed an approved sensor rollback, retained active protection and verified normal startup and application use. was Empty",
           "created_at": "2026-10-01T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0038",
@@ -8869,10 +9019,13 @@
           "text": "State : Resolved was In Progress\nResolution : Restored the workstation’s corporate-network connection and managed printer connection; customer confirmed a physical test print. was Empty",
           "created_at": "2026-10-01T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0039",
@@ -9029,10 +9182,13 @@
           "text": "State : Resolved was In Progress\nResolution : Restored the workstation’s corporate-network connection and managed printer connection; customer confirmed a physical test print. was Empty",
           "created_at": "2026-10-01T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0040",
@@ -9189,10 +9345,13 @@
           "text": "State : Resolved was In Progress\nResolution : Restored the workstation’s corporate-network connection and managed printer connection; customer confirmed a physical test print. was Empty",
           "created_at": "2026-10-02T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0041",
@@ -9349,10 +9508,13 @@
           "text": "State : Resolved was In Progress\nResolution : Restored the workstation’s corporate-network connection and managed printer connection; customer confirmed a physical test print. was Empty",
           "created_at": "2026-10-02T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0042",
@@ -9509,10 +9671,13 @@
           "text": "State : Resolved was In Progress\nResolution : Restored the workstation’s corporate-network connection and managed printer connection; customer confirmed a physical test print. was Empty",
           "created_at": "2026-10-02T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0043",
@@ -9669,10 +9834,13 @@
           "text": "State : Resolved was In Progress\nResolution : Restored the workstation’s corporate-network connection and managed printer connection; customer confirmed a physical test print. was Empty",
           "created_at": "2026-10-02T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0044",
@@ -9829,10 +9997,13 @@
           "text": "State : Resolved was In Progress\nResolution : Authorised office support replaced the empty toner cartridge; customer verified a readable test page. was Empty",
           "created_at": "2026-10-03T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0045",
@@ -9989,10 +10160,13 @@
           "text": "State : Resolved was In Progress\nResolution : Authorised office support replaced the empty toner cartridge; customer verified a readable test page. was Empty",
           "created_at": "2026-10-03T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0046",
@@ -10149,10 +10323,13 @@
           "text": "State : Resolved was In Progress\nResolution : Authorised office support replaced the empty toner cartridge; customer verified a readable test page. was Empty",
           "created_at": "2026-10-03T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0047",
@@ -10309,10 +10486,13 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected application print-content and page-range settings after confirming a healthy printer test page; customer verified complete output. was Empty",
           "created_at": "2026-10-03T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0048",
@@ -10469,10 +10649,13 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected application print-content and page-range settings after confirming a healthy printer test page; customer verified complete output. was Empty",
           "created_at": "2026-10-04T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0049",
@@ -10629,10 +10812,13 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected application print-content and page-range settings after confirming a healthy printer test page; customer verified complete output. was Empty",
           "created_at": "2026-10-04T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0050",
@@ -10789,10 +10975,13 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected application print-content and page-range settings after confirming a healthy printer test page; customer verified complete output. was Empty",
           "created_at": "2026-10-04T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0051",
@@ -10949,10 +11138,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-10-04T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0052",
@@ -11109,10 +11301,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-10-05T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0053",
@@ -11269,10 +11464,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-10-05T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0054",
@@ -11429,10 +11627,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-10-05T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0055",
@@ -11589,10 +11790,13 @@
           "text": "State : Resolved was In Progress\nResolution : Cleared stale Citrix browser site data, used the current portal URL and verified successful application launch. was Empty",
           "created_at": "2026-10-05T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0056",
@@ -11749,10 +11953,13 @@
           "text": "State : Resolved was In Progress\nResolution : Cleared stale Citrix browser site data, used the current portal URL and verified successful application launch. was Empty",
           "created_at": "2026-10-06T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0057",
@@ -11909,10 +12116,13 @@
           "text": "State : Resolved was In Progress\nResolution : Cleared stale Citrix browser site data, used the current portal URL and verified successful application launch. was Empty",
           "created_at": "2026-10-06T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0058",
@@ -12069,10 +12279,13 @@
           "text": "State : Resolved was In Progress\nResolution : Cleared stale Citrix browser site data, used the current portal URL and verified successful application launch. was Empty",
           "created_at": "2026-10-06T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0059",
@@ -12229,10 +12442,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-10-06T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0060",
@@ -12389,10 +12605,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-10-07T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0061",
@@ -12549,10 +12768,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-10-07T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0062",
@@ -12709,10 +12931,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-10-07T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0063",
@@ -12869,10 +13094,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-10-07T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0064",
@@ -13029,10 +13257,70 @@
           "text": "State : Resolved was In Progress\nResolution : Selected the detected USB dictation microphone in Dragon and verified audio calibration, dictation and device controls. was Empty",
           "created_at": "2026-10-08T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "WARN",
+        "observed": "Dragon cannot detect my dictation microphone",
+        "recommended": "Use objective third-person phrasing such as 'Dragon cannot detect dictation microphone' rather than verbatim first-person wording.",
+        "evidence": "Customer stated: 'Dragon cannot detect my dictation microphone.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Captures user details, workstation WS-DEMO-004, business impact, symptoms, troubleshooting actions, and customer validation.",
+        "recommended": "Maintain current description standards.",
+        "evidence": "Transcript confirms workstation 'WS-DEMO-004', impact 'team handover', and symptom 'Dragon is using the laptop microphone profile'."
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Software / Dictation microphone not detected",
+        "recommended": "Maintain current classification decision.",
+        "evidence": "Issue involved Dragon software failing to detect the USB microphone input profile."
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Dragon dictation",
+        "recommended": "Maintain current service selection.",
+        "evidence": "Customer stated: 'Dragon cannot detect my dictation microphone.'"
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain P3 priority rating.",
+        "evidence": "Issue impacted a single user in Procurement needing dictation for today's team handover."
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Maintain Service Desk assignment.",
+        "evidence": "Technician introduced the call: 'Thank you calling service desk, how can I help you today?' and handled it end-to-end."
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Selected the detected USB dictation microphone in Dragon and verified audio calibration, dictation and device controls.",
+        "recommended": "Maintain current resolution documentation.",
+        "evidence": "Customer confirmed: 'Dragon captured the sentence and the microphone control works. Dictation is available again.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Logs key troubleshooting instructions and customer validation message.",
+        "recommended": "Maintain current work note logging practices.",
+        "evidence": "Technician and customer comments match the transcript exchange for configuring audio source settings and testing."
+      }
+    ],
+    "quality_score": 95,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0065",
@@ -13189,10 +13477,70 @@
           "text": "State : Resolved was In Progress\nResolution : Selected the detected USB dictation microphone in Dragon and verified audio calibration, dictation and device controls. was Empty",
           "created_at": "2026-10-08T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "PASS",
+        "observed": "My USB dictation microphone works in Windows but not in Dragon",
+        "recommended": "Maintain clear issue summary; optionally rephrase in the third person for standard documentation style.",
+        "evidence": "Customer stated: 'My USB dictation microphone works in Windows but not in Dragon.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Captures user details, location, workstation WS-DEMO-005, business impact, symptoms, troubleshooting, and verification.",
+        "recommended": "Maintain complete structured descriptions capturing caller context and impact.",
+        "evidence": "Customer stated workstation 'WS-DEMO-005' and handover impact 'need this for today’s team handover.'"
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Software / Dictation microphone not detected",
+        "recommended": "Maintain classification reflecting application-level peripheral and audio configuration issues.",
+        "evidence": "Customer confirmed: 'Windows detects the USB dictation microphone, but Dragon is using the laptop microphone profile.'"
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Dragon dictation",
+        "recommended": "Keep Dragon dictation as the identified service.",
+        "evidence": "Issue specifically concerned microphone operation within Dragon dictation software."
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain P3 priority for a single user affected with business handover urgency.",
+        "evidence": "Customer: 'I work in Customer Support at Hyderabad, and I need this for today’s team handover.'"
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Maintain Service Desk ownership for first-contact resolution.",
+        "evidence": "Technician Vikram Rao handled and resolved the call at the service desk level."
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Selected the detected USB dictation microphone in Dragon and verified audio calibration, dictation and device controls.",
+        "recommended": "Maintain detailed resolution notes documenting specific configuration changes and user validation.",
+        "evidence": "Customer confirmed: 'Dragon captured the sentence and the microphone control works. Dictation is available again.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Documents troubleshooting guidance provided to the user and the user's confirmation of resolution.",
+        "recommended": "Continue logging technician guidance and customer test confirmation.",
+        "evidence": "Technician instructed audio source selection and customer confirmed dictation availability."
+      }
+    ],
+    "quality_score": 100,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0066",
@@ -13349,10 +13697,70 @@
           "text": "State : Resolved was In Progress\nResolution : Selected the detected USB dictation microphone in Dragon and verified audio calibration, dictation and device controls. was Empty",
           "created_at": "2026-10-08T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "PASS",
+        "observed": "Dragon says no dictation microphone is selected",
+        "recommended": "Maintain current concise issue summary.",
+        "evidence": "Customer: Dragon says no dictation microphone is selected."
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Captures user details, workstation WS-DEMO-006, business impact, observed behavior, troubleshooting steps, and customer verification.",
+        "recommended": "Maintain current comprehensive description format.",
+        "evidence": "Customer: Windows detects the USB dictation microphone, but Dragon is using the laptop microphone profile. My workstation reference is WS-DEMO-006."
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Category: Software / Subcategory: Dictation microphone not detected",
+        "recommended": "Retain Software / Dictation microphone not detected as the classification accurately reflects the software configuration problem.",
+        "evidence": "Customer: Dragon says no dictation microphone is selected."
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Dragon dictation",
+        "recommended": "Keep Dragon dictation as the affected service.",
+        "evidence": "Customer: Dragon says no dictation microphone is selected."
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain P3 rating for a single-user functional impairment with same-day impact.",
+        "evidence": "Customer: I work in Sales at Bengaluru, and I need this for today’s team handover."
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Retain Service Desk as the resolving assignment group.",
+        "evidence": "Technician: Thank you calling service desk, how can I help you today?"
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Selected the detected USB dictation microphone in Dragon and verified audio calibration, dictation and device controls.",
+        "recommended": "Maintain current verified resolution description.",
+        "evidence": "Customer: Dragon captured the sentence and the microphone control works. Dictation is available again."
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Logs contain technician troubleshooting guidance and user verification of working dictation and mic controls.",
+        "recommended": "Maintain detailed customer and technician interactions in the work notes.",
+        "evidence": "Technician: Select the approved dictation microphone in Dragon’s audio source settings... / Customer: Dragon captured the sentence..."
+      }
+    ],
+    "quality_score": 100,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0067",
@@ -13509,10 +13917,70 @@
           "text": "State : Resolved was In Progress\nResolution : Used an approved Drive link for an oversized attachment and verified successful delivery with restricted recipient access. was Empty",
           "created_at": "2026-10-08T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "WARN",
+        "observed": "I cannot send an email from Gmail with my report attached",
+        "recommended": "Use an objective summary instead of a first-person quote, such as: 'Unable to send Gmail email due to oversized report attachment'.",
+        "evidence": "Customer: 'I cannot send an email from Gmail with my report attached.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Pranav Nair (Facilities, Bengaluru) reported: I cannot send an email from Gmail with my report attached. Affected workstation: WS-DEMO-007. Impact: I have a deadline this afternoon. Observed: The message reports that the attachment is too large. A short message without it sends successfully. Troubleshooting: The account can send mail; the attachment is the blocker. Please confirm the recipient is authorised to receive the file. Upload the file to the approved Drive location, grant only the required recipient access, and send its link instead of the large attachment. Customer validation: The message is in Sent, the recipient confirmed it arrived, and access is limited to the intended person.",
+        "recommended": "Maintain comprehensive structured documentation covering caller details, symptoms, troubleshooting, and verification.",
+        "evidence": "Customer: 'I work in Facilities at Bengaluru, and I have a deadline this afternoon... workstation reference is WS-DEMO-007.'"
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Category: Messaging / Subcategory: Unable to send email",
+        "recommended": "Maintain Category: Messaging / Subcategory: Unable to send email as it accurately reflects the reported sending failure.",
+        "evidence": "Customer: 'I cannot send an email from Gmail with my report attached.'"
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Google Workspace",
+        "recommended": "Retain Google Workspace as the affected service hosting Gmail and Google Drive.",
+        "evidence": "Customer: 'I cannot send an email from Gmail with my report attached... approved shared Drive location.'"
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain P3 for a single-user incident with moderate business urgency.",
+        "evidence": "Customer: 'I work in Facilities at Bengaluru, and I have a deadline this afternoon.'"
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Maintain Service Desk as the ticket was handled and resolved at first point of contact.",
+        "evidence": "Technician: 'Thank you calling service desk, how can I help you today?'"
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Used an approved Drive link for an oversized attachment and verified successful delivery with restricted recipient access.",
+        "recommended": "Retain this resolution note as it documents both the fix and positive customer confirmation.",
+        "evidence": "Customer: 'The message is in Sent, the recipient confirmed it arrived, and access is limited to the intended person.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Chronological entries capturing technician instruction to share via Drive link and customer validation confirming delivery and access control.",
+        "recommended": "Continue documenting real-time guidance and validation outcomes in the work notes.",
+        "evidence": "Work notes show technician advice at 18:27:59Z and customer validation at 18:28:59Z matching the call transcript."
+      }
+    ],
+    "quality_score": 96,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0068",
@@ -13669,10 +14137,70 @@
           "text": "State : Resolved was In Progress\nResolution : Used an approved Drive link for an oversized attachment and verified successful delivery with restricted recipient access. was Empty",
           "created_at": "2026-10-09T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "PASS",
+        "observed": "Gmail refuses to send a message with a large attachment",
+        "recommended": "Maintain clear, concise summaries of the user's issue.",
+        "evidence": "Customer: 'Gmail refuses to send a message with a large attachment.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Detailed documentation including user department, location, workstation WS-DEMO-008, business impact, troubleshooting, and validation.",
+        "recommended": "Continue capturing complete caller details, asset identifiers, and business impact.",
+        "evidence": "Customer notes workstation 'WS-DEMO-008' and deadline impact; technician notes troubleshooting and validation steps."
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Messaging / Unable to send email",
+        "recommended": "Keep standard categorization for email transmission failures.",
+        "evidence": "Customer stated Gmail was unable to send due to attachment size."
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Google Workspace",
+        "recommended": "Maintain Google Workspace as the supporting service for Gmail and Drive.",
+        "evidence": "Customer experienced issues with Gmail and utilized Google Drive to share the file."
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain P3 for single-user incidents with localized deadlines.",
+        "evidence": "Customer mentioned an afternoon deadline affecting only herself."
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Keep assigned to Service Desk for first-contact resolution.",
+        "evidence": "Technician Pooja Deshmukh handled and resolved the call at the first point of contact."
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Used an approved Drive link for an oversized attachment and verified successful delivery with restricted recipient access.",
+        "recommended": "Maintain complete resolution descriptions covering root cause, resolution action, and recipient verification.",
+        "evidence": "Customer confirmed: 'The message is in Sent, the recipient confirmed it arrived, and access is limited to the intended person.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Technician and customer comments log the workaround instructions and customer confirmation.",
+        "recommended": "Continue logging actionable guidance and verification feedback in the work notes.",
+        "evidence": "Technician logged instruction to upload to Drive, and customer confirmed delivery and access."
+      }
+    ],
+    "quality_score": 100,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0069",
@@ -13829,10 +14357,70 @@
           "text": "State : Resolved was In Progress\nResolution : Used an approved Drive link for an oversized attachment and verified successful delivery with restricted recipient access. was Empty",
           "created_at": "2026-10-09T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "PASS",
+        "observed": "My email will not send when I attach the project file",
+        "recommended": "Maintain clear summary of the email attachment delivery failure",
+        "evidence": "Customer: 'My email will not send when I attach the project file.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Detailed record covering caller details, workstation WS-DEMO-009, error details, impact deadline, troubleshooting steps, and customer validation",
+        "recommended": "Maintain comprehensive structured description",
+        "evidence": "Customer: 'I work in Quality Assurance at Bengaluru, and I have a deadline this afternoon... workstation reference is WS-DEMO-009.'"
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Messaging / Unable to send email",
+        "recommended": "Maintain Messaging / Unable to send email or Email / Attachments",
+        "evidence": "Customer: 'My email will not send when I attach the project file. The message reports that the attachment is too large.'"
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Google Workspace",
+        "recommended": "Maintain Google Workspace",
+        "evidence": "Transcript confirms email and approved shared Drive link workflow."
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain P3 Moderate priority",
+        "evidence": "Single QA user impacted with an afternoon deadline, resolved via standard workaround."
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Maintain Service Desk",
+        "evidence": "Technician Rohit Patel handled and resolved the call at first contact."
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Used an approved Drive link for an oversized attachment and verified successful delivery with restricted recipient access.",
+        "recommended": "Maintain verified resolution note",
+        "evidence": "Customer: 'The message is in Sent, the recipient confirmed it arrived, and access is limited to the intended person.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Documented workaround instruction to share file via Drive and recorded customer confirmation of receipt and access security",
+        "recommended": "Maintain technical guidance and customer verification notes",
+        "evidence": "Technician note and customer note reflect exchange: 'Upload the file to the approved Drive location...' and 'The message is in Sent...'"
+      }
+    ],
+    "quality_score": 100,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0070",
@@ -13989,10 +14577,70 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected an unintended skip-Inbox filter and restored selected archived messages; verified new-mail visibility. was Empty",
           "created_at": "2026-10-09T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "WARN",
+        "observed": "My Gmail inbox looks empty even though I had messages",
+        "recommended": "Use a concise, professional summary such as: Gmail inbox appearing empty due to active archiving filter rule",
+        "evidence": "Customer stated: 'My Gmail inbox looks empty even though I had messages.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Comprehensive documentation capturing caller identity, Bengaluru administration location, WS-DEMO-010 workstation, shift impact, observed symptoms, troubleshooting steps, and resolution validation.",
+        "recommended": "Maintain current structure for logging incident context, impact, and verification.",
+        "evidence": "Transcript confirms user details, workstation WS-DEMO-010, shift completion impact, filter troubleshooting, and test email verification."
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "WARN",
+        "observed": "Messaging / Inbox looks empty",
+        "recommended": "Messaging / Mailbox Filters & Rules",
+        "evidence": "Customer confirmed: 'A filter is set to skip Inbox for incoming mail from our team. The messages have been archived.'"
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Google Workspace",
+        "recommended": "Maintain Google Workspace as the supported enterprise service.",
+        "evidence": "User reported Gmail work account issues where messages bypassed the inbox to All Mail."
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain P3 priority for single-user email configuration issues.",
+        "evidence": "Affects a single user needing to complete shift work: 'I work in Administration at Bengaluru, and I need to complete the current shift’s work.'"
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Maintain Service Desk assignment as first-contact resolution group.",
+        "evidence": "Technician Divya Krishnan handled and successfully resolved the issue during the initial call."
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Corrected an unintended skip-Inbox filter and restored selected archived messages; verified new-mail visibility.",
+        "recommended": "Maintain this clear resolution summary detailing root cause removal and validation outcome.",
+        "evidence": "Customer verified: 'My expected messages are visible, and the test message stayed in Inbox. Nothing was deleted.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Logged technician remediation action and customer confirmation of message visibility.",
+        "recommended": "Maintain documented remediation steps and explicit end-user verification entries.",
+        "evidence": "Notes cite technician instruction to remove skip-Inbox rule and customer confirmation that test message arrived and remained in Inbox."
+      }
+    ],
+    "quality_score": 90,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0071",
@@ -14149,10 +14797,70 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected an unintended skip-Inbox filter and restored selected archived messages; verified new-mail visibility. was Empty",
           "created_at": "2026-10-09T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "WARN",
+        "observed": "I cannot see my work messages in Inbox",
+        "recommended": "Use objective third-person summary such as 'User missing work messages in Inbox due to mail filter' rather than verbatim first-person statement.",
+        "evidence": "Customer states: 'I cannot see my work messages in Inbox.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Detailed record listing user, workstation, impact, observed symptoms, troubleshooting steps, and validation.",
+        "recommended": "Maintain this comprehensive level of incident documentation.",
+        "evidence": "Transcript confirms Suresh Pillai, WS-DEMO-011, shift work impact, All Mail visibility, filter remediation, and test validation."
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "WARN",
+        "observed": "Messaging / Inbox looks empty",
+        "recommended": "Update subcategory to a standardized taxonomy item such as 'Rules and Filters' or 'Configuration' instead of conversational symptom text.",
+        "evidence": "Customer reports: 'A filter is set to skip Inbox for incoming mail from our team. The messages have been archived.'"
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Google Workspace",
+        "recommended": "Maintain current service mapping.",
+        "evidence": "Transcript references Gmail-specific terminology: 'All Mail', 'skip Inbox', and inbox view search."
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain P3 priority for localized single-user shift productivity impact.",
+        "evidence": "Customer states: 'I work in Finance at Chennai, and I need to complete the current shift’s work.'"
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Maintain Service Desk assignment as incident was handled and resolved at first contact.",
+        "evidence": "Technician states: 'Thank you calling service desk, how can I help you today?' and resolves directly."
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Corrected an unintended skip-Inbox filter and restored selected archived messages; verified new-mail visibility.",
+        "recommended": "Maintain clear resolution notes linking cause, fix, and verification.",
+        "evidence": "Technician instructed filter removal and message move; customer confirmed: 'The messages are back in Inbox, and a new test message also appears there.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Logged technical action to remove the rule/restore messages and customer verification confirmation.",
+        "recommended": "Ensure technician notes use past tense narrative of actions completed rather than imperative script copies.",
+        "evidence": "Technician entry matches remediation instruction and customer entry matches validation quote in transcript."
+      }
+    ],
+    "quality_score": 88,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0072",
@@ -14309,10 +15017,70 @@
           "text": "State : Resolved was In Progress\nResolution : Corrected an unintended skip-Inbox filter and restored selected archived messages; verified new-mail visibility. was Empty",
           "created_at": "2026-10-10T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "PASS",
+        "observed": "Gmail opens an empty Inbox but search finds the emails",
+        "recommended": "Maintain clear and concise summary of the reported symptom.",
+        "evidence": "Customer stated: 'Gmail opens an empty Inbox but search finds the emails.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Structured description capturing caller details, workstation WS-DEMO-012, shift impact, symptoms, troubleshooting, and verification.",
+        "recommended": "Maintain thorough structured documentation including caller context and impact.",
+        "evidence": "Transcript confirms caller Ritika Jain, workstation WS-DEMO-012, shift impact, and verification steps."
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "WARN",
+        "observed": "Category: Messaging, Subcategory: Inbox looks empty",
+        "recommended": "Align subcategory to a standardized functional classification such as Rules / Filters or Configuration rather than a symptom description.",
+        "evidence": "Transcript confirms issue was caused by an unintended filter: 'A filter is set to skip Inbox for incoming mail from our team.'"
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Google Workspace",
+        "recommended": "Maintain accurate business service mapping.",
+        "evidence": "Issue involves corporate Gmail account under Google Workspace."
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain standard P3 priority for single-user workflow interruption.",
+        "evidence": "Customer noted: 'I need to complete the current shift’s work', indicating local individual impact."
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Maintain assignment to Service Desk for first-contact resolution.",
+        "evidence": "Technician Meera Joshi handled and resolved the call at first contact."
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Corrected an unintended skip-Inbox filter and restored selected archived messages; verified new-mail visibility.",
+        "recommended": "Maintain descriptive cause, action taken, and verification outcome in resolution notes.",
+        "evidence": "Customer confirmed: 'My expected messages are visible, and the test message stayed in Inbox. Nothing was deleted.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Logged technician remediation instruction and customer confirmation comments.",
+        "recommended": "Maintain real-time logging of diagnostic actions and user verification.",
+        "evidence": "Comments match transcript exchange regarding filter removal and inbox restoration."
+      }
+    ],
+    "quality_score": 92,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0073",
@@ -14469,10 +15237,70 @@
           "text": "State : Resolved was In Progress\nResolution : Guided the customer through Google Calendar guest free/busy scheduling and verified the chosen time zone and invitation. was Empty",
           "created_at": "2026-10-10T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "WARN",
+        "observed": "How can I find other people’s availability when scheduling from Gmail?",
+        "recommended": "Use a concise, professional summary rather than a raw question referencing Gmail, such as: User guidance for checking attendee calendar availability in Google Calendar.",
+        "evidence": "Customer asked: 'How can I find other people’s availability when scheduling from Gmail?', but the resolution occurred in Google Calendar."
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Varun Bhat (Operations, Chennai) reported: How can I find other people’s availability when scheduling from Gmail?\\nAffected workstation: WS-DEMO-013. Impact: my regular work is interrupted.\\nObserved: I am creating a meeting from my work account. I can see free/busy information but do not know how to compare it.\\nTroubleshooting: Open the event in Google Calendar and add the intended guests using their corporate addresses. Use Find a time to compare the guests’ permitted free/busy slots, choose a shared free slot and confirm the event time zone.\\nCustomer validation: The guest list and time are correct. I sent the invitation and can now check availability myself.",
+        "recommended": "Maintain this comprehensive template capturing user details, workstation, impact, troubleshooting, and customer validation.",
+        "evidence": "Matches all caller details from the transcript including workstation 'WS-DEMO-013', impact, and exact troubleshooting steps."
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Category: Collaboration, Subcategory: Find calendar availability",
+        "recommended": "Retain Collaboration / Find calendar availability for meeting scheduling and attendee availability requests.",
+        "evidence": "Caller was scheduling a meeting and seeking how to view and compare attendees' free/busy availability."
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Google Workspace",
+        "recommended": "Retain Google Workspace as the designated service for Google Calendar and Gmail applications.",
+        "evidence": "Interaction revolved around scheduling via Google Calendar within the corporate work account."
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P4",
+        "recommended": "Maintain P4 priority for single-user how-to guidance with minor business impact.",
+        "evidence": "Individual operational query resolved with standard navigation guidance."
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Keep Service Desk as the assigned group for first-contact resolution of workspace guidance.",
+        "evidence": "Technician handled call directly from greeting through verification and resolution."
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Guided the customer through Google Calendar guest free/busy scheduling and verified the chosen time zone and invitation.",
+        "recommended": "Maintain concise summary of corrective steps and customer verification.",
+        "evidence": "Customer confirmed: 'The guest list and time are correct. I sent the invitation and can now check availability myself.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Technician provided guidance on using 'Find a time' and verifying time zones; customer verified invitation was sent and availability checked.",
+        "recommended": "Maintain chronological capture of specific technician actions and customer confirmation.",
+        "evidence": "Technician note mirrors advice given at 06:27; customer note reflects confirmation at 06:28."
+      }
+    ],
+    "quality_score": 95,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0074",
@@ -14629,10 +15457,70 @@
           "text": "State : Resolved was In Progress\nResolution : Guided the customer through Google Calendar guest free/busy scheduling and verified the chosen time zone and invitation. was Empty",
           "created_at": "2026-10-10T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "WARN",
+        "observed": "I need to compare my colleagues’ calendar availability",
+        "recommended": "Rephrase from a first-person user quote to an objective technical summary, such as 'Assistance required comparing colleague availability in Google Calendar'.",
+        "evidence": "Customer: 'I need to compare my colleagues’ calendar availability.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Aditi Desai (Procurement, Chennai) reported: I need to compare my colleagues’ calendar availability. Affected workstation: WS-DEMO-014. Impact: my regular work is interrupted. Observed: I am creating a meeting from my work account. I can see free/busy information but do not know how to compare it. Troubleshooting: Open the event in Google Calendar and add the intended guests using their corporate addresses. Use Find a time to compare the guests’ permitted free/busy slots, choose a shared free slot and confirm the event time zone. Customer validation: The guest list and time are correct. I sent the invitation and can now check availability myself.",
+        "recommended": "Maintain current structured recording format including user details, workstation, impact, troubleshooting, and validation.",
+        "evidence": "Customer stated name, department, location, workstation 'WS-DEMO-014', impact, and verified resolution during the call."
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Collaboration / Find calendar availability",
+        "recommended": "Maintain current categorization as it accurately reflects calendar availability features under the collaboration suite.",
+        "evidence": "Customer: 'I need to compare my colleagues’ calendar availability. I am creating a meeting from my work account.'"
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Google Workspace",
+        "recommended": "Maintain Google Workspace as the affected service.",
+        "evidence": "Technician: 'Are you scheduling an event in Google Calendar... Open the event in Google Calendar and add the intended guests using their corporate addresses.'"
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P4",
+        "recommended": "Maintain P4 priority as this is a low-impact single-user how-to question with no system outage.",
+        "evidence": "Customer: 'I can see free/busy information but do not know how to compare it.'"
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Maintain Service Desk as the incident was managed and resolved at first contact.",
+        "evidence": "Technician: 'Thank you calling service desk, how can I help you today?'"
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Guided the customer through Google Calendar guest free/busy scheduling and verified the chosen time zone and invitation.",
+        "recommended": "Maintain current resolution notes confirming the guidance provided and verified outcome.",
+        "evidence": "Customer: 'The guest list and time are correct. I sent the invitation and can now check availability myself.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Technician note details instructions for using 'Find a time' and checking time zone; customer note confirms validation and successful invitation sending.",
+        "recommended": "Maintain clear chronological work notes capturing troubleshooting steps and customer verification.",
+        "evidence": "Technician: 'Use Find a time to compare the guests’ permitted free/busy slots...' Customer: 'The guest list and time are correct. I sent the invitation...'"
+      }
+    ],
+    "quality_score": 95,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0075",
@@ -14789,10 +15677,70 @@
           "text": "State : Resolved was In Progress\nResolution : Guided the customer through Google Calendar guest free/busy scheduling and verified the chosen time zone and invitation. was Empty",
           "created_at": "2026-10-10T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "WARN",
+        "observed": "Short description is copied verbatim as a first-person user statement: 'I cannot work out when everyone is free for a Google Calendar meeting'.",
+        "recommended": "Use a concise, standardized third-person summary, such as 'Assistance requested with Google Calendar attendee availability comparison'.",
+        "evidence": "Customer: 'I cannot work out when everyone is free for a Google Calendar meeting.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Fully captures caller details, affected asset, impact, problem description, troubleshooting guidance, and customer validation.",
+        "recommended": "Maintain current structured documentation standard.",
+        "evidence": "Customer: 'I am Ganesh Iyer. I cannot work out when everyone is free for a Google Calendar meeting. I work in Customer Support at Chennai, and my regular work is interrupted.'"
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Category: Collaboration / Subcategory: Find calendar availability accurately reflects the calendar scheduling consultation.",
+        "recommended": "Retain Collaboration / Find calendar availability.",
+        "evidence": "Customer: 'I can see free/busy information but do not know how to compare it.'"
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Service is correctly identified as Google Workspace.",
+        "recommended": "Maintain Google Workspace as the supporting service.",
+        "evidence": "Technician: 'Are you scheduling an event in Google Calendar...'"
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "Priority is set to P4, appropriately reflecting a low-urgency procedural inquiry affecting an individual user.",
+        "recommended": "Keep P4 priority for single-user non-critical scheduling requests.",
+        "evidence": "Customer: 'I am creating a meeting from my work account... my regular work is interrupted.'"
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Assigned to Service Desk, which handled and resolved the inquiry on first contact.",
+        "recommended": "Retain Service Desk as the assigned group.",
+        "evidence": "Technician: 'Thank you calling service desk, how can I help you today?'"
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Resolution clearly describes the guidance provided and confirms user verification prior to closure.",
+        "recommended": "Maintain comprehensive resolution summaries that detail the specific actions taken and verified outcomes.",
+        "evidence": "Customer: 'The guest list and time are correct. I sent the invitation and can now check availability myself.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Work notes accurately record the technician's instructions and the customer's confirmation of resolution.",
+        "recommended": "Continue logging actionable instructions and direct customer confirmations in work notes.",
+        "evidence": "Technician: 'Use Find a time to compare the guests’ permitted free/busy slots...' / Customer: 'The guest list and time are correct. I sent the invitation...'"
+      }
+    ],
+    "quality_score": 95,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0076",
@@ -14949,10 +15897,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-10-11T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0077",
@@ -15109,10 +16060,13 @@
           "text": "State : On Hold was In Progress",
           "created_at": "2026-10-11T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0078",
@@ -15269,10 +16223,70 @@
           "text": "State : Resolved was In Progress\nResolution : Verified identity and guided use of an existing approved authenticator method; customer confirmed two successful MFA sign-ins. was Empty",
           "created_at": "2026-10-11T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "WARN",
+        "observed": "I am not receiving my MFA codes on the registered phone",
+        "recommended": "Rephrase first-person customer phrasing into an objective summary, such as: User not receiving MFA codes on registered phone.",
+        "evidence": "Customer: 'I am not receiving my MFA codes on the registered phone.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Sakshi Agarwal (Engineering, Pune) reported: I am not receiving my MFA codes on the registered phone. Affected workstation: WS-DEMO-018. Impact: this is delaying my morning tasks. Observed: The code is not arriving on my registered phone. I still have an approved authenticator method. Troubleshooting: Please do not share any code with me. I will confirm the account’s registered methods after the approved identity check. Choose the already-registered authenticator method on the genuine company sign-in page and complete the challenge privately. Customer validation: The second sign-in worked. I can use the approved alternate method while the mobile coverage issue is checked.",
+        "recommended": "Maintain current comprehensive documentation capturing user details, workstation, troubleshooting steps, and customer verification.",
+        "evidence": "Customer: 'Sakshi Agarwal... Pune... WS-DEMO-018' and Technician: 'confirm the account’s registered methods after the approved identity check.'"
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Access / Not receiving codes",
+        "recommended": "Maintain Access / Not receiving codes (or Access / MFA) as it accurately captures the authentication failure.",
+        "evidence": "Customer: 'The code is not arriving on my registered phone.'"
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Identity and MFA",
+        "recommended": "Maintain Identity and MFA as the impacted IT service.",
+        "evidence": "Technician: 'Choose the already-registered authenticator method on the genuine company sign-in page and complete the challenge privately.'"
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain P3 priority; a single user's daily tasks were delayed with an alternate workaround available.",
+        "evidence": "Customer: 'this is delaying my morning tasks' and 'I still have an approved authenticator method.'"
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Maintain Service Desk as the handling group for first-contact MFA resolution.",
+        "evidence": "Technician: 'Thank you calling service desk, how can I help you today?'"
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Verified identity and guided use of an existing approved authenticator method; customer confirmed two successful MFA sign-ins.",
+        "recommended": "Maintain current resolution details verifying identity check and two successful sign-ins.",
+        "evidence": "Customer: 'The second sign-in worked. I can use the approved alternate method while the mobile coverage issue is checked.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Technician note guiding authenticator usage and customer note confirming second sign-in success.",
+        "recommended": "Maintain contemporaneous logging of technician guidance and caller validation comments.",
+        "evidence": "Technician: 'Choose the already-registered authenticator method...' and Customer: 'The second sign-in worked.'"
+      }
+    ],
+    "quality_score": 95,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0079",
@@ -15429,10 +16443,70 @@
           "text": "State : Resolved was In Progress\nResolution : Verified identity and guided use of an existing approved authenticator method; customer confirmed two successful MFA sign-ins. was Empty",
           "created_at": "2026-10-11T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "PASS",
+        "observed": "The MFA text message does not arrive when I sign in",
+        "recommended": "Maintain concise and accurate issue summaries.",
+        "evidence": "Customer: 'The MFA text message does not arrive when I sign in.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Detailed record capturing user name, QA role, Pune location, workstation WS-DEMO-019, handover impact, troubleshooting, and verification.",
+        "recommended": "Continue capturing comprehensive details including user context, impact, and verification.",
+        "evidence": "Customer: 'I work in Quality Assurance at Pune, and I need this for today’s team handover... My workstation reference is WS-DEMO-019.'"
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Category: Access, Subcategory: Not receiving codes",
+        "recommended": "Maintain correct access and code delivery classification.",
+        "evidence": "Customer: 'The code is not arriving on my registered phone.'"
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Identity and MFA",
+        "recommended": "Retain Identity and MFA for multi-factor authentication issues.",
+        "evidence": "Customer: 'The MFA text message does not arrive when I sign in.'"
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Retain P3 for single-user authentication issues with a working alternative method.",
+        "evidence": "Customer: 'I need this for today’s team handover' and 'I still have an approved authenticator method.'"
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Maintain Service Desk as the handling assignment group for first-contact resolution.",
+        "evidence": "Technician: 'Thank you calling service desk, how can I help you today?'"
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Verified identity and guided use of an existing approved authenticator method; customer confirmed two successful MFA sign-ins.",
+        "recommended": "Continue documenting identity verification and user test outcomes in resolution records.",
+        "evidence": "Customer: 'The identity check is complete.' and 'The second sign-in worked.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Includes technician guidance on using the registered authenticator method and customer confirmation of successful sign-in.",
+        "recommended": "Maintain logging of key instructions and user validation in work notes.",
+        "evidence": "Customer: 'The second sign-in worked. I can use the approved alternate method while the mobile coverage issue is checked.'"
+      }
+    ],
+    "quality_score": 100,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0080",
@@ -15589,10 +16663,70 @@
           "text": "State : Resolved was In Progress\nResolution : Verified identity and guided use of an existing approved authenticator method; customer confirmed two successful MFA sign-ins. was Empty",
           "created_at": "2026-10-12T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "WARN",
+        "observed": "I cannot finish login because my verification code is not being delivered",
+        "recommended": "Use standard third-person format such as: MFA verification code not received on registered phone during login.",
+        "evidence": "Customer: Hello, I am Bhavana Menon. I cannot finish login because my verification code is not being delivered."
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Detailed record including user, location, workstation WS-DEMO-020, handover impact, troubleshooting, and verification.",
+        "recommended": "Maintain this thorough level of issue detail and operational impact documentation.",
+        "evidence": "Customer: Bhavana Menon. I cannot finish login... workstation reference is WS-DEMO-020."
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Access / Not receiving codes",
+        "recommended": "Retain current classification as it accurately captures the authentication delivery failure.",
+        "evidence": "Customer: The code is not arriving on my registered phone."
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Identity and MFA",
+        "recommended": "Keep Identity and MFA as the primary service offering for verification issues.",
+        "evidence": "Technician: Which registered method is affected, and is an approved alternate method already available on the account?"
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain P3 priority since an approved alternate authentication method existed and only a single user was impacted.",
+        "evidence": "Customer: I still have an approved authenticator method."
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Maintain Service Desk assignment as the incident was diagnosed and resolved at first contact.",
+        "evidence": "Technician: Thank you calling service desk, how can I help you today?"
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Verified identity and guided use of an existing approved authenticator method; customer confirmed two successful MFA sign-ins.",
+        "recommended": "Continue documenting identity verification and verified dual sign-in tests.",
+        "evidence": "Customer: The second sign-in worked. I can use the approved alternate method while the mobile coverage issue is checked."
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Captures the specific MFA guidance provided by the technician and the user's confirmation of the working alternate method.",
+        "recommended": "Maintain direct logging of user actions and troubleshooting steps.",
+        "evidence": "Technician: Choose the already-registered authenticator method... Customer: The second sign-in worked."
+      }
+    ],
+    "quality_score": 94,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0081",
@@ -15749,10 +16883,70 @@
           "text": "State : Resolved was In Progress\nResolution : Verified identity and guided use of an existing approved authenticator method; customer confirmed two successful MFA sign-ins. was Empty",
           "created_at": "2026-10-12T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "PASS",
+        "observed": "MFA codes are delayed and I cannot access the application",
+        "recommended": "Maintain clear, concise issue summaries reflecting the user's initial report.",
+        "evidence": "Customer stated: 'MFA codes are delayed and I cannot access the application.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Comprehensive detail covering user info, impact, workstation, observations, troubleshooting steps, and customer validation.",
+        "recommended": "Continue capturing structured incident details including caller location, impact, and verification.",
+        "evidence": "Transcript shows Ashwin Raj reporting delay for team handover, WS-DEMO-021, and successful test sign-in."
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Access / Not receiving codes",
+        "recommended": "Maintain accurate categorization linking access failure to MFA code delivery.",
+        "evidence": "Customer reported: 'The code is not arriving on my registered phone.'"
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Identity and MFA",
+        "recommended": "Keep service aligned with authentication and access services.",
+        "evidence": "Conversation revolves around multi-factor authentication methods and identity verification."
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain P3 for single-user access issues with an available alternative or workaround.",
+        "evidence": "Single user impacted for handover, but had an approved alternate authenticator method available."
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Retain assignment at Service Desk for first-contact resolution of authentication issues.",
+        "evidence": "Technician Arjun Reddy from the service desk resolved the issue directly on the call."
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Verified identity and guided use of an existing approved authenticator method; customer confirmed two successful MFA sign-ins.",
+        "recommended": "Continue recording verified outcomes and verification of alternate access.",
+        "evidence": "Customer confirmed: 'The authenticator challenge worked' and 'The second sign-in worked.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Technician advice to use alternate authenticator method and customer confirmation of successful sign-in.",
+        "recommended": "Continue logging relevant troubleshooting guidance and customer validation entries.",
+        "evidence": "Notes capture technician instruction on the genuine sign-in page and customer confirmation of second sign-in."
+      }
+    ],
+    "quality_score": 100,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0082",
@@ -15909,10 +17103,70 @@
           "text": "State : Resolved was In Progress\nResolution : Customer completed approved MFA enrolment and verified a fresh sign-in without sharing enrolment or recovery secrets. was Empty",
           "created_at": "2026-10-12T12:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "WARN",
+        "observed": "I need help setting up MFA for my corporate account",
+        "recommended": "Use an objective, third-person summary such as 'MFA setup assistance for corporate account' instead of first-person customer phrasing.",
+        "evidence": "Customer: 'I need help setting up MFA for my corporate account.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Detailed structured summary documenting caller, workstation WS-DEMO-022, impact, onboarding setup, guidance provided, and test sign-in validation.",
+        "recommended": "Maintain current comprehensive description format.",
+        "evidence": "Customer: 'My workstation reference is WS-DEMO-022... I have a deadline this afternoon.'"
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Category: Access, Subcategory: Set up MFA",
+        "recommended": "Maintain current classification.",
+        "evidence": "Customer: 'I need help setting up MFA for my corporate account.'"
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Identity and MFA",
+        "recommended": "Maintain current service mapping.",
+        "evidence": "Technician: 'Is this your first MFA enrolment, and can you open the approved corporate security setup page?'"
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain P3 priority for a single-user standard onboarding request.",
+        "evidence": "Customer: 'I work in Human Resources at Mumbai, and I have a deadline this afternoon.'"
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Maintain assignment to Service Desk for first-contact resolution.",
+        "evidence": "Technician: 'Thank you calling service desk, how can I help you today?'"
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Customer completed approved MFA enrolment and verified a fresh sign-in without sharing enrolment or recovery secrets.",
+        "recommended": "Maintain current verified resolution note.",
+        "evidence": "Customer: 'My test sign-in succeeded with the authenticator. I understand how to reject an unexpected prompt.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Work notes document the specific technician instructions regarding secure authenticator enrolment and customer validation of sign-in.",
+        "recommended": "Maintain current logging standards.",
+        "evidence": "Technician: 'store recovery information only as your policy allows.' Customer: 'My test sign-in succeeded with the authenticator.'"
+      }
+    ],
+    "quality_score": 95,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0083",
@@ -16069,10 +17323,70 @@
           "text": "State : Resolved was In Progress\nResolution : Customer completed approved MFA enrolment and verified a fresh sign-in without sharing enrolment or recovery secrets. was Empty",
           "created_at": "2026-10-12T18:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "PASS",
+        "observed": "I have a new managed phone and need to complete my approved MFA enrolment",
+        "recommended": "Maintain clear summary aligned with the request; third-person summary such as 'New managed phone MFA enrolment' can also be considered.",
+        "evidence": "Customer: 'I have a new managed phone and need to complete my approved MFA enrolment.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Comprehensive structured description detailing caller, location, workstation WS-DEMO-023, deadline, troubleshooting steps, and validation.",
+        "recommended": "Continue using structured documentation capturing caller context, technical details, and outcome.",
+        "evidence": "Customer: 'I work in Operations at Mumbai, and I have a deadline this afternoon... My workstation reference is WS-DEMO-023.'"
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Category: Access / Subcategory: Set up MFA",
+        "recommended": "Maintain Access / Set up MFA for multi-factor authentication registration tasks.",
+        "evidence": "Customer: 'need to complete my approved MFA enrolment.'"
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Identity and MFA",
+        "recommended": "Maintain Identity and MFA for authentication configuration items.",
+        "evidence": "Customer: 'need to complete my approved MFA enrolment.'"
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain P3 as this impacts a single user requiring onboarding assistance.",
+        "evidence": "Customer: 'I work in Operations at Mumbai, and I have a deadline this afternoon.'"
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Maintain Service Desk as the handling group for initial service desk MFA support.",
+        "evidence": "Technician: 'Thank you calling service desk, how can I help you today?'"
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Customer completed approved MFA enrolment and verified a fresh sign-in without sharing enrolment or recovery secrets.",
+        "recommended": "Maintain detailed resolution notes confirming verified user testing and security compliance.",
+        "evidence": "Customer: 'My test sign-in succeeded with the authenticator. I understand how to reject an unexpected prompt.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Work notes capture specific technician guidance on MFA setup and customer sign-in verification.",
+        "recommended": "Continue logging substantive procedural instructions and customer validation results.",
+        "evidence": "Technician: 'Install or open the approved authenticator...' and Customer: 'My test sign-in succeeded with the authenticator.'"
+      }
+    ],
+    "quality_score": 100,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0084",
@@ -16229,10 +17543,70 @@
           "text": "State : Resolved was In Progress\nResolution : Customer completed approved MFA enrolment and verified a fresh sign-in without sharing enrolment or recovery secrets. was Empty",
           "created_at": "2026-10-13T00:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "WARN",
+        "observed": "I am joining the company and need to enrol the authenticator",
+        "recommended": "Use a concise, standardized third-person summary such as 'New hire MFA authenticator enrolment' rather than verbatim first-person speech.",
+        "evidence": "Customer: 'I am joining the company and need to enrol the authenticator.'"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Rashmi Pandey (Procurement, Mumbai) reported: I am joining the company and need to enrol the authenticator. Affected workstation: WS-DEMO-024. Impact: I have a deadline this afternoon. Observed: This is my first enrolment. I can open the setup page using the onboarding access provided by IT. Troubleshooting: I will guide you through the approved setup. Keep enrolment QR codes, backup codes and verification prompts private. Install or open the approved authenticator, complete enrolment on the genuine setup page, and store recovery information only as your policy allows. Customer validation: My test sign-in succeeded with the authenticator. I understand how to reject an unexpected prompt.",
+        "recommended": "Maintain comprehensive structured documentation covering user context, workstation ID, business impact, troubleshooting, and verification.",
+        "evidence": "Customer: 'I work in Procurement at Mumbai, and I have a deadline this afternoon... workstation reference is WS-DEMO-024.'"
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Category: Access / Subcategory: Set up MFA",
+        "recommended": "Maintain current categorization for multi-factor authentication onboarding requests.",
+        "evidence": "Customer: 'I am joining the company and need to enrol the authenticator.'"
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Identity and MFA",
+        "recommended": "Maintain Identity and MFA as the supporting service for authentication setup.",
+        "evidence": "Technician: 'Is this your first MFA enrolment, and can you open the approved corporate security setup page?'"
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain P3 priority for a single-user onboarding request with an afternoon deadline.",
+        "evidence": "Customer: 'I have a deadline this afternoon.'"
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Maintain assignment to Service Desk as first-contact resolution group.",
+        "evidence": "Technician: 'Thank you calling service desk, how can I help you today?'"
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Customer completed approved MFA enrolment and verified a fresh sign-in without sharing enrolment or recovery secrets.",
+        "recommended": "Maintain clear resolution notes detailing confirmed customer testing and security compliance.",
+        "evidence": "Customer: 'My test sign-in succeeded with the authenticator. I understand how to reject an unexpected prompt.'"
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Technician logged setup instructions and customer logged successful test sign-in confirmation.",
+        "recommended": "Continue capturing key procedural guidance and user validation in work notes.",
+        "evidence": "Work notes match transcript guidance and customer validation: 'Install or open the approved authenticator...' and 'My test sign-in succeeded...'"
+      }
+    ],
+    "quality_score": 95,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-DEMO-0085",
@@ -16389,10 +17763,70 @@
           "text": "State : Resolved was In Progress\nResolution : Customer completed approved MFA enrolment and verified a fresh sign-in without sharing enrolment or recovery secrets. was Empty",
           "created_at": "2026-10-13T06:30:59.612389Z"
         }
-      ]
+      ],
+      "attachments": []
     },
-    "qa_checks": [],
-    "quality_score": null
+    "qa_checks": [
+      {
+        "field": "Short description",
+        "result": "WARN",
+        "observed": "How do I finish the corporate MFA setup on my phone?",
+        "recommended": "Rephrase verbatim customer question into a standard summary such as 'Assistance with corporate MFA setup on mobile phone'.",
+        "evidence": "Customer: How do I finish the corporate MFA setup on my phone?"
+      },
+      {
+        "field": "Description",
+        "result": "PASS",
+        "observed": "Full contact details, workstation WS-DEMO-025, business impact, troubleshooting steps, and validation documented.",
+        "recommended": "Maintain comprehensive incident descriptions following this structured format.",
+        "evidence": "Customer: My workstation reference is WS-DEMO-025... need to complete the current shift’s work."
+      },
+      {
+        "field": "Category / Subcategory",
+        "result": "PASS",
+        "observed": "Access / Set up MFA",
+        "recommended": "Maintain current classification for MFA enrolment requests.",
+        "evidence": "Customer: How do I finish the corporate MFA setup on my phone? This is my first enrolment."
+      },
+      {
+        "field": "Service",
+        "result": "PASS",
+        "observed": "Identity and MFA",
+        "recommended": "Maintain Identity and MFA as the affected service.",
+        "evidence": "Technician: Is this your first MFA enrolment, and can you open the approved corporate security setup page?"
+      },
+      {
+        "field": "Priority",
+        "result": "PASS",
+        "observed": "P3",
+        "recommended": "Maintain P3 for single-user routine MFA configuration without broader system outage.",
+        "evidence": "Customer: I need to complete the current shift’s work."
+      },
+      {
+        "field": "Assignment group",
+        "result": "PASS",
+        "observed": "Service Desk",
+        "recommended": "Keep assigned to Service Desk as the request was resolved at first contact.",
+        "evidence": "Technician: Thank you calling service desk, how can I help you today?"
+      },
+      {
+        "field": "Resolution",
+        "result": "PASS",
+        "observed": "Customer completed approved MFA enrolment and verified a fresh sign-in without sharing enrolment or recovery secrets.",
+        "recommended": "Continue documenting specific verified actions and security confirmations in resolution notes.",
+        "evidence": "Customer: My test sign-in succeeded with the authenticator. I understand how to reject an unexpected prompt."
+      },
+      {
+        "field": "Work notes",
+        "result": "PASS",
+        "observed": "Technician guidance on approved authenticator setup and customer test sign-in confirmation recorded.",
+        "recommended": "Maintain logging of key procedural instructions and customer confirmations in work notes.",
+        "evidence": "Technician: Install or open the approved authenticator... Customer: My test sign-in succeeded with the authenticator."
+      }
+    ],
+    "quality_score": 95,
+    "attempted_steps": [],
+    "state_history": []
   },
   {
     "id": "CASE-FC254C9EE428",
@@ -16536,9 +17970,12 @@
           "text": "Short description : User requesting instructions to clear browser cache\nDescription : User reached out asking for instructions on how to clear cache from their browser. Browser type was not specified in the transcript.\nCategory : Software\nSubcategory : Web Browser\nService : End User Computing\nPriority : P4\nAssignment group : Service Desk\nAssigned to : Bharani\nState : New",
           "created_at": "2026-10-12T15:32:13.595060Z"
         }
-      ]
+      ],
+      "attachments": []
     },
     "qa_checks": [],
-    "quality_score": null
+    "quality_score": null,
+    "attempted_steps": [],
+    "state_history": []
   }
 ]

@@ -12,7 +12,7 @@
     ],
     "status": "Available",
     "voice_ready": false,
-    "last_seen": 1791899811.25068,
+    "last_seen": 1791991251.2741628,
     "last_assigned": 1791819077.1810718,
     "current_call_id": null,
     "availability": "Available",
@@ -29,9 +29,9 @@
     "languages": [
       "en"
     ],
-    "status": "Available",
+    "status": "Offline",
     "voice_ready": false,
-    "last_seen": 1791899672.1681309,
+    "last_seen": 1791902498.2061172,
     "last_assigned": 1791819121.2573068,
     "current_call_id": null,
     "availability": "Available",
