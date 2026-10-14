@@ -318,10 +318,10 @@
       </section>
     </section>
     <section class="view" id="view-technicians" aria-labelledby="usersTitle">
-      <div class="page-head"><div><p class="kicker">Administration</p><h1 id="usersTitle">Users</h1><p class="sec">Everyone who can log in. You can create technician and customer accounts here; editing, disabling and password resets aren’t available yet.</p></div><button class="pop" id="addTechnicianButton" type="button" hidden>Add user</button></div>
+      <div class="page-head"><div><p class="kicker">Administration</p><h1 id="usersTitle">Users</h1><p class="sec">Technicians and administrators who work the support queue. Add technicians here; customers create their own accounts and aren’t listed. Editing, disabling and password resets aren’t available yet.</p></div><button class="pop" id="addTechnicianButton" type="button" hidden>Add technician</button></div>
       <div class="alert" id="usersError" role="alert" hidden><strong>✕ Couldn’t load users.</strong><span class="sec" id="usersErrorMessage"></span><button type="button" class="pop pop--quiet pop--sm" id="retryUsers">Retry</button></div>
       <div class="tbl-wrap" role="region" aria-labelledby="usersTitle" tabindex="0"><table class="tbl"><caption class="sr">User accounts</caption><thead><tr><th scope="col">User</th><th scope="col">Role</th><th scope="col" class="col-opt">Skills</th><th scope="col" class="col-opt">Languages</th><th scope="col">Call status</th><th scope="col" class="col-opt">Microphone</th></tr></thead><tbody id="technicianRows"><tr><td colspan="6"><div class="skeleton" role="status" aria-label="Loading users"></div></td></tr></tbody></table></div>
-      <div class="empty section" id="techniciansEmpty" hidden><h2 class="h3">No other users yet</h2><p class="sec">Add technicians and customers so they can log in.</p></div>
+      <div class="empty section" id="techniciansEmpty" hidden><h2 class="h3">No technicians yet</h2><p class="sec">Add a technician so they can log in and take support work.</p></div>
 
     </section>
 
@@ -539,10 +539,10 @@
     <div class="row"><button type="button" class="pop pop--quiet" data-close>Stay on this page</button><button type="button" class="pop" id="sessionSignIn">Log in again</button></div>
   </dialog>
   <dialog class="dlg dlg--wide" id="technicianModal" aria-labelledby="technicianTitle">
-    <h2 id="technicianTitle">Add a user</h2>
-    <p class="sec">Creates an account that can log in straight away. Share the username and password with the person securely. Administrator accounts can’t be created here.</p>
+    <h2 id="technicianTitle">Add a technician</h2>
+    <p class="sec">Creates a technician account that can log in straight away on the Technician / Admin side. Share the username and temporary password with them securely. Customers create their own accounts.</p>
     <form id="technicianForm" novalidate>
-      <fieldset class="field"><legend>Role</legend><div class="choices"><label class="choice"><input type="radio" name="role" value="technician" checked><span class="choice__icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="2.5" y="14" width="4" height="6" rx="1.5"/><rect x="17.5" y="14" width="4" height="6" rx="1.5"/><path d="M19.5 20a3 3 0 0 1-3 2H13"/></svg></span><span class="choice__body"><strong>Technician</strong><span class="help">Works tickets and takes calls</span></span><span class="choice__mark" aria-hidden="true"></span></label><label class="choice"><input type="radio" name="role" value="customer"><span class="choice__icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="choice__body"><strong>Customer</strong><span class="help">Reports issues and follows them</span></span><span class="choice__mark" aria-hidden="true"></span></label></div></fieldset>
+      <input type="hidden" name="role" value="technician">
       <div class="fields">
         <div class="field"><label for="userName">Full name</label><input class="input" id="userName" name="name" required minlength="2" maxlength="80" autocomplete="off"></div>
         <div class="field"><label for="userUsername">Username</label><input class="input" id="userUsername" name="username" required minlength="3" maxlength="80" pattern="[a-zA-Z0-9_.@\-]+" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="userUsernameHelp"><p class="help" id="userUsernameHelp">Letters, numbers and . _ @ - only.</p></div>
@@ -588,7 +588,7 @@
   <script src="/static/auth.js?v=9"></script>
   <script src="/static/support-hub.js?v=2"></script>
   <script src="/static/resolution-radar.js?v=4"></script>
-  <script src="/static/calling.js?v=20"></script>
+  <script src="/static/calling.js?v=21"></script>
   <script src="/static/transcripts.js?v=7"></script>
   <script src="/static/incident-time-machine.js?v=3"></script>
 </body>

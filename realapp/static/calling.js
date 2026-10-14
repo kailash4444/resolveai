@@ -118,8 +118,10 @@ function renderCalling() {
   if (calling.selected) renderCallDetail();
 }
 
+// Users lists staff only (technicians and administrators). Customers create their own accounts and aren't listed.
 function renderUsersTable() {
-  const users = calling.data.users || calling.data.technicians.filter(t => t.role !== 'customer');
+  $('#addTechnicianButton').hidden = calling.user?.role !== 'admin';
+  const users = (calling.data.users || calling.data.technicians).filter(t => t.role !== 'customer');
   $('#technicianRows').innerHTML = users.map(t => { const customer = t.role === 'customer'; return `<tr><th scope="row"><span class="stack stack--sm"><strong>${esc(t.name)}</strong><span class="mono help">${esc(t.username)}</span></span></th><td>${t.role === 'admin' ? '<span class="badge badge--medium">● Admin</span>' : customer ? '<span class="badge badge--low">○ Customer</span>' : '<span class="badge badge--ok">✓ Technician</span>'}</td><td class="col-opt">${customer ? '—' : esc(t.skills.join(', '))}</td><td class="col-opt">${esc(t.languages.join(', '))}</td><td>${customer ? '—' : callBadge(t.status)}</td><td class="col-opt">${customer ? '—' : t.voice_ready ? '✓ Ready' : '○ Not ready'}</td></tr>`; }).join('');
   $('#techniciansEmpty').hidden = users.length > 0;
 }
@@ -290,7 +292,7 @@ document.addEventListener('click', async event => {
     }
     if (event.target.closest('#resumeAudioButton')) {await calling.room?.startAudio();$('#resumeAudioButton').hidden=true;}
     if (event.target.closest('#signInButton')) location.assign('/login?as=staff');
-    if (event.target.closest('#addTechnicianButton')) { $('#technicianForm').reset(); $('#technicianForm').dispatchEvent(new Event('change')); $('#technicianMessage').textContent = ''; $('#technicianModal').showModal(); }
+    if (event.target.closest('#addTechnicianButton')) { $('#technicianForm').reset(); $('#technicianMessage').textContent = ''; $('#technicianModal').showModal(); }
     if (event.target.closest('#retryUsers')) await loadCalling();
     if (event.target.closest('#routeRequestButton')) { $('#requestMessage').textContent = ''; $('#requestModal').showModal(); }
     if (event.target.closest('#retryCalls')) await loadCalling();
@@ -354,11 +356,6 @@ async function submitCallingForm(event, path, messageId, transform, after) {
 document.addEventListener('submit', event => {
   if (event.target.id === 'callReplyForm') submitCallingForm(event, `/api/calling/${calling.selected}/message`, '#callReplyMessage', null, async () => document.activeElement?.blur());
   if (event.target.id === 'techReplyForm') submitCallingForm(event, `/api/calling/${calling.selected}/reply`, '#techReplyMessage', null, async () => { document.activeElement?.blur(); });
-});
-$('#technicianForm').addEventListener('change', event => {
-  if (event.target.name !== 'role') return;
-  const customer = event.target.value === 'customer';
-  ['userSkillsField', 'userLanguagesField'].forEach(id => { const field = $('#' + id), input = field.querySelector('input'); field.hidden = customer; input.required = !customer; input.disabled = customer; if (!customer && !input.value) input.value = id === 'userSkillsField' ? 'general' : 'en'; });
 });
 $('#technicianForm').addEventListener('submit', event => submitCallingForm(event, '/api/users', '#technicianMessage', values => ({...values, skills: (values.skills || 'general').split(',').map(x => x.trim()).filter(Boolean), languages: (values.languages || 'en').split(',').map(x => x.trim()).filter(Boolean)}), async user => {
   $('#technicianModal').close(); state.users = await api('/api/users');
