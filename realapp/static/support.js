@@ -101,6 +101,10 @@ async function refresh() {
       if (call.status === 'Connected') setState(muted ? 'muted' : 'connected', muted ? {} : {title: `Connected to ${call.technician_name || 'your technician'}`});
       else if (['Queued', 'Ringing'].includes(call.status)) setState('requested', call.status === 'Ringing' ? {title: 'Contacting a technician', text: 'Your call is being offered to a technician. Please stay on the call.'} : {});
       else setState(muted ? 'muted' : 'active');
+      // The call is still open, but say so when the AI assistant's audio has failed.
+      if (call.last_error && ['Triage', 'AI'].includes(call.status)) {
+        setState('active', {badge: ['badge--high', '◆ Assistant unavailable'], title: 'The AI assistant can’t respond', text: `${call.last_error} Ask for a technician to keep going.`});
+      }
     }
     updateListeningIndicator();
   } catch (error) {
