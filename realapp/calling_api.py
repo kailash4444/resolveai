@@ -20,6 +20,10 @@ class BrowserCallRequest(BaseModel):
     language: str = Field(default='en', pattern=r'^[a-z]{2}(-[A-Z]{2})?$')
 
 
+class TechnicianCallNote(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+
+
 def install_calling(app, settings, store, engine, update_ticket):
     service = CallingService(settings, create_calling_store(settings), store, engine)
     transport = LiveKitTransport(settings, service)
@@ -324,6 +328,13 @@ def install_calling(app, settings, store, engine, update_ticket):
         actor = user(request, staff=True)
         call = service.claim_pickup(call_id, actor["id"])
         return transport.offer(call_id, actor, call) if call["origin"] == "browser" else service.accept(call_id, actor["id"])
+
+    @router.post("/api/calling/{call_id}/notes")
+    def add_call_note(call_id: str, value: TechnicianCallNote, request: Request):
+        actor, call = own_call(request, call_id)
+        if call["status"] != "Connected":
+            raise HTTPException(409, "Technician notes can be added while the call is connected.")
+        return service.add_technician_note(call_id, actor["name"], value.text.strip())
 
     @router.post("/api/calling/{call_id}/connected")
     async def connected(call_id: str, request: Request):

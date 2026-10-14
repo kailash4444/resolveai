@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css?v=attachments-2">
-  <link rel="stylesheet" href="/static/overrides.css?v=18">
+  <link rel="stylesheet" href="/static/overrides.css?v=21">
   <link rel="stylesheet" href="/static/handoff-graph.css?v=2">
 <link rel="stylesheet" href="/static/microphone.css?v=2"></head>
 <body>
@@ -19,6 +19,7 @@
       <button class="nav-item active" data-view="overview"><span>⌂</span>Overview</button>
       <button class="nav-item" data-view="tickets"><span>▤</span>Tickets</button>
       <button class="nav-item" data-view="calls"><span>◉</span>Calls & queue</button>
+      <button class="nav-item nav-subitem" id="activeCallNav" data-view="active-call" hidden><span>↳</span><span id="activeCallNavLabel">Active call</span></button>
       <button class="nav-item" data-view="transcripts"><span>≡</span>Transcripts</button>
       <button class="nav-item" data-view="technicians"><span>♧</span>Users</button>
       <button class="nav-item" data-view="analytics"><span>◫</span>Analytics</button>
@@ -37,6 +38,11 @@
 
   <main>
     <div id="incomingCallBanner" class="incoming-call-banner" hidden role="status"></div>
+    <section id="activeCallDock" class="active-call-dock" hidden aria-label="Active call">
+      <div class="active-call-head"><div id="activeCallIdentity"></div><button class="secondary small" id="activeCallOpen" data-open-call="">Open full call</button></div>
+      <div class="active-call-content"><section class="active-call-ai"><p class="eyebrow">SUGGESTED QUESTION · UPDATES WITH THE CONVERSATION</p><strong id="activeCallQuestion"></strong><small id="activeCallQuestionSource"></small></section><section class="active-call-kb"><p class="eyebrow">RELATED KNOWLEDGE</p><div id="activeCallDockKnowledge"></div></section><section class="active-call-recent"><p class="eyebrow">LATEST CONVERSATION</p><div id="activeCallRecent"></div></section></div>
+      <div class="active-call-controls"><button class="secondary small" id="activeCallMute" hidden>Mute</button><button class="secondary small danger" id="activeCallFinish" data-finish-call="">End call</button></div>
+    </section>
 
 
     <section class="view" id="view-signin"><article class="panel"><p class="eyebrow">YOUR SUPPORT WORKSPACE · DEPLOY CHECK</p><h2>Welcome to ResolveAI</h2><p>Sign in to access your support workspace. Your administrator creates technician and customer accounts.</p><button class="primary" id="accountSignIn">Sign in</button></article></section>
@@ -134,7 +140,12 @@
       <div class="panel-head page-section-head"><div><p class="eyebrow">VOICE OPERATIONS</p><h2>Calls & queue</h2><p class="helper">AI assistance and the right technician, in one conversation.</p></div><button class="secondary" id="routeRequestButton">Route a support request</button></div>
       <div class="panel presence-panel"><div><strong id="technicianIdentity">Technician workspace</strong><p id="phoneConnection" class="helper">Sign in to receive assignments.</p></div><div class="call-actions"><button class="secondary" id="signInButton">Sign in</button><label id="callPreferenceControl" class="call-preference" hidden><input type="checkbox" id="receiveCallsToggle"> Enable calls</label><button class="secondary" id="enablePhoneButton" hidden>Enable microphone</button><label id="presenceControl" hidden>Availability<select id="presenceSelect"><option>Offline</option><option>Available</option><option>Away</option></select></label></div></div>
       <div class="metrics call-metrics"><article><span>Waiting</span><strong id="callsQueued">0</strong><small>In technician queues</small></article><article><span>With AI</span><strong id="callsAI">0</strong><small>Guided support</small></article><article><span>Connected</span><strong id="callsConnected">0</strong><small>With technicians</small></article><article><span>Available</span><strong id="callsAvailable">0</strong><small>Ready for assignments</small></article></div>
-      <div data-live-caption-host></div><p id="callAnswerStatus" class="helper" role="status" aria-live="polite"></p><section class="microphone-panel" data-microphone-panel hidden></section><article class="panel" id="sharedQueuePanel" hidden><h3>Incoming calls — available to answer</h3><div id="sharedQueue"></div></article><div class="calling-layout"><article class="panel call-activity-panel"><div class="panel-head"><h3>Call activity</h3><span class="tag" id="callingSync">Live queue</span></div><input type="search" id="callSearch" class="call-search" aria-label="Search calls" placeholder="Search call ID, customer, technician or issue"><div id="callList" class="empty-list">Sign in to view calls and assignments.</div></article><article class="panel" id="callWorkspace"><p class="eyebrow">CONVERSATION</p><h3>Ready when you are</h3><p class="helper">Choose a call to see the transcript, routing decision, and linked incident.</p></article><article class="panel" id="callTicketPanel" hidden></article></div>
+      <div data-live-caption-host></div><p id="callAnswerStatus" class="helper" role="status" aria-live="polite"></p><section class="microphone-panel" data-microphone-panel hidden></section><article class="panel" id="sharedQueuePanel" hidden><h3>Incoming calls — available to answer</h3><div id="sharedQueue"></div></article><article class="panel call-activity-panel"><div class="panel-head"><h3>Call activity</h3><span class="tag" id="callingSync">Live queue</span></div><input type="search" id="callSearch" class="call-search" aria-label="Search calls" placeholder="Search call ID, customer, technician or issue"><div id="callList" class="empty-list">Sign in to view calls and assignments.</div></article>
+    </section>
+
+    <section class="view" id="view-active-call">
+      <div class="panel-head page-section-head"><div><p class="eyebrow">LIVE SUPPORT</p><h2>Active call</h2><p class="helper">Conversation, AI guidance, knowledge, and technician notes.</p></div><button class="secondary" data-view="calls">← Back to calls & queue</button></div>
+      <div class="active-call-page-grid"><article class="panel" id="activeCallWorkspace"><p class="helper">Choose an active call to open its workspace.</p></article><aside class="active-call-side"><article class="panel" id="activeCallKnowledgePanel"><div class="panel-head"><div><p class="eyebrow">KNOWLEDGE BASE</p><h3>Related guidance</h3></div><button type="button" class="text-button" data-view="knowledge">Browse all</button></div><input id="activeCallKbSearch" type="search" aria-label="Search knowledge base" placeholder="Search knowledge articles"><div id="activeCallKnowledge"><p class="helper">Knowledge articles will appear here.</p></div></article><article class="panel" id="activeCallTicketPanel" hidden></article></aside></div>
     </section>
 
     <section class="view" id="view-technicians">
@@ -208,9 +219,9 @@
   <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="primary resume-audio" hidden>Enable call audio</button>
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=4"></script>
-  <script src="/static/app.js?v=18"></script>
+  <script src="/static/app.js?v=19"></script>
   <script src="/static/resolution-radar.js?v=4"></script>
-  <script src="/static/calling.js?v=13"></script>
+  <script src="/static/calling.js?v=17"></script>
   <script src="/static/transcripts.js?v=7"></script>
   <script src="/static/incident-time-machine.js?v=4"></script>
 </body>

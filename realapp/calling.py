@@ -238,6 +238,7 @@ class CallingService:
                     "priority": "P3", "summary": "Understanding the customer issue", "reason": "", "case_id": None,
                     "technician_id": None, "technician_name": "", "created_at": self.now(), "queued_at": None,
                     "reserved_until": None, "connected_at": None, "ended_at": None, "transcript": [], "events": [],
+                    "technician_notes": [],
                     "attempted_steps": [], "recommended_action": "", "next_question": "",
                     "ai_turns": 0, "declined": {}, "dispatch_id": None, "dispatch_sent": False, "last_error": "",
                     "ready_at": 0 if origin == "desk" else None}
@@ -257,6 +258,21 @@ class CallingService:
             case = self.case_store.get_case(call["case_id"])
             if case:
                 case.transcript = [TranscriptTurn(**turn) for turn in call["transcript"]]
+                self.case_store.save_case(case)
+        return call
+
+    def add_technician_note(self, call_id, author, text):
+        note = {"author": author, "text": text[:4000], "timestamp": stamp()}
+        def append(db):
+            call = db["calls"][call_id]
+            call.setdefault("technician_notes", []).append(note)
+            return call
+        call = self.repository.mutate(append)
+        if call.get("case_id"):
+            case = self.case_store.get_case(call["case_id"])
+            if case:
+                case.ticket.work_notes.append(WorkNote(id=f"NOTE-{uuid4().hex[:8]}", author=author,
+                    author_type="Technician", text=text[:4000]))
                 self.case_store.save_case(case)
         return call
 
@@ -567,6 +583,8 @@ class CallingService:
                 fields = ('short_description', 'description', 'category', 'subcategory', 'service', 'priority', 'assignment_group', 'assigned_to', 'state')
                 case.ticket.work_notes = [WorkNote(id=f'NOTE-{uuid4().hex[:8]}', author='Ticket created', author_type='System',
                     text='\n'.join(f"{key.replace('_', ' ').capitalize()} : {getattr(case.ticket, key)}" for key in fields))]
+                case.ticket.work_notes.extend(WorkNote(id=f"NOTE-{uuid4().hex[:8]}", author=note['author'],
+                    author_type="Technician", text=note['text']) for note in call.get('technician_notes', []))
                 self.case_store.save_case(case)
             def link(db):
                 current = db['calls'][call_id]

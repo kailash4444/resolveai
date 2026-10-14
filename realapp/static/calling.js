@@ -1,4 +1,4 @@
-const calling = { user: null, data: null, selected: null, room: null, roomCallId: null, ready: false, auth: null, loading: false, notice: null, answering: null };
+const calling = { user: null, data: null, knowledgeData: null, knowledgeSearch: '', selected: null, room: null, roomCallId: null, ready: false, auth: null, loading: false, notice: null, answering: null };
 
 function elapsed(at) {
   if(!at)return '—';
@@ -48,6 +48,7 @@ window.loadCalling = async () => {
     }
     if (calling.user.role === 'customer') { calling.data = null; calling.selected = null; return; }
     calling.data = await api('/api/calling');
+    if (!calling.knowledgeData) calling.knowledgeData = await api('/api/knowledge').catch(() => []);
     calling.user = calling.data.user;
     if (calling.user.role === 'admin' && $('#view-technicians').classList.contains('active')) calling.data.users = await api('/api/users');
     await restorePhone();
@@ -93,25 +94,76 @@ function renderCalling() {
   $('#technicianRows').innerHTML = users.map(t => `<tr><td><strong>${esc(t.name)}</strong><br><small>${esc(t.role)} · ${esc(t.username)}</small></td><td>${t.role === 'customer' ? '—' : esc(t.skills.join(', '))}</td><td>${esc(t.languages.join(', '))}</td><td>${t.role === 'customer' ? '—' : callBadge(t.status)}</td><td>${t.role === 'customer' ? '—' : t.voice_ready ? 'Connected' : 'Not connected'}</td><td>${esc(t.current_call_id || '—')}</td></tr>`).join('');
   $('#techniciansEmpty').hidden = users.length > 0;
   const offer = calling.data.calls.find(c => c.technician_id === calling.user.id && c.status === 'Ringing');
-  $('#incomingCallBanner').hidden = !offer;
+  const onCallsPage = $('#view-calls').classList.contains('active');
+  $('#incomingCallBanner').hidden = !offer || onCallsPage;
   if (offer) {
     $('#incomingCallBanner').innerHTML = `<div><strong>Incoming ${offer.origin === 'browser' ? 'call' : 'support request'} · ${esc(offer.caller)}</strong><small>${esc(offer.service)} · ${Math.max(0, Math.ceil(offer.reserved_until - Date.now()/1000))} seconds to answer</small></div><button class="primary small" data-call-select="${esc(offer.id)}">View request</button>`;
     if (calling.notice !== offer.dispatch_id) { calling.notice = offer.dispatch_id; calling.selected = offer.id; toast('A support request has been assigned to you.'); }
   }
   if (calling.selected) renderCallDetail();
+  renderActiveCallDock();
+}
+
+function dynamicCallSuggestion(call) {
+  const customerTurns = (call.transcript || []).filter(turn => turn.speaker === 'Customer' && turn.text?.trim());
+  const latest = customerTurns.at(-1)?.text || '';
+  const lower = customerTurns.map(turn => turn.text).join(' ').toLowerCase();
+  const article = call.knowledge_matches?.[0];
+  const generic = /review (the )?customer conversation|confirm the customer.s impact/i;
+  let question;
+  let source = 'Based on the latest customer update';
+  if (!latest) question = 'Ask the customer what they were trying to do when the problem started.';
+  else if (/error|failed|failure|message|code/i.test(latest) && !/error (is|was|says)|code is|message says/i.test(latest)) question = 'Ask for the exact error message or code they see.';
+  else if (!/only me|just me|only (one|a few)|everyone|whole team|multiple users|other users|all users/i.test(lower)) question = 'Ask whether this affects only them or other people too.';
+  else if (article?.steps?.length) {
+    const step = article.steps.find(item => item && !lower.includes(item.toLowerCase().slice(0, 32)));
+    if (step) { question = `The related guide suggests: “${step}” Ask whether they have tried this and what happened.`; source = `Suggested from ${article.title}`; }
+  }
+  if (!question && call.next_question && !generic.test(call.next_question)) question = call.next_question;
+  if (!question) question = 'Ask when the issue last worked and what changed just before it began.';
+  return {question, source};
+}
+
+function renderActiveCallDock() {
+  const dock = $('#activeCallDock');
+  const currentId = calling.roomCallId || calling.user?.current_call_id || calling.selected;
+  const call = calling.data?.calls.find(item => item.id === currentId);
+  const active = call && (call.status === 'Connected' || calling.roomCallId === call.id);
+  const onFullCallPage = $('#view-active-call').classList.contains('active');
+  dock.hidden = !active || onFullCallPage;
+  $('#activeCallNav').hidden = !active;
+  document.body.classList.toggle('has-active-call', !!active && !onFullCallPage);
+  if (!active) return;
+  const guidance = dynamicCallSuggestion(call);
+  $('#activeCallIdentity').innerHTML = `<span class="call-status status-connected">LIVE CALL</span><strong>${esc(call.caller)}</strong><span>${esc(call.service)} · ${esc(call.id)}</span>`;
+  $('#activeCallQuestion').textContent = guidance.question;
+  $('#activeCallQuestionSource').textContent = guidance.source;
+  const matches = call.knowledge_matches || [];
+  $('#activeCallDockKnowledge').innerHTML = matches.length ? matches.slice(0, 2).map(item => `<article><button type="button" data-call-knowledge="${esc(item.id)}" data-call-knowledge-title="${esc(item.title)}">${esc(item.title)}</button><p>${esc(item.excerpt || item.steps?.[0] || '')}</p></article>`).join('') : `<p class="helper">${call.knowledge_status === 'searching' ? 'Finding related guidance…' : call.knowledge_status === 'error' ? esc(call.knowledge_error) : 'Related knowledge will appear as the customer describes the issue.'}</p>`;
+  const latest = (call.transcript || []).filter(turn => turn.text?.trim()).slice(-2);
+  $('#activeCallRecent').innerHTML = latest.length ? latest.map(turn => `<p><strong>${esc(turn.speaker)}:</strong> ${esc(turn.text)}</p>`).join('') : '<p class="helper">Waiting for conversation transcript.</p>';
+  $('#activeCallOpen').dataset.openCall = call.id;
+  $('#activeCallNav').dataset.openCall = call.id;
+  $('#activeCallNavLabel').textContent = `Active · ${call.caller}`;
+  $('#activeCallFinish').dataset.finishCall = call.id;
+  $('#activeCallMute').hidden = !calling.room || calling.roomCallId !== call.id;
+  if (calling.room && calling.roomCallId === call.id) $('#activeCallMute').textContent = calling.room.localParticipant.isMicrophoneEnabled ? 'Mute' : 'Unmute';
 }
 
 async function selectCall(id) {
   calling.selected = id;
-  showView('calls');
+  showView('active-call');
+  renderActiveCallDock();
+  $('#incomingCallBanner').hidden = true;
   renderCallDetail();
+  window.scrollTo({top: 0, behavior: 'smooth'});
 }
 
 function renderCallDetail() {
-  if ($('#callReplyForm')?.contains(document.activeElement)) return;
+  if ($('#callReplyForm')?.contains(document.activeElement) || $('#callNoteForm')?.contains(document.activeElement) || $('#activeCallKbSearch')?.contains(document.activeElement)) return;
   const c = calling.data?.calls.find(c => c.id === calling.selected);
-  if (!c) {$('#callWorkspace').innerHTML='<p class="helper">Choose one of your calls to view its details.</p>';return;}
-  const openKnowledge = new Set([...document.querySelectorAll('#callKnowledge details[open]')].map(item=>item.dataset.kb));
+  if (!c) {$('#activeCallWorkspace').innerHTML='<p class="helper">Choose an active call to open its workspace.</p>';return;}
+  const openKnowledge = new Set([...document.querySelectorAll('#activeCallKnowledge details[open]')].map(item=>item.dataset.kb));
   const own = c.technician_id === calling.user.id;
   const canManage = own || calling.user.role === 'admin';
   const controls = [];
@@ -140,17 +192,53 @@ function renderCallDetail() {
     return `<p><small>${new Date(e.at).toLocaleTimeString()}</small> ${esc(e.text)}${count > 1 ? ` <span class="helper">(repeated ${count} times)</span>` : ''}</p>`;
   }).join('');
   const joinHint = c.status === 'Queued' ? '<p class="queue-guidance">Waiting for a technician. Choose <strong>Answer</strong> in Incoming calls to join. Browser calls require calls enabled and microphone access.</p>' : c.status === 'Completed' && c.queued_at && !c.connected_at ? '<p class="queue-guidance ended">This call ended while waiting for a technician. Its audio room is closed and cannot be joined. Ask the customer to start another support call.</p>' : c.status === 'Completed' || c.status === 'Failed' ? '<p class="queue-guidance ended">This call has ended, so it cannot be joined.</p>' : '';
-  $('#callWorkspace').innerHTML = `<div class="panel-head"><div><p class="eyebrow">${esc(c.id)}</p><h3>${esc(c.caller)}</h3></div>${callBadge(c.status)}</div><p>${esc(c.summary)}</p><div class="call-context"><span>${esc(c.service)} · ${esc(c.priority)}</span><span>${esc(c.technician_name || 'Not assigned')}</span></div><p class="helper">${esc(c.reason)}</p>${c.status === 'Ringing' && !brief ? handoffCard(c) : ''}${c.last_error ? `<p class="form-message error">${esc(c.last_error)}</p>` : ''}${joinHint}${briefPanel}<div class="call-actions">${controls.join('')}</div><h4 class="call-section-label">Conversation</h4><div class="live-transcript">${c.transcript.map(t => `<div class="transcript-turn"><b>${esc(t.speaker)}${t.speaker_name ? ` · ${esc(t.speaker_name)}` : ''}</b><small>${t.timestamp ? new Date(t.timestamp).toLocaleTimeString() : ''}</small><p>${esc(t.text)}</p></div>`).join('') || '<p class="helper">The transcript will appear as participants speak.</p>'}</div><div id="callKnowledge"></div><details class="routing-history"><summary>Routing history</summary>${historyHtml || '<p class="helper">No routing events recorded.</p>'}</details>`;
-  if (c.origin === 'desk' && c.status === 'AI') $('#callWorkspace').insertAdjacentHTML('beforeend', '<form id="callReplyForm"><label>Customer reply<textarea name="text" rows="2" required maxlength="4000"></textarea></label><button class="primary small">Send reply</button><p class="form-message" id="callReplyMessage"></p></form>');
-  const guidance = c.knowledge_matches || [];
-  const status = c.knowledge_status;
-  $('#callKnowledge').innerHTML = `<h4 class="call-section-label">Suggested knowledge · Top 5</h4><p class="helper">${status === 'searching' ? 'Finding guidance for the latest customer problem…' : status === 'error' ? esc(c.knowledge_error) : 'Updated as the customer describes the issue.'}</p>${guidance.map(k => `<details class="call-knowledge" data-kb="${esc(k.id)}" ${openKnowledge.has(k.id) ? 'open' : ''}><summary>${esc(k.id)} · ${esc(k.title)}</summary><p>${esc(k.excerpt)}</p><ol>${k.steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol></details>`).join('') || '<p class="helper">' + (status === 'ready' ? 'No relevant knowledge articles found.' : 'Suggestions will appear after the customer speaks.') + '</p>'}`;
+  const suggestion = dynamicCallSuggestion(c);
+  const techNotes = c.technician_notes || [];
+  $('#activeCallWorkspace').innerHTML = `<div class="panel-head"><div><p class="eyebrow">${esc(c.id)}</p><h3>${esc(c.caller)}</h3></div>${callBadge(c.status)}</div><p>${esc(c.summary)}</p><div class="call-context"><span>${esc(c.service)} · ${esc(c.priority)}</span><span>${esc(c.technician_name || 'Not assigned')}</span></div><p class="helper">${esc(c.reason)}</p>${c.status === 'Ringing' && !brief ? handoffCard(c) : ''}${c.last_error ? `<p class="form-message error">${esc(c.last_error)}</p>` : ''}${joinHint}${briefPanel}<section class="call-ai-suggestion"><p class="eyebrow">SUGGESTED QUESTION · UPDATES WITH THE CONVERSATION</p><p>${esc(suggestion.question)}</p><small>${esc(suggestion.source)}</small></section><div class="call-actions">${controls.join('')}</div><h4 class="call-section-label">Conversation</h4><div class="live-transcript">${c.transcript.map(t => `<div class="transcript-turn"><b>${esc(t.speaker)}${t.speaker_name ? ` · ${esc(t.speaker_name)}` : ''}</b><small>${t.timestamp ? new Date(t.timestamp).toLocaleTimeString() : ''}</small><p>${esc(t.text)}</p></div>`).join('') || '<p class="helper">The transcript will appear as participants speak.</p>'}</div><section class="call-notes"><h4>Technician comments</h4><div class="call-note-list">${techNotes.map(note => `<article><strong>${esc(note.author)}</strong><small>${note.timestamp ? new Date(note.timestamp).toLocaleTimeString() : ''}</small><p>${esc(note.text)}</p></article>`).join('') || '<p class="helper">Add internal notes for the ticket or the next technician.</p>'}</div>${c.status === 'Connected' && canManage ? `<form id="callNoteForm"><label for="callNoteText">Add a comment</label><textarea id="callNoteText" name="text" rows="3" maxlength="4000" required placeholder="Record what you checked, what the customer confirmed, or the next action…"></textarea><button class="secondary small" type="submit">Save comment</button><p class="form-message" id="callNoteMessage" role="status"></p></form>` : ''}</section><details class="routing-history"><summary>Routing history</summary>${historyHtml || '<p class="helper">No routing events recorded.</p>'}</details>`;
+  if (c.origin === 'desk' && c.status === 'AI') $('#activeCallWorkspace').insertAdjacentHTML('beforeend', '<form id="callReplyForm"><label>Customer reply<textarea name="text" rows="2" required maxlength="4000"></textarea></label><button class="primary small">Send reply</button><p class="form-message" id="callReplyMessage"></p></form>');
+  renderCallKnowledge(c, openKnowledge);
   renderCallTicket(c);
 }
 
+function renderCallKnowledge(call, open = new Set()) {
+  const container = $('#activeCallKnowledge');
+  if (!container) return;
+  const matched = call.knowledge_matches || [];
+  const all = calling.knowledgeData || [];
+  const search = calling.knowledgeSearch.trim().toLowerCase();
+  const searchWords = search.split(/\s+/).filter(Boolean);
+  let articles;
+  if (matched.length && !search) {
+    articles = matched.slice(0, 5).map(match => {
+      const full = all.find(article => article.id === match.id);
+      return full ? {...full, excerpt: match.excerpt || full.symptoms} : {...match, symptoms: match.excerpt || '', product: '', resolution: ''};
+    });
+  } else {
+    const words = `${call.service || ''} ${(call.transcript || []).map(turn => turn.text).join(' ')}`.toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 2);
+    const uniqueWords = [...new Set(words)];
+    articles = all.map(article => {
+      const haystack = `${article.title} ${article.product} ${article.symptoms} ${(article.tags || []).join(' ')} ${(article.steps || []).join(' ')}`.toLowerCase();
+      const score = uniqueWords.reduce((total, word) => total + (haystack.includes(word) ? 1 : 0), 0);
+      return {article, score, haystack};
+    }).filter(item => !searchWords.length || searchWords.every(word => item.haystack.includes(word)))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5).map(item => item.article);
+  }
+  const status = call.knowledge_status;
+  const note = matched.length ? 'Ranked from this call’s latest conversation.' : all.length ? 'Browse the team knowledge base while the customer explains the issue.' : status === 'error' ? esc(call.knowledge_error || 'Could not load knowledge articles.') : 'No knowledge articles have been added yet.';
+  container.innerHTML = `<p class="helper">${note}</p>${articles.map(article => {
+    const summary = article.excerpt || article.symptoms || '';
+    const steps = article.steps || [];
+    return `<details class="active-call-article" data-kb="${esc(article.id)}" ${open.has(article.id) ? 'open' : ''}><summary>${esc(article.title)}</summary><p><strong>${esc(article.product || call.service || 'Support')}</strong>${summary ? ` · ${esc(summary)}` : ''}</p>${steps.length ? `<ol>${steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol>` : ''}${article.resolution ? `<p><strong>Resolution:</strong> ${esc(article.resolution)}</p>` : ''}<button type="button" class="text-button" data-call-knowledge="${esc(article.id)}" data-call-knowledge-title="${esc(article.title)}">Open in Knowledge →</button></details>`;
+  }).join('') || `<p class="helper">${search ? 'No matching articles. Try a shorter search.' : status === 'searching' ? 'Finding call-related guidance…' : 'No matching guidance yet. Search the knowledge base above.'}</p>`}`;
+}
+
 async function renderCallTicket(call) {
-  const panel = $('#callTicketPanel');
-  panel.hidden = false;
+  const panel = $('#activeCallTicketPanel');
+  const ended = ['Completed','Failed','Callback requested'].includes(call.status);
+  $('#activeCallKnowledgePanel').hidden = ended;
+  panel.hidden = !ended;
+  if (!ended) return;
   if (!call.case_id) {
     panel.innerHTML = `<h3>Incident</h3><p class="helper">${['Completed','Failed','Callback requested'].includes(call.status) ? (call.transcript.some(t=>t.speaker==='Customer') ? 'Creating the incident from the conversation…' : 'No incident created because the customer did not describe an issue.') : 'An incident will be created from the conversation when the call ends.'}</p>`;
     return;
@@ -159,7 +247,7 @@ async function renderCallTicket(call) {
     const item = await api(`/api/cases/${call.case_id}`);
     if (calling.selected !== call.id) return;
     const t = item.ticket;
-    panel.innerHTML = `<div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h3>${esc(t.id)}</h3></div><button class="secondary" data-call-ticket="${esc(item.id)}">Edit incident</button></div><h4>${esc(t.short_description)}</h4><div class="call-ticket-fields">${[['State',t.state],['Priority',t.priority],['Service',t.service],['Assigned to',t.assigned_to || 'Unassigned'],['Category',t.category],['Subcategory',t.subcategory]].map(([label,value])=>`<div><span class="helper">${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('')}</div><h4>Description</h4><p class="call-ticket-description">${esc(t.description)}</p>${t.resolution ? `<h4>Resolution notes</h4><p class="call-ticket-description">${esc(t.resolution)}</p>` : ''}`;
+    panel.innerHTML = `<div class="panel-head"><div><p class="eyebrow">INCIDENT</p><h3>${esc(t.id)}</h3></div><button class="secondary" data-call-ticket="${esc(item.id)}">Edit incident</button></div><h4>${esc(t.short_description)}</h4><div class="call-ticket-fields">${[['State',t.state],['Priority',t.priority],['Service',t.service],['Assigned to',t.assigned_to || 'Unassigned'],['Category',t.category],['Subcategory',t.subcategory]].map(([label,value])=>`<div><span class="helper">${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('')}</div><h4>Description</h4><p class="call-ticket-description">${esc(t.description)}</p>${t.resolution ? `<h4>Resolution notes</h4><p class="call-ticket-description">${esc(t.resolution)}</p>` : ''}${t.work_notes?.length ? `<h4>Ticket comments & history</h4><div class="call-note-list">${t.work_notes.slice(-8).map(note=>`<article><strong>${esc(note.author)}</strong><small>${esc(note.author_type)}</small><p>${esc(note.text)}</p></article>`).join('')}</div>` : ''}`;
   } catch(error) {
     if (calling.selected === call.id) panel.innerHTML = `<h3>Incident</h3><p class="form-message error">${esc(error.message)}</p>`;
   }
@@ -233,7 +321,7 @@ async function answerCall(id) {
     if(result.token)await acceptBrowserCall(id,result,microphone);
     $('#callAnswerStatus').textContent='Call connected.';
     console.info('Call pickup duration (ms)',Math.round(performance.now()-started));
-    showView('calls');
+    showView('active-call');
   } catch(error) {
     $('#callAnswerStatus').textContent=`Could not connect: ${error.message}`;
     throw error;
@@ -247,11 +335,18 @@ async function answerCall(id) {
 
 document.addEventListener('click', async event => {
   try {
+    if (event.target.closest('[data-view="calls"]')) $('#incomingCallBanner').hidden = true;
+    if (event.target.closest('[data-view]')) renderActiveCallDock();
     const close = event.target.closest('[data-close-call-modal]');
     if (close) $(`#${close.dataset.closeCallModal}`).hidden = true;
     if (close?.dataset.closeCallModal === 'livekitModal') $('#livekitForm [name=api_secret]').value = '';
     const select = event.target.closest('[data-call-select]');
     if (select) await selectCall(select.dataset.callSelect);
+    const knowledge = event.target.closest('[data-call-knowledge]');
+    if (knowledge) {
+      $('#knowledgeSearch').value = `${knowledge.dataset.callKnowledge} ${knowledge.dataset.callKnowledgeTitle || ''}`.trim();
+      showView('knowledge');
+    }
     const ticket = event.target.closest('[data-call-ticket]');
     if (ticket) await openTicketDetails(ticket.dataset.callTicket);
     const pickup = event.target.closest('[data-pickup-call]');
@@ -269,6 +364,17 @@ document.addEventListener('click', async event => {
       await loadCalling();
     }
     if (event.target.closest('#muteCallButton') && calling.room) {await calling.room.localParticipant.setMicrophoneEnabled(!calling.room.localParticipant.isMicrophoneEnabled);renderCallDetail();}
+    if (event.target.closest('#activeCallMute') && calling.room) {await calling.room.localParticipant.setMicrophoneEnabled(!calling.room.localParticipant.isMicrophoneEnabled);renderActiveCallDock();renderCallDetail();}
+    const openActiveCall = event.target.closest('[data-open-call]');
+    if (openActiveCall) await selectCall(openActiveCall.dataset.openCall);
+    const finishActiveCall = event.target.closest('[data-finish-call]');
+    if (finishActiveCall) {
+      const id = finishActiveCall.dataset.finishCall;
+      finishActiveCall.disabled = true;
+      await api(`/api/calling/${id}/finish`, {method:'POST',body:'{}'});
+      if (calling.roomCallId === id) { const room=calling.room;calling.room=null;calling.roomCallId=null;await room?.disconnect(); }
+      await loadCalling();
+    }
     if (event.target.closest('#resumeAudioButton')) {await calling.room?.startAudio();$('#resumeAudioButton').hidden=true;}
     if (event.target.closest('#signInButton')) await openTechnicianAuth();
     if (event.target.closest('#enablePhoneButton')) await enablePhone();
@@ -314,6 +420,12 @@ $('#authForm').addEventListener('submit', event => submitCallingForm(event, call
 }));
 document.addEventListener('submit', event => {
   if (event.target.id === 'callReplyForm') submitCallingForm(event, `/api/calling/${calling.selected}/message`, '#callReplyMessage', null, async () => document.activeElement?.blur());
+  if (event.target.id === 'callNoteForm') submitCallingForm(event, `/api/calling/${calling.selected}/notes`, '#callNoteMessage', null, async () => document.activeElement?.blur());
+});
+$('#activeCallKbSearch').addEventListener('input', event => {
+  calling.knowledgeSearch = event.target.value;
+  const call = calling.data?.calls.find(item => item.id === calling.selected);
+  if (call) renderCallKnowledge(call, new Set([...document.querySelectorAll('#activeCallKnowledge details[open]')].map(item => item.dataset.kb)));
 });
 $('#technicianForm').addEventListener('submit', event => submitCallingForm(event, '/api/users', '#technicianMessage', values => ({...values, skills:values.skills.split(',').map(x=>x.trim()).filter(Boolean), languages:values.languages.split(',').map(x=>x.trim()).filter(Boolean)}), async () => { $('#technicianModal').hidden = true; state.users=await api('/api/users');toast('User account created.'); }));
 $('#routeRequestForm').addEventListener('submit', event => submitCallingForm(event, '/api/calling/requests', '#requestMessage', null, async result => {

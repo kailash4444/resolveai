@@ -56,7 +56,7 @@ function showView(name) {
   else if (state.user.role === 'technician' && name === 'technicians') name = 'calls';
   $$(".view").forEach(el => el.classList.toggle("active", el.id === `view-${name}`));
   $$(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.view === (name === 'transcript-detail' ? 'transcripts' : name)));
-  const titles = { overview: "Operations overview", case: "New support case", tickets: "Tickets", "ticket-detail": "Ticket details", "time-machine": "Incident Time Machine", analytics: "Analytics", "resolution-radar": "Resolution Debt Radar", knowledge: "Knowledge management", qa: "Quality audit", calls: "Calls & queue", technicians: "Technicians" };
+  const titles = { overview: "Operations overview", case: "New support case", tickets: "Tickets", "ticket-detail": "Ticket details", "time-machine": "Incident Time Machine", analytics: "Analytics", "resolution-radar": "Resolution Debt Radar", knowledge: "Knowledge management", qa: "Quality audit", calls: "Calls & queue", "active-call": "Active call", technicians: "Technicians" };
   document.title = ({"transcripts":"Transcripts","call-analytics":"Call analytics","customer-home":"My support","customer-create":"Create an incident","signin":"Welcome","technicians":"User management"})[name] || titles[name] || "ResolveAI";
 
   state.currentView = name;
