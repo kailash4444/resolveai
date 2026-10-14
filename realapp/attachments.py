@@ -20,7 +20,11 @@ VIDEO_EXTENSIONS: dict[str, str] = {
 ALLOWED_EXTENSIONS: dict[str, str] = {**IMAGE_EXTENSIONS, **VIDEO_EXTENSIONS}
 MAX_FILE_SIZE = 20 * 1024 * 1024
 MAX_TOTAL_SIZE = 20 * 1024 * 1024
-MAX_FILES_PER_REQUEST = 10
+MAX_FILES_PER_REQUEST = 3
+
+
+def is_image(filename: str) -> bool:
+    return Path(filename).suffix.lower() in IMAGE_EXTENSIONS
 
 _MEM_LOCK = RLock()
 _MEMORY_STORAGE: dict[str, tuple[Attachment, bytes]] = {}

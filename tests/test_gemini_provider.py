@@ -95,10 +95,10 @@ def test_gemini_admin_key_and_upload_are_shared_and_customer_cannot_configure(ac
     assert response.status_code == 200 and saved == [key]
     assert key not in response.text
     assert value.settings.gemini_api_key == key
-    assert accounts.admin.get('/api/config').json()['transcription_model'] == 'gemini-3.8-flash'
+    assert accounts.admin.get('/api/config').json()['transcription_model'] == value.settings.gemini_transcription_model == 'gemini-3.5-transcribe'
     monkeypatch.setattr(value, 'transcribe', lambda filename, content: 'Google transcript')
     result = accounts.tech_a.post('/api/transcribe', files={'file': ('speech.wav', b'audio', 'audio/wav')})
-    assert result.json() == {'text': 'Google transcript', 'model': 'gemini-3.8-flash'}
+    assert result.json() == {'text': 'Google transcript', 'model': 'gemini-3.5-transcribe'}
     assert accounts.customer_a.post('/api/transcribe', files={'file': ('speech.wav', b'audio')}).status_code == 403
 
 

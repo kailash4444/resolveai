@@ -19,12 +19,14 @@ from realapp.models import (AnalysisRequest, CaseRecord, EngineeringBrief, Engin
 from realapp.store import create_store
 from realapp.livekit_setup import restore_livekit_settings
 from realapp.incident_context import knowledge_context
-from realapp.models import KnowledgeFromIncidentsRequest, CustomerIncidentCreate, Ticket, TranscriptTurn, Understanding, RoutingDecision, Attachment, VisualAnalysisPayload
+from realapp.models import KnowledgeFromIncidentsRequest, CustomerIncidentCreate, Ticket, TranscriptTurn, Understanding, RoutingDecision, Attachment, VisualAnalysisPayload, AssistFeedback, AIAssist
+from datetime import datetime, timezone
+from realapp.incident_assist import ai_analysed, assess, escalate
 from realapp.access import actor, can_read, can_report, require_case, visible_case
 from realapp.resolved_knowledge import ResolvedKnowledgePublisher
 from realapp.bulk_qa import BulkAudit
 from realapp.attachments import (save_attachment, get_attachment_data, find_case_for_attachment,
-                                 validate_attachment, MAX_FILES_PER_REQUEST, MAX_TOTAL_SIZE)
+                                 validate_attachment, is_image, MAX_FILES_PER_REQUEST, MAX_TOTAL_SIZE)
 from realapp.resolution_radar import ResolutionRadar, evidence_digest
 from realapp.incident_time_machine import compare_history, reconstruct as reconstruct_incident
 
@@ -32,9 +34,9 @@ from realapp.incident_time_machine import compare_history, reconstruct as recons
 settings = get_settings()
 if settings.calling_backend != "memory":
     restore_livekit_settings(settings)
-if settings.environment == "local" and settings.llm_provider == "openai" and not settings.openai_api_key:
+if settings.environment == "local" and not settings.openai_api_key:
     settings.openai_api_key = load_local_openai_key()
-if settings.environment == 'local' and settings.llm_provider == 'google_ai' and not settings.gemini_api_key:
+if not settings.gemini_api_key:
     settings.gemini_api_key = load_local_gemini_key()
 store = create_store(settings)
 engine = create_engine(settings, store.list_knowledge)
@@ -89,7 +91,23 @@ class CounterfactualRequest(BaseModel):
 
 
 @app.get("/", include_in_schema=False)
+@app.get("/login", include_in_schema=False)
+@app.get("/signup", include_in_schema=False)
 def index():
+    return FileResponse(static_dir / "index.html")
+
+
+@app.get("/staff/login", include_in_schema=False)
+def staff_login():
+    """Old staff log-in address: the one log-in page, with the Technician / Admin side selected."""
+    return RedirectResponse("/login?as=staff", status_code=307)
+
+
+@app.get("/portal", include_in_schema=False)
+@app.get("/console", include_in_schema=False)
+@app.get("/admin", include_in_schema=False)
+def workspace_page():
+    """Serve the same authenticated app shell for its role-specific entry URLs."""
     return FileResponse(static_dir / "index.html")
 
 
@@ -194,7 +212,7 @@ def analyze(request: AnalysisRequest, http: Request):
 
 
 @app.post('/api/customer/incidents', response_model=CaseRecord, status_code=201)
-async def customer_incident(http: Request):
+async def customer_incident(http: Request, background_tasks: BackgroundTasks):
     user = actor(http)
     content_type = http.headers.get('content-type', '').lower()
     attachments_with_content: list[tuple[Attachment, bytes]] = []
@@ -211,11 +229,16 @@ async def customer_incident(http: Request):
             raise HTTPException(422, str(err)) from err
 
         uploads = form.getlist('attachments') or form.getlist('files')
+        valid_uploads = [u for u in uploads if getattr(u, 'filename', None)]
+        if len(valid_uploads) > 3:
+            raise HTTPException(400, "You can submit up to 3 images only.")
+        for upload in valid_uploads:
+            if not is_image(upload.filename):
+                raise HTTPException(415, "File type is not supported. Only image uploads (up to 3 images) are currently supported.")
+
         staged = []
         total_size = 0
-        for upload in uploads:
-            if not getattr(upload, 'filename', None):
-                continue
+        for upload in valid_uploads:
             raw_bytes = await upload.read(MAX_TOTAL_SIZE + 1)
             total_size += len(raw_bytes)
             if total_size > MAX_TOTAL_SIZE:
@@ -282,22 +305,125 @@ async def customer_incident(http: Request):
         text=initial_notes,
     ))
 
-    if attachments_with_content:
-        file_summary = ', '.join(att.filename for att, _ in attachments_with_content)
-        try:
-            visual = engine.analyze_visual(val.description, attachments_with_content)
-            analysis_note = (
-                f"Media analysis ({visual.analysis_source}) for {len(attachments_with_content)} file(s) [{file_summary}]:\n"
-                f"• Observations: {visual.visual_observations}\n• Assessment: {visual.technical_diagnosis}\n"
-                f"• Suggested classification: {visual.suggested_category} / {visual.suggested_subcategory} "
-                f"(Priority: {visual.suggested_priority}; Service: {visual.suggested_service})\n"
-                f"• Recommended action: {visual.recommended_action}"
-            )
-        except RuntimeError as exc:
-            analysis_note = f"Media analysis unavailable for {len(attachments_with_content)} file(s) [{file_summary}]: {exc}"
-        case.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8].upper()}', author='Media analysis', author_type='System', text=analysis_note))
-
+    # Analysis and AI assistance run after the response, so the customer gets their ticket number immediately.
+    case.assist = AIAssist(status='pending', reason='The AI assistant is reviewing the report and any images.')
+    background_tasks.add_task(run_incident_assist, case.id, attachments_with_content)
     return visible_case(store.save_case(case), user)
+
+
+def analyse_images(case: CaseRecord, images: list[tuple[Attachment, bytes]]) -> tuple[VisualAnalysisPayload | None, str]:
+    """Analyse images onto the ticket and return (result, work-note text). Only real AI analysis may fill in ticket fields."""
+    files, count = ', '.join(att.filename for att, _ in images), len(images)
+    try:
+        visual = engine.analyze_visual(case.ticket.description, images)
+    except RuntimeError as exc:
+        return None, f"Image analysis unavailable for {count} image(s) [{files}]: {exc}"
+    case.ticket.visual_analysis = visual
+    if not ai_analysed(visual):
+        configured = engine.configured() if callable(engine.configured) else engine.configured  # method on OpenAI, property on Gemini
+        why = ("this server runs in demo mode" if 'demo' in visual.analysis_source.lower() else
+               "AI image analysis isn't set up" if not configured else "the AI service didn't respond")
+        return visual, (f"Image analysis unavailable for {count} image(s) [{files}]: {why}, so the images weren't read. "
+                        "A keyword-based estimate was saved as a suggestion only; ticket fields were not changed. "
+                        "Staff can re-run the analysis from the Image analysis section.")
+    if visual.suggested_service and case.ticket.service in {'General', ''}:
+        case.ticket.service = visual.suggested_service
+        case.understanding.product = visual.suggested_service
+    if visual.suggested_priority and case.ticket.priority == 'P3':
+        case.ticket.priority = visual.suggested_priority
+    if visual.suggested_category and case.ticket.category == 'Incident':
+        case.ticket.category = visual.suggested_category
+    if visual.suggested_subcategory and case.ticket.subcategory in {'Unclassified', 'Investigation', 'Triage'}:
+        case.ticket.subcategory = visual.suggested_subcategory
+    if visual.recommended_action:
+        case.recommended_action = visual.recommended_action
+    return visual, f"Image analysed by {visual.analysis_source} · {count} image(s) [{files}]. Findings are in Image analysis."
+
+
+@app.post('/api/cases/{case_id}/image-analysis', response_model=CaseRecord)
+def rerun_image_analysis(case_id: str, http: Request):
+    """Staff re-run image analysis on a ticket's saved images (e.g. after the AI service was unavailable)."""
+    user = actor(http)
+    if user['role'] not in {'admin', 'technician'}:
+        raise HTTPException(403, 'Only staff can re-run image analysis.')
+    case = require_case(store.get_case(case_id), user)
+    images = [data for att in case.ticket.attachments if att.content_type.startswith('image/')
+              if (data := get_attachment_data(att.id, att, settings))]
+    if not images:
+        raise HTTPException(400, 'This ticket has no saved images to analyse.')
+    # Work on a copy: a failed re-run must not replace an earlier result with a keyword estimate.
+    updated = case.model_copy(deep=True)
+    visual, note = analyse_images(updated, images)
+    if visual is None or not ai_analysed(visual):
+        reason = note.split(': ', 1)[-1].split(', so the images')[0]
+        raise HTTPException(503, f"Image analysis didn't run: {reason}. The ticket wasn't changed; try again in a minute.")
+    updated.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8].upper()}', author=user.get('name') or 'Staff',
+                                              author_type='Technician', text=f"Re-ran image analysis.\n{note}"))
+    return visible_case(store.save_case(updated), user)
+
+
+def run_incident_assist(case_id: str, attachments_with_content: list[tuple[Attachment, bytes]]):
+    """Image analysis, then AI self-help or a technician handover. Runs in the background after creation."""
+    case = store.get_case(case_id)
+    if not case or not case.assist or case.assist.status != 'pending':
+        return
+    notes_before = len(case.ticket.work_notes)
+    try:
+        visual = None
+        if attachments_with_content:
+            visual, analysis_note = analyse_images(case, attachments_with_content)
+            case.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8].upper()}', author='Image analysis', author_type='System', text=analysis_note))
+
+        # AI-first help from approved knowledge; otherwise hand the ticket and its analysis to a technician.
+        case.assist = assess(case, visual, bool(attachments_with_content), engine, settings)
+        if case.assist.status == 'escalated':
+            escalate(case, case.assist.reason, app.state.calling.snapshot()['technicians'], store.list_cases())
+        else:
+            case.routing.handler, case.handler_label = 'AI', 'AI handling'
+            case.routing.rationale = 'AI offered self-help steps from approved knowledge; the customer confirms the fix or asks for a technician.'
+            case.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8].upper()}', author='AI assistance', author_type='System',
+                text=f"AI assistance : offered {len(case.assist.steps)} self-help step(s) from {', '.join(case.assist.knowledge_ids)}\nWaiting for : the customer to confirm the fix or ask for a technician"))
+    except Exception:
+        logger.exception('AI assistance failed for incident %s', case_id)
+        case.assist = AIAssist(status='escalated', reason='The AI assistant ran into a problem, so a technician will help you.')
+        escalate(case, case.assist.reason, app.state.calling.snapshot()['technicians'], store.list_cases())
+
+    # Merge onto the latest record so a comment added meanwhile isn't lost.
+    fresh = store.get_case(case_id)
+    if not fresh or not fresh.assist or fresh.assist.status != 'pending':
+        return
+    new_notes = case.ticket.work_notes[notes_before:]
+    for field in ('visual_analysis', 'service', 'priority', 'category', 'subcategory', 'assigned_to', 'assigned_user_id'):
+        setattr(fresh.ticket, field, getattr(case.ticket, field))
+    fresh.understanding.product, fresh.recommended_action = case.understanding.product, case.recommended_action
+    fresh.routing, fresh.handler_label, fresh.assist = case.routing, case.handler_label, case.assist
+    fresh.ticket.work_notes.extend(new_notes)
+    store.save_case(fresh)
+
+
+@app.post('/api/cases/{case_id}/assist', response_model=CaseRecord)
+def assist_feedback(case_id: str, value: AssistFeedback, http: Request, background_tasks: BackgroundTasks):
+    """The customer answers the AI's self-help: fixed (resolve) or not fixed (hand over to a technician)."""
+    user = actor(http)
+    case = store.get_case(case_id)
+    if not case or user['role'] != 'customer' or case.customer_id != user['id']:
+        raise HTTPException(404, 'Case not found')
+    if not case.assist or case.assist.status != 'offered':
+        raise HTTPException(409, 'This suggestion has already been answered.')
+    now = datetime.now(timezone.utc)
+    note = value.note.strip()
+    if value.resolved:
+        case.assist = case.assist.model_copy(update={'status': 'resolved', 'customer_response': note or 'The suggested steps fixed it.', 'decided_at': now})
+        store.save_case(case)
+        steps = '\n'.join(f'- {step}' for step in case.assist.steps)
+        update_ticket(case_id, TicketUpdate(state='Resolved', resolution=f"Customer confirmed the AI-suggested self-help steps fixed the issue.\n{steps}" + (f"\nCustomer note: {note}" if note else '')), background_tasks)
+    else:
+        case.assist = case.assist.model_copy(update={'customer_response': note or 'The suggested steps did not fix it.'})
+        if note:
+            case.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8].upper()}', author=user['name'], author_type='Customer', text=note))
+        escalate(case, "The customer said the AI-suggested steps didn't fix the issue.", app.state.calling.snapshot()['technicians'], store.list_cases())
+        store.save_case(case)
+    return visible_case(store.get_case(case_id), user)
 
 
 @app.get('/api/attachments/{attachment_id}')
@@ -333,17 +459,25 @@ async def add_case_attachment(case_id: str, http: Request):
     if not uploads:
         raise HTTPException(400, 'No files provided.')
 
+    valid_uploads = [u for u in uploads if getattr(u, 'filename', None)]
+    if not valid_uploads:
+        raise HTTPException(400, 'No valid files provided.')
+    if len(case.ticket.attachments) + len(valid_uploads) > 3:
+        raise HTTPException(400, "You can submit up to 3 images in total.")
+    for upload in valid_uploads:
+        if not is_image(upload.filename):
+            raise HTTPException(415, "File type is not supported. Only image uploads (up to 3 images) are currently supported.")
+
     new_attachments: list[tuple[Attachment, bytes]] = []
     staged = []
     total_size = 0
-    for upload in uploads:
-        if hasattr(upload, 'filename') and upload.filename:
-            content = await upload.read(MAX_TOTAL_SIZE + 1)
-            total_size += len(content)
-            if total_size > MAX_TOTAL_SIZE:
-                raise HTTPException(413, 'Attachments exceed the 20 MB total upload limit.')
-            validate_attachment(upload.filename, content, upload.content_type)
-            staged.append((upload, content))
+    for upload in valid_uploads:
+        content = await upload.read(MAX_TOTAL_SIZE + 1)
+        total_size += len(content)
+        if total_size > MAX_TOTAL_SIZE:
+            raise HTTPException(413, 'Attachments exceed the 20 MB total upload limit.')
+        validate_attachment(upload.filename, content, upload.content_type)
+        staged.append((upload, content))
 
     for upload, content in staged:
         att = save_attachment(upload.filename, content, upload.content_type, settings)
@@ -356,12 +490,7 @@ async def add_case_attachment(case_id: str, http: Request):
         case.ticket.attachments.append(att)
 
     file_summary = ', '.join(att.filename for att, _ in new_attachments)
-    try:
-        visual = engine.analyze_visual(case.ticket.description, new_attachments)
-        analysis = (f"Media analysis ({visual.analysis_source}): {visual.visual_observations}\n"
-                    f"Assessment: {visual.technical_diagnosis}\nRecommended action: {visual.recommended_action}")
-    except RuntimeError as exc:
-        analysis = f"Media analysis unavailable: {exc}"
+    _, analysis = analyse_images(case, new_attachments)
     author_type = 'Customer' if user.get('role') == 'customer' else 'Technician'
     case.ticket.work_notes.append(WorkNote(
         id=f'NOTE-{uuid4().hex[:8].upper()}',
@@ -511,9 +640,7 @@ def add_work_note(case_id: str, note: WorkNoteCreate, http: Request):
     case = store.get_case(case_id)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
-    require_case(case, actor(http))
-    if case.ticket.state == "New":
-        raise HTTPException(status_code=409, detail="Move the ticket to In Progress before adding work notes or comments.")
+    # Work notes and customer comments are allowed in every state, as in a normal service desk.
     user = actor(http)
     require_case(case, user)
     case.ticket.work_notes.append(WorkNote(id=f"NOTE-{uuid4().hex[:8].upper()}", author=user['name'],

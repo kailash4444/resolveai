@@ -52,7 +52,7 @@ def test_import_exact_counts_ownership_diarization_and_repeat_safety(service, tm
         credentials=list(csv.DictReader(handle))
     for role in ('customer','technician'):
         row=next(r for r in credentials if r['role']==role)
-        _, user=service.login(Login(username=row['username'],password=row['password']),'test')
+        _, user=service.login(Login(username=row['username'],password=row['password'],expected_role=role),'test')
         assert user['role']==role and user['name']==row['name']
     export_dataset(result,tmp_path/'export')
     with ZipFile(tmp_path/'export/ResolveAI_Demo_Transcripts.zip') as archive:

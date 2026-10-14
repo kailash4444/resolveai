@@ -98,8 +98,17 @@ class Attachment(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+class ImageFinding(BaseModel):
+    """What one image shows, written so a technician doesn't need to open it."""
+    file: str = ""
+    shows: str = ""
+    on_screen_text: list[str] = Field(default_factory=list)
+    error_codes: list[str] = Field(default_factory=list)
+
+
 class VisualAnalysisPayload(BaseModel):
     analysis_source: str = "AI"
+    summary: str = ""
     visual_observations: str
     technical_diagnosis: str
     suggested_category: str = "Incident"
@@ -107,6 +116,13 @@ class VisualAnalysisPayload(BaseModel):
     suggested_service: str = "General"
     suggested_priority: Literal["P1", "P2", "P3", "P4"] = "P3"
     recommended_action: str
+    # Structured extraction (empty for rule-based estimates and results stored before these fields existed).
+    application: str = ""
+    environment: str = ""
+    error_codes: list[str] = Field(default_factory=list)
+    key_details: list[str] = Field(default_factory=list)
+    images: list[ImageFinding] = Field(default_factory=list)
+    unclear: str = ""
 
 
 class Ticket(TicketDraft):
@@ -117,6 +133,7 @@ class Ticket(TicketDraft):
     resolution: str = ""
     work_notes: list[WorkNote] = Field(default_factory=list)
     attachments: list[Attachment] = Field(default_factory=list)
+    visual_analysis: VisualAnalysisPayload | None = None
 
 
 class QACheck(BaseModel):
@@ -166,6 +183,25 @@ class ScopedQAAuditPayload(QAAuditPayload):
     checks: list[ScopedQACheck]
 
 
+class AIAssist(BaseModel):
+    """AI self-help offered to the customer, and what happened next (human-in-the-loop record)."""
+    status: Literal["pending", "offered", "resolved", "escalated"]
+    summary: str = ""
+    steps: list[str] = Field(default_factory=list)
+    reason: str = ""
+    confidence: float = Field(default=0, ge=0, le=1)
+    knowledge_ids: list[str] = Field(default_factory=list)
+    source: str = ""
+    customer_response: str = ""
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    decided_at: datetime | None = None
+
+
+class AssistFeedback(BaseModel):
+    resolved: bool
+    note: str = Field(default="", max_length=2000)
+
+
 class TicketStateTransition(BaseModel):
     from_state: str
     to_state: str
@@ -193,6 +229,7 @@ class CaseRecord(BaseModel):
     ticket: Ticket
     qa_checks: list[QACheck]
     quality_score: int | None = None
+    assist: AIAssist | None = None
     attempted_steps: list[str] = Field(default_factory=list, max_length=6)
     state_history: list[TicketStateTransition] = Field(default_factory=list)
 

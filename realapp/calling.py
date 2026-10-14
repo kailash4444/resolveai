@@ -26,9 +26,19 @@ class TechnicianCreate(BaseModel):
     setup_token: str = ""
 
 
+class Registration(BaseModel):
+    """Public self-service sign-up. Always creates a customer; staff accounts are created by an administrator."""
+    name: str = Field(min_length=2, max_length=80)
+    username: str = Field(min_length=3, max_length=80, pattern=r"^[a-zA-Z0-9_.@-]+$")
+    password: str = Field(min_length=12, max_length=128)
+
+
 class Login(BaseModel):
     username: str = Field(max_length=80)
     password: str = Field(max_length=128)
+    # Which sign-in page was used: 'customer' (/login) or 'technician' (/staff/login, also for administrators). Required,
+    # so a customer account can never sign in through the staff page and a staff account never through the customer page.
+    expected_role: Literal['technician', 'customer']
 
 
 class Presence(BaseModel):
@@ -93,7 +103,7 @@ class CallingService:
 
         def create(db):
             if first and db["technicians"]:
-                raise HTTPException(409, "The administrator is already configured. Sign in.")
+                raise HTTPException(409, "The administrator is already configured. Log in.")
             if any(t["username"] == value.username.lower() for t in db["technicians"].values()):
                 raise HTTPException(409, "That username already exists.")
             tech = {"id": f"tech_{uuid4().hex[:16]}", "name": value.name, "username": value.username.lower(),
@@ -125,6 +135,10 @@ class CallingService:
         result = hashlib.scrypt(value.password.encode(), salt=bytes.fromhex(salt), n=16384, r=8, p=1).hex()
         if not tech or not hmac.compare_digest(result, tech["password_hash"]):
             raise HTTPException(401, "Incorrect username or password.")
+        if value.expected_role == 'customer' and tech['role'] != 'customer':
+            raise HTTPException(403, "This is a technician or admin account. Choose Technician / Admin to log in.")
+        if value.expected_role == 'technician' and tech['role'] == 'customer':
+            raise HTTPException(403, "This is a customer account. Choose Customer to log in.")
         token = secrets.token_urlsafe(32)
         hashed = hashlib.sha256(token.encode()).hexdigest()
 
