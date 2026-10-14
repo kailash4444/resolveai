@@ -7,7 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/resolveai-components.css?v=3">
+  <link rel="stylesheet" href="/static/resolveai-components.css?v=8">
+  <script src="/static/theme.js?v=3"></script>
 </head>
 <body data-role="guest" data-shell="public" data-mode="focus">
   <a class="skip" href="#mainContent">Skip to main content</a>
@@ -36,6 +37,7 @@
       <a class="brand topbar__brand" href="/" aria-label="ResolveAI home"><span class="brand__mark" aria-hidden="true">R</span><span class="brand__name">ResolveAI</span></a>
       <nav class="topnav" id="topNav" aria-label="Customer"></nav>
       <div class="topbar__end">
+        <button type="button" class="pop pop--quiet pop--sm theme-toggle" data-theme-toggle aria-label="Switch theme"></button>
         <button class="switch" id="modeSwitch" type="button" role="switch" aria-checked="false" data-mode-switch hidden>Detail view</button>
         <span class="topbar__account" id="accountIdentity"></span>
         <button class="pop pop--quiet pop--sm" id="accountSignOut" type="button" data-sign-out>Sign out</button>
@@ -59,7 +61,7 @@
       <div class="landing" id="landing">
         <header class="landing__nav">
           <a class="brand" href="/" aria-label="ResolveAI home"><span class="brand__mark" aria-hidden="true">R</span>ResolveAI</a>
-          <nav class="landing__links" aria-label="Main"><a class="sec" href="#preview">How it works</a><a class="sec" href="#workspaces">Workspaces</a><a class="pop" href="/login">Sign in</a></nav>
+          <nav class="landing__links" aria-label="Main"><a class="sec" href="#preview">How it works</a><a class="sec" href="#workspaces">Workspaces</a><button type="button" class="pop pop--quiet pop--sm theme-toggle" data-theme-toggle aria-label="Switch theme"></button><a class="pop pop--quiet pop--sm" href="/login" id="navLogInBtn">Log in</a><a class="pop pop--sm" href="/signup" id="navSignUpBtn">Sign up</a></nav>
         </header>
         <div class="landing__main">
         <section class="landing__hero">
@@ -97,7 +99,7 @@
       </div>
 
       <div class="auth" id="authPage" hidden>
-        <header class="auth__bar"><a class="brand" href="/" aria-label="ResolveAI home"><span class="brand__mark" aria-hidden="true">R</span>ResolveAI</a><a class="sec auth__back" href="/">← Back to home</a></header>
+        <header class="auth__bar"><a class="brand" href="/" aria-label="ResolveAI home"><span class="brand__mark" aria-hidden="true">R</span>ResolveAI</a><div class="row row--sm"><button type="button" class="pop pop--quiet pop--sm theme-toggle" data-theme-toggle aria-label="Switch theme"></button><a class="sec auth__back" href="/">← Back to home</a></div></header>
         <div class="auth__main">
           <section class="card card--lift auth__card" id="authCard" data-mode="signin">
             <p class="kicker" id="authKicker">Sign in</p>
@@ -108,8 +110,8 @@
               <fieldset class="field auth__roles" id="authRoleField">
                 <legend>I’m signing in as</legend>
                 <div class="choices">
-                  <label class="choice"><input type="radio" name="expected_role" value="customer"><span class="choice__body"><strong>Customer</strong><span class="help">Report issues and follow your requests</span></span><span class="choice__state" aria-hidden="true">✓ Selected</span></label>
-                  <label class="choice"><input type="radio" name="expected_role" value="technician" checked><span class="choice__body"><strong>Technician</strong><span class="help">Service team. Administrators choose this too.</span></span><span class="choice__state" aria-hidden="true">✓ Selected</span></label>
+                  <label class="choice"><input type="radio" name="expected_role" value="customer"><span class="choice__icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="choice__body"><strong>Customer</strong><span class="help">Report issues and follow your requests</span></span><span class="choice__mark" aria-hidden="true"></span></label>
+                  <label class="choice"><input type="radio" name="expected_role" value="technician" checked><span class="choice__icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="2.5" y="14" width="4" height="6" rx="1.5"/><rect x="17.5" y="14" width="4" height="6" rx="1.5"/><path d="M19.5 20a3 3 0 0 1-3 2H13"/></svg></span><span class="choice__body"><strong>Technician</strong><span class="help">Service team. Administrators choose this too.</span></span><span class="choice__mark" aria-hidden="true"></span></label>
                 </div>
                 <p class="help" id="adminSignInHint" hidden>Administrators sign in with <strong>Technician</strong>. Admin tools appear automatically after sign-in.</p>
               </fieldset>
@@ -148,7 +150,7 @@
         <aside class="card card--lift voice-card" id="portalVoice" aria-labelledby="voiceTitle">
           <h2 id="voiceTitle">Talk to support</h2>
           <p class="sec">Start a private call in your browser. You can ask for a technician during the call.</p>
-          <iframe class="voice-frame" id="voiceFrame" src="/support?embed=1" title="Browser voice support call" allow="microphone; autoplay"></iframe>
+          <iframe class="voice-frame" id="voiceFrame" src="/support?embed=1&amp;v=3" title="Browser voice support call" allow="microphone; autoplay"></iframe>
         </aside>
       </div>
       <section class="section" aria-labelledby="customerCallsTitle"><div class="section-head section-head--tight"><h2 id="customerCallsTitle">Your recent calls</h2></div><div id="customerCalls" aria-live="polite"></div></section>
@@ -485,7 +487,7 @@
     <h2 id="technicianTitle">Add a user</h2>
     <p class="sec">Creates an account that can sign in straight away. Share the username and password with the person securely. Administrator accounts can’t be created here.</p>
     <form id="technicianForm" novalidate>
-      <fieldset class="field"><legend>Role</legend><div class="choices"><label class="choice"><input type="radio" name="role" value="technician" checked><span class="choice__body"><strong>Technician</strong><span class="help">Works tickets and takes calls</span></span><span class="choice__state" aria-hidden="true">✓ Selected</span></label><label class="choice"><input type="radio" name="role" value="customer"><span class="choice__body"><strong>Customer</strong><span class="help">Reports issues and follows them</span></span><span class="choice__state" aria-hidden="true">✓ Selected</span></label></div></fieldset>
+      <fieldset class="field"><legend>Role</legend><div class="choices"><label class="choice"><input type="radio" name="role" value="technician" checked><span class="choice__icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="2.5" y="14" width="4" height="6" rx="1.5"/><rect x="17.5" y="14" width="4" height="6" rx="1.5"/><path d="M19.5 20a3 3 0 0 1-3 2H13"/></svg></span><span class="choice__body"><strong>Technician</strong><span class="help">Works tickets and takes calls</span></span><span class="choice__mark" aria-hidden="true"></span></label><label class="choice"><input type="radio" name="role" value="customer"><span class="choice__icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="choice__body"><strong>Customer</strong><span class="help">Reports issues and follows them</span></span><span class="choice__mark" aria-hidden="true"></span></label></div></fieldset>
       <div class="fields">
         <div class="field"><label for="userName">Full name</label><input class="input" id="userName" name="name" required minlength="2" maxlength="80" autocomplete="off"></div>
         <div class="field"><label for="userUsername">Username</label><input class="input" id="userUsername" name="username" required minlength="3" maxlength="80" pattern="[a-zA-Z0-9_.@\-]+" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="userUsernameHelp"><p class="help" id="userUsernameHelp">Letters, numbers and . _ @ - only.</p></div>
