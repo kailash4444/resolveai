@@ -31,12 +31,13 @@ window.ResolveAIVoice = {
       const panel = document.querySelector('[data-microphone-panel]');
       if(panel && !panel.hidden) {
         panel.querySelector('meter').value = room.microphoneSignal.level;
-        panel.querySelector('[data-mic-status]').textContent = {
+        const status = panel.querySelector('[data-mic-status]'), text = {
           stopped:'Microphone stopped. Restart it below.', muted:'Microphone muted',
           interrupted:'Microphone interrupted. Restart it below.', paused:'Microphone monitor paused. Restart it below.',
           speech:'Speech detected', listening:'Listening — speak to test your microphone',
           quiet:'No speech detected. Check your microphone or select another input.'
         }[state];
+        if (status.textContent !== text) status.textContent = text;
       }
     }, 200);
     room.resumeMicrophoneMonitor = () => context.resume();
@@ -46,7 +47,7 @@ window.ResolveAIVoice = {
     const panel = document.querySelector('[data-microphone-panel]');
     if(!panel)return;
     panel.hidden=false;
-    panel.innerHTML='<strong>Your microphone</strong><p data-mic-status>Connecting microphone…</p><meter min="0" max="1" value="0" aria-label="Microphone input level"></meter><label>Microphone<select aria-label="Microphone input"></select></label><button type="button" class="secondary" data-restart-microphone>Restart microphone</button><p data-mic-error role="status"></p>';
+    panel.innerHTML='<h3 class="h4">Your microphone</h3><p class="help" data-mic-status aria-live="polite">Connecting microphone…</p><meter class="meter" min="0" max="1" value="0" aria-label="Microphone input level"></meter><div class="field field--inline"><label for="micInput">Microphone</label><select class="input" id="micInput"></select></div><div><button type="button" class="btn btn-soft btn-sm" data-restart-microphone>Restart microphone</button></div><p class="err" data-mic-error role="status"></p>';
     const select=panel.querySelector('select'), button=panel.querySelector('button'), error=panel.querySelector('[data-mic-error]');
     async function inputs(){
       const devices=await navigator.mediaDevices.enumerateDevices();
@@ -61,7 +62,7 @@ window.ResolveAIVoice = {
     select.onchange=async()=>{
       error.textContent='';
       try {await room.switchActiveDevice('audioinput',select.value);await room.resumeMicrophoneMonitor();}
-      catch(_){error.textContent='Could not use this input. Check microphone permissions or choose another device.';}
+      catch(_){error.textContent='✕ Could not use this input. Check microphone permissions or choose another device.';}
     };
     button.onclick=async()=>{
       button.disabled=true;error.textContent='';
@@ -70,10 +71,10 @@ window.ResolveAIVoice = {
         if(publication?.track)await room.localParticipant.unpublishTrack(publication.track,true);
         await room.localParticipant.setMicrophoneEnabled(true,{deviceId:select.value || undefined});
         await room.resumeMicrophoneMonitor();await inputs();
-      } catch(_){error.textContent='Could not restart the microphone. Allow microphone access in your browser and try again.';}
+      } catch(_){error.textContent='✕ Could not restart the microphone. Allow microphone access in your browser and try again.';}
       finally{button.disabled=false;}
     };
-    try{await inputs();}catch(_){error.textContent='Microphone device list is unavailable.';}
+    try{await inputs();}catch(_){error.textContent='✕ Microphone device list is unavailable.';}
   },
   async connect(connection, onDisconnected, publish = true) {
     if (!window.LivekitClient?.Room) throw new Error('The calling library could not load. Refresh the page.');

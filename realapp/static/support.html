@@ -1,7 +1,74 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Call support · ResolveAI</title><link rel="stylesheet" href="/static/support.css?v=2"><link rel="stylesheet" href="/static/microphone.css?v=2"></head>
-<body><main class="support-card"><a class="brand" href="/"><span>R</span>ResolveAI</a><p class="eyebrow">YOUR IT SUPPORT TEAM</p><h1>Let’s get it sorted.</h1><p class="intro">Describe your issue to our AI assistant. An available technician can join when you need more help.</p>
-<form id="supportForm"><label for="customerName">Your name</label><input id="customerName" name="caller" autocomplete="name" placeholder="Enter your name" required minlength="2" maxlength="100"><input name="language" value="en" type="hidden"><p class="disclosure">Your microphone is used during the call. The conversation is transcribed to help resolve your issue and create a support ticket.</p><button id="startSupportCall" type="submit">Call support</button></form>
-<section id="activeCall" hidden aria-live="polite"><div class="voice-orb" aria-hidden="true">◉</div><p id="listeningStatus" class="listening-status" hidden></p><h2 id="callState">Connecting…</h2><p id="callExplanation">Opening your support call.</p><div class="call-controls"><button id="muteSupportCall" class="secondary">Mute</button><button id="endSupportCall" class="end">End call</button></div><button id="askTechnician" class="text-button">Ask for a technician</button></section>
-<div data-live-caption-host></div><section class="microphone-panel" data-microphone-panel hidden></section><p id="supportMessage" role="status"></p><button id="resumeAudioButton" class="secondary" hidden>Enable call audio</button><div id="remoteAudio"></div><footer>Private support session · Powered by LiveKit</footer></main>
-<script src="/static/vendor/livekit-client.umd.js"></script><script src="/static/voice-browser.js?v=4"></script><script src="/static/support.js?v=4"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Talk to support · ResolveAI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/resolveai-components.css?v=45">
+  <script src="/static/theme.js?v=7"></script>
+</head>
+<body class="support" data-mode="focus">
+  <a class="skip" href="#supportMain">Skip to support controls</a>
+  <header class="support__bar" data-standalone>
+    <a class="brand" href="/portal" aria-label="ResolveAI, back to My support"><span class="brand__mark" aria-hidden="true">R</span>ResolveAI</a>
+    <div class="row row--sm"><button type="button" class="icon-btn theme-toggle" data-theme-toggle aria-label="Switch theme"></button><a class="link link--back" href="/portal">Back to My support</a></div>
+  </header>
+  <main id="supportMain" class="support__main">
+    <section class="support__card stack" aria-labelledby="callState">
+      <div class="stack stack--sm" data-standalone>
+        <p class="kicker">Browser voice support</p>
+        <h1>Talk to support</h1>
+        <p class="sec">Speak with our AI assistant from this browser. You can ask for a technician at any time.</p>
+      </div>
+      <ol class="steps" id="voiceSteps" aria-label="Call progress">
+        <li>○ Microphone</li><li>○ Connect</li><li>○ Talk</li><li>○ Done</li>
+      </ol>
+      <div class="voice-status" role="status" aria-live="polite" aria-atomic="true">
+        <span class="badge badge--muted" id="voiceBadge">○ Checking</span>
+        <h2 class="h3" id="callState">Checking your browser…</h2>
+        <p class="sec" id="callExplanation" hidden></p>
+      </div>
+      <form id="supportForm" class="stack" novalidate hidden>
+        <div class="field field--inline" id="nameField"><label for="customerName">Your name</label><input class="input" id="customerName" name="caller" autocomplete="name" required minlength="2" maxlength="100" aria-describedby="customerNameError"><p class="err" id="customerNameError" hidden></p></div>
+        <p class="help" id="callingAs" hidden></p>
+        <input type="hidden" name="language" value="en">
+        <button id="startSupportCall" class="btn btn-primary btn--lead" type="submit"><span class="btn__bubble" aria-hidden="true"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h3l2 5-2 2a15 15 0 0 0 5 5l2-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 4 5a2 2 0 0 1 2-2z"/></svg></span><span class="btn__label">Start voice call</span></button>
+        <p class="help">Your browser will ask for microphone access when you start. The conversation is transcribed to help resolve your issue and create an incident.</p>
+      </form>
+      <section id="activeCall" class="stack" aria-label="Call controls" hidden>
+        <p class="help" id="listeningStatus"></p>
+        <div class="call-controls">
+          <button id="muteSupportCall" class="call-btn call-btn--mic" type="button" role="switch" aria-checked="true" aria-label="Microphone"><span class="call-btn__icon"><svg class="mic-on" aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><svg class="mic-off" aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 9.3V6a3 3 0 0 0-5.7-1.3M9 9v2a3 3 0 0 0 5 2.2M5 11a7 7 0 0 0 11.4 5.4M19 11a7 7 0 0 1-.6 2.8M12 18v3M4 4l16 16"/></svg></span><span class="call-btn__label" aria-hidden="true">Mic on</span></button>
+          <button id="askTechnician" class="call-btn" type="button"><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>Ask for a technician</button>
+          <button id="endSupportCall" class="call-btn call-btn--danger" type="button"><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15c5-5 13-5 18 0l-2 3-4-1v-3a10 10 0 0 0-6 0v3l-4 1z"/></svg></span>End call</button>
+        </div>
+        <details class="transcript-box" open>
+          <summary>Live transcript</summary>
+          <div id="supportTranscript" class="turns" aria-live="polite" aria-relevant="additions" tabindex="0" aria-label="Live transcript"><p class="help">Your conversation appears here once transcription starts.</p></div>
+        </details>
+      </section>
+      <div data-live-caption-host></div>
+      <section class="mic-panel stack stack--sm" data-microphone-panel hidden></section>
+      <div class="row" id="supportRecovery" hidden>
+        <button id="retrySupport" class="btn btn-soft" type="button" hidden>Try again</button>
+        <a id="reportInstead" class="btn btn-soft" href="/portal?view=customer-create" target="_top" hidden>Report an issue in writing</a>
+      </div>
+      <button id="resumeAudioButton" class="btn btn-primary" type="button" hidden>Turn on call audio</button>
+    </section>
+    <p class="help support__foot" data-standalone>Private support session · Browser voice powered by LiveKit</p>
+  </main>
+  <dialog class="dlg" id="endCallDialog" aria-labelledby="endCallTitle" aria-describedby="endCallText">
+    <h2 id="endCallTitle">End this call?</h2>
+    <p class="sec" id="endCallText">Your conversation stops. If you described an issue, an incident is created from it.</p>
+    <div class="row"><button type="button" class="btn btn-soft" data-close>Keep talking</button><button type="button" id="confirmEndCall" class="btn btn-danger is-confirm">End call</button></div>
+  </dialog>
+  <div id="remoteAudio" hidden></div>
+  <script src="/static/resolveai-components.js?v=2"></script>
+  <script src="/static/vendor/livekit-client.umd.js"></script>
+  <script src="/static/voice-browser.js?v=6"></script>
+  <script src="/static/support.js?v=19"></script>
+</body>
+</html>

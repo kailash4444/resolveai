@@ -3,7 +3,8 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const byId = id => document.getElementById(id);
   const state = { caseId: null, data: null, graph: null, guidance: null, provider: '', selectedGraphNode: null, dated: [], undated: [], cursor: 0, activeEvent: null, compare: [], categories: new Set(), zoom: 1, playing: false, timer: null, nodePositions: new Map() };
-  const palette = { ticket_created:'#3d8f68', customer_observation:'#d27c42', conversation:'#6d7bc2', troubleshooting:'#bd8c2e', technician_action:'#14745a', failed_attempt:'#c84d43', status_change:'#6d53a6', evidence_added:'#348c9f', qa_result:'#718079', durability_assessment:'#a45184', customer_comment:'#d27c42', system_record:'#718079', ai_diagnosis:'#6d7bc2', ai_recommendation:'#806cb4' };
+  // Category colours come from the theme tokens, so the timeline follows light and dark.
+  const palette = { ticket_created:'var(--ok)', customer_observation:'var(--high)', conversation:'var(--low)', troubleshooting:'var(--medium)', technician_action:'var(--edge)', failed_attempt:'var(--critical)', status_change:'var(--link)', evidence_added:'var(--low)', qa_result:'var(--text-3)', durability_assessment:'var(--medium)', customer_comment:'var(--high)', system_record:'var(--text-3)', ai_diagnosis:'var(--low)', ai_recommendation:'var(--link)' };
   const groups = { customer_observation:'Customer', conversation:'Conversation', customer_comment:'Customer', technician_action:'Technician', failed_attempt:'Failed steps', troubleshooting:'Reported steps', status_change:'State changes', ticket_created:'Incident', evidence_added:'Attachments', qa_result:'QA', durability_assessment:'Durability', system_record:'System', ai_diagnosis:'AI records', ai_recommendation:'AI records' };
   const allCategories = [...new Set([...Object.values(groups), 'Other'])];
   const dt = value => value ? new Date(value) : null;
@@ -121,7 +122,7 @@
       const label=String(item.label||'Evidence').slice(0,34), y=point.y;
       return `<g class="hg-node ${esc(item.kind)} ${selected?'selected':''}" data-hg-node="${esc(item.id)}" tabindex="0" role="button" aria-label="${esc(`${graphKindLabel[item.kind]||'Evidence'}: ${item.label}`)}"><rect class="hg-card" x="${point.x}" y="${y}" width="${point.w}" height="${point.h}" rx="12"/><circle class="hg-icon-ring" cx="${point.x+22}" cy="${y+point.h/2}" r="13"/><text class="hg-icon" x="${point.x+22}" y="${y+point.h/2}">${esc(color)}</text><text class="hg-label" x="${point.x+44}" y="${y+21}">${esc(label)}</text><text class="hg-sub" x="${point.x+44}" y="${y+37}">${esc(subtitle.slice(0,38))}</text>${item.case_id?`<title>${esc(item.detail)}</title>`:''}</g>`;
     }).join('');
-    const defs='<defs><linearGradient id="hg-ticket" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0e7653"/><stop offset="1" stop-color="#164c69"/></linearGradient><filter id="hg-shadow" x="-20%" y="-25%" width="150%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#365c45" flood-opacity=".1"/></filter><filter id="hg-glow" x="-25%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#25a878" flood-opacity=".26"/></filter></defs>';
+    const defs='<defs><linearGradient id="hg-ticket" x1="0" y1="0" x2="1" y2="1"><stop style="stop-color:var(--edge)"/><stop offset="1" style="stop-color:color-mix(in srgb,var(--edge) 55%,var(--link))"/></linearGradient><filter id="hg-shadow" x="-20%" y="-25%" width="150%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="5" style="flood-color:var(--shade)" flood-opacity=".6"/></filter><filter id="hg-glow" x="-25%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="0" stdDeviation="5" style="flood-color:var(--edge)" flood-opacity=".3"/></filter></defs>';
     svg.innerHTML=defs+headers+edges+cards;
     const counts=graph.counts;
     const handoffOwner=graph.incident.assigned_to_you?'you':graph.incident.assigned_to;
@@ -181,7 +182,7 @@
   }
 
   function renderFilters() {
-    byId('tmFilters').innerHTML = allCategories.map(name => `<button type="button" class="tm-filter ${state.categories.has(name) ? 'active' : ''}" data-tm-filter="${esc(name)}" aria-pressed="${state.categories.has(name)}"><i style="--tm-color:${palette[Object.keys(groups).find(key => groups[key] === name)] || '#87958e'}"></i>${esc(name)}</button>`).join('');
+    byId('tmFilters').innerHTML = allCategories.map(name => `<button type="button" class="tm-filter ${state.categories.has(name) ? 'active' : ''}" data-tm-filter="${esc(name)}" aria-pressed="${state.categories.has(name)}"><i style="--tm-color:${palette[Object.keys(groups).find(key => groups[key] === name)] || 'var(--text-3)'}"></i>${esc(name)}</button>`).join('');
   }
 
   function renderTimeline() {
@@ -198,7 +199,7 @@
     const lastTime = dated.length ? Date.parse(dated[dated.length - 1].occurred_at) : firstTime;
     const xFor = event => lastTime <= firstTime ? (left + right) / 2 : left + ((Date.parse(event.occurred_at) - firstTime) / (lastTime - firstTime)) * (right - left);
     const display = dated.filter(item => (retro || (cursor && item.occurred_at <= cursor.occurred_at)) && isVisible(item));
-    const parts = [`<defs><marker id="tm-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#aabbb1"/></marker></defs>`,
+    const parts = [`<defs><marker id="tm-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" style="fill:var(--border-strong)"/></marker></defs>`,
       `<line class="tm-axis" x1="${left}" y1="${yBase}" x2="${right}" y2="${yBase}"/>`,
       `<text class="tm-axis-caption" x="${left}" y="${height - 22}">RECORDED TIME →</text>`];
     for (const lane of lanes) {
@@ -210,12 +211,12 @@
       parts.push(`<line class="tm-cursor" x1="${x}" y1="48" x2="${x}" y2="${height - 42}"/><text class="tm-cursor-label" x="${x + 7}" y="${height - 47}">AS OF</text>`);
     }
     for (const event of display) {
-      const x = xFor(event), y = yFor(event), color = palette[event.type] || '#87958e';
+      const x = xFor(event), y = yFor(event), color = palette[event.type] || 'var(--text-3)';
       const chosen = state.activeEvent === event.id ? ' selected' : '';
       const isCurrent = cursor && event.id === cursor.id;
       const shape = event.type === 'status_change' || event.type === 'failed_attempt'
-        ? `<path d="M ${x} ${y-8} L ${x+8} ${y} L ${x} ${y+8} L ${x-8} ${y} Z" fill="${color}"/>`
-        : `<circle cx="${x}" cy="${y}" r="7" fill="${color}"/>`;
+        ? `<path d="M ${x} ${y-8} L ${x+8} ${y} L ${x} ${y+8} L ${x-8} ${y} Z" style="fill:${color}"/>`
+        : `<circle cx="${x}" cy="${y}" r="7" style="fill:${color}"/>`;
       parts.push(`<g class="tm-event${chosen}${isCurrent ? ' current' : ''}" data-tm-event="${esc(event.id)}" tabindex="0" role="button" aria-label="${esc(event.title)} · ${esc(when(event.occurred_at))}"><line class="tm-stem" x1="${x}" y1="${y+10}" x2="${x}" y2="${yBase-10}"/><circle class="tm-hit" cx="${x}" cy="${y}" r="14"/>${shape}<text class="tm-point-label" x="${x}" y="${y-12}" text-anchor="middle">${esc(event.title.slice(0, 24))}</text></g>`);
     }
     if (!display.length) parts.push(`<text class="tm-empty" x="${width/2}" y="${height/2}" text-anchor="middle">No visible dated evidence. Adjust filters or rewind.</text>`);
@@ -253,7 +254,7 @@
     const visibleById = new Map(events.map(item => [item.id, item]));
     const x = item => 42 + Math.max(0, indexById.get(item.id) ?? 0) * 56;
     const y = index => 115 + (index % 5) * 58 + (Math.floor(index / 5) % 2) * 28;
-    const parts = ['<defs><marker id="tm-map-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#b7c6bd"/></marker></defs>'];
+    const parts = ['<defs><marker id="tm-map-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" style="fill:var(--border-strong)"/></marker></defs>'];
     (state.data.relationships || []).forEach(link => {
       const from = visibleById.get(link.from), to = visibleById.get(link.to);
       if (!from || !to) return;
@@ -261,9 +262,9 @@
     });
     events.forEach(item => {
       const index = indexById.get(item.id);
-      const point = state.nodePositions.get(item.id) || {x:x(item), y:y(index)}, color = palette[item.type] || '#87958e';
+      const point = state.nodePositions.get(item.id) || {x:x(item), y:y(index)}, color = palette[item.type] || 'var(--text-3)';
       const label = item.title.length > 10 ? `${item.title.slice(0, 9)}…` : item.title;
-      parts.push(`<g class="tm-map-node" data-tm-node="${esc(item.id)}" transform="translate(${point.x} ${point.y})" tabindex="0" role="button"><circle r="15" fill="${color}"/><text y="31" text-anchor="middle">${esc(label)}</text><title>${esc(item.title)} · ${esc(when(item.occurred_at))}</title></g>`);
+      parts.push(`<g class="tm-map-node" data-tm-node="${esc(item.id)}" transform="translate(${point.x} ${point.y})" tabindex="0" role="button"><circle r="15" style="fill:${color}"/><text y="31" text-anchor="middle">${esc(label)}</text><title>${esc(item.title)} · ${esc(when(item.occurred_at))}</title></g>`);
     });
     if (!events.length) parts.push('<text class="tm-empty" x="500" y="280" text-anchor="middle">No dated evidence to map. Undated records stay outside the chronology map.</text>');
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`); svg.style.width = `${width}px`; svg.innerHTML = parts.join('');
