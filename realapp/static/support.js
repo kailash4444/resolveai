@@ -17,7 +17,7 @@ const STATES = {
   denied: {badge: ['badge--err', '✕ Microphone blocked'], title: 'Microphone access is blocked', text: 'Allow the microphone for this site from your browser’s address bar or settings, then try again.', step: 0, show: ['retry', 'report']},
   connecting: {badge: ['badge--medium', '● Connecting'], title: 'Connecting your call…', text: 'This usually takes a few seconds.', step: 1},
   active: {badge: ['badge--ok', '● Live'], title: 'Talking with the AI assistant', text: 'Describe what you see and follow the suggested steps. Ask for a technician at any time.', step: 2, show: ['call']},
-  muted: {badge: ['badge--low', '○ Muted'], title: 'You’re muted', text: 'Support can’t hear you. Select Unmute to keep talking.', step: 2, show: ['call']},
+  muted: {badge: ['badge--low', '○ Muted'], title: 'You’re muted', text: 'Support can’t hear you. Turn the microphone on to keep talking.', step: 2, show: ['call']},
   requested: {badge: ['badge--high', '◆ Technician requested'], title: 'Finding a technician', text: 'Stay on the call. The AI assistant can keep helping while you wait.', step: 2, show: ['call']},
   connected: {badge: ['badge--ok', '✓ Technician connected'], title: 'Connected to your technician', text: 'You can now speak with your technician.', step: 2, show: ['call']},
   reconnecting: {badge: ['badge--high', '◆ Reconnecting'], title: 'Reconnecting…', text: 'Your connection dropped. Hold on while we restore the audio.', step: 2, show: ['call']},
@@ -51,8 +51,10 @@ function updateListeningIndicator() {
   const microphoneOn = connected && room.localParticipant.isMicrophoneEnabled;
   const assistantSpeaking = connected && [...room.remoteParticipants.values()].some(p => p.identity.startsWith('agent:') && p.isSpeaking);
   $('#listeningStatus').textContent = !connected ? 'Connecting audio…' : !microphoneOn ? 'Microphone muted' : assistantSpeaking ? 'AI assistant speaking…' : ['Triage', 'AI', 'Connected'].includes(callStatus) ? 'Listening…' : 'Waiting for a technician';
-  $('#muteSupportCall').textContent = microphoneOn || !connected ? 'Mute' : 'Unmute';
-  $('#muteSupportCall').setAttribute('aria-pressed', String(connected && !microphoneOn));
+  // One switch for the microphone: on = others can hear you, off = muted.
+  const micOn = microphoneOn || !connected;
+  $('#muteSupportCall').textContent = micOn ? 'Microphone on' : 'Microphone off';
+  $('#muteSupportCall').setAttribute('aria-checked', String(micOn));
 }
 
 async function request(path, options = {}) {
@@ -99,7 +101,7 @@ async function refresh() {
     if (voiceState !== 'reconnecting') {
       const muted = room && !room.localParticipant.isMicrophoneEnabled;
       if (call.status === 'Connected') setState(muted ? 'muted' : 'connected', muted ? {} : {title: `Connected to ${call.technician_name || 'your technician'}`});
-      else if (['Queued', 'Ringing'].includes(call.status)) setState('requested', call.status === 'Ringing' ? {title: 'Contacting a technician', text: 'Your call is being offered to a technician. Please stay on the call.'} : {});
+      else if (['Queued', 'Ringing'].includes(call.status)) setState(muted ? 'muted' : 'requested', muted ? {} : call.status === 'Ringing' ? {title: 'Contacting a technician', text: 'Your call is being offered to a technician. Please stay on the call.'} : {});
       else setState(muted ? 'muted' : 'active');
       // The call is still open, but say so when the AI assistant's audio has failed.
       if (call.last_error && ['Triage', 'AI'].includes(call.status)) {

@@ -889,7 +889,7 @@ window.applyAccountRole = user => {
   });
   window.Shell?.render(user);
   if (!user || customer) {
-    $('#presenceControl').hidden = $('#enablePhoneButton').hidden = true;
+    $('#presenceControl').hidden = $('#micSwitch').hidden = true;
     $('#incomingCallBanner').hidden = true;
   }
   $('#openKeyPanel').hidden = !admin || state.config?.runtime_key_supported === false;

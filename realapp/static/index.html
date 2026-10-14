@@ -301,9 +301,8 @@
       <div class="alert alert--info" id="voiceNotConfigured" role="status" hidden><strong>◆ Browser calling isn’t configured.</strong><span class="sec" id="voiceNotConfiguredText">An administrator can connect LiveKit in Configuration. Desk requests still work.</span></div>
       <ul class="inds" aria-label="Call readiness">
         <li><span class="muted">Presence</span><span id="presenceIndicator" class="badge badge--low">○ Unknown</span>
-          <div class="field field--inline" id="presenceControl" hidden><label for="presenceSelect">Availability</label><select class="input" id="presenceSelect"><option>Offline</option><option>Available</option><option>Away</option></select></div>
-          <label class="check" id="callPreferenceControl" hidden><input type="checkbox" id="receiveCallsToggle"> Receive browser calls</label></li>
-        <li><span class="muted">Microphone</span><span id="microphoneIndicator" class="badge badge--low">○ Not enabled</span><p class="help" id="callMicState" aria-live="polite">Allow microphone access to take browser calls.</p><div><button class="pop pop--quiet pop--sm" id="enablePhoneButton" type="button" hidden>Enable microphone</button></div></li>
+          <div class="field field--inline" id="presenceControl" hidden><label for="presenceSelect">Availability</label><select class="input" id="presenceSelect"><option>Offline</option><option>Available</option><option>Away</option></select></div></li>
+        <li><span class="muted">Microphone</span><span id="microphoneIndicator" class="badge badge--low">○ Not enabled</span><button type="button" class="switch" role="switch" id="micSwitch" aria-checked="false" aria-describedby="callMicState" hidden>Microphone off</button><p class="help" id="callMicState" aria-live="polite">Turn the microphone on to take browser calls.</p></li>
         <li><span class="muted">Call</span><span id="activeCallIndicator" class="badge badge--low">○ No active call</span><p class="help" id="phoneConnection" role="status" aria-live="polite"></p><div><button class="pop pop--quiet pop--sm" id="signInButton" type="button" hidden>Sign in</button></div></li>
       </ul>
       <section class="mic-panel stack stack--sm section" data-microphone-panel hidden></section>
@@ -566,10 +565,10 @@
   <script src="/static/voice-browser.js?v=4"></script>
   <script src="/static/shell.js?v=1"></script>
   <script src="/static/uploader.js?v=2"></script>
-  <script src="/static/app.js?v=21"></script>
+  <script src="/static/app.js?v=22"></script>
   <script src="/static/auth.js?v=1"></script>
   <script src="/static/support-hub.js?v=1"></script>
-  <script src="/static/calling.js?v=16"></script>
+  <script src="/static/calling.js?v=17"></script>
   <script src="/static/transcripts.js?v=6"></script>
 </body>
 </html>

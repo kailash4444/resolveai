@@ -53,12 +53,20 @@ function renderIndicators() {
   if (presence === 'Available' && user.calls_enabled) setBadge($('#presenceIndicator'), 'badge--ok', '✓ Available');
   else if (presence === 'Available') setBadge($('#presenceIndicator'), 'badge--low', '○ Available · browser calls off');
   else setBadge($('#presenceIndicator'), 'badge--low', `○ ${presence}`);
-  const mic = !voice.configured ? ['badge--err', '✕ Browser calling not configured', 'Desk requests still work. An administrator can connect LiveKit.']
-    : calling.micDenied ? ['badge--err', '✕ Blocked', 'Allow microphone access for this site in your browser, then select Enable microphone.']
-    : !user.calls_enabled ? ['badge--low', '○ Off', 'Turn on Receive browser calls to use the microphone.']
-    : calling.ready ? ['badge--ok', '✓ Ready', 'Your microphone is ready for browser calls.']
-    : ['badge--low', '○ Not enabled', 'Select Enable microphone and allow access when the browser asks.'];
+  const inCall = !!(calling.room && calling.roomCallId), muted = inCall && !calling.room.localParticipant.isMicrophoneEnabled;
+  const mic = !voice.configured ? ['badge--err', '✕ Browser calling not configured', 'Desk requests and chats still work. An administrator can connect LiveKit.']
+    : calling.micDenied ? ['badge--err', '✕ Blocked', 'Allow microphone access for this site in your browser, then turn the microphone on again.']
+    : inCall ? (muted ? ['badge--high', '◆ Muted', 'The customer can’t hear you. Turn the microphone on to talk.'] : ['badge--ok', '✓ On · in a call', 'Turn the microphone off to mute yourself.'])
+    : !user.calls_enabled ? ['badge--low', '○ Off', 'Turn the microphone on to take browser calls.']
+    : calling.ready ? ['badge--ok', '✓ On', 'You can take browser calls. Turn the microphone off to stop.']
+    : ['badge--low', '○ Waiting for permission', 'Turn the microphone on and allow access when the browser asks.'];
   setBadge($('#microphoneIndicator'), mic[0], mic[1]); $('#callMicState').textContent = mic[2];
+  // One switch: on/off for taking browser calls, or mute/unmute while you are on a call.
+  const micSwitch = $('#micSwitch'), on = inCall ? !muted : !!(user.calls_enabled && calling.ready);
+  micSwitch.hidden = false;
+  micSwitch.setAttribute('aria-checked', String(on));
+  micSwitch.textContent = on ? 'Microphone on' : 'Microphone off';
+  micSwitch.disabled = !voice.configured || !!calling.micBusy || (!!user.current_call_id && !inCall);
   const offer = calling.data.calls.find(c => c.technician_id === user.id && c.status === 'Ringing');
   const waiting = (calling.data.incoming_calls || []).length;
   const call = calling.reconnecting ? ['badge--high', '◆ Reconnecting', 'Audio dropped. Trying to restore the call…']
@@ -68,7 +76,6 @@ function renderIndicators() {
     : waiting ? ['badge--low', `○ ${waiting} waiting`, 'Customers are waiting for a technician.']
     : ['badge--low', '○ No active call', user.calls_enabled ? 'New calls appear here and in the banner.' : 'Browser calls are off; desk requests still reach you.'];
   setBadge($('#activeCallIndicator'), call[0], call[1]); $('#phoneConnection').textContent = call[2];
-  $('#enablePhoneButton').hidden = !voice.configured || calling.ready || !user.calls_enabled;
   $('#voiceNotConfigured').hidden = voice.configured;
   if (!voice.configured) $('#voiceNotConfiguredText').textContent = user.role === 'admin' ? 'Connect LiveKit in Configuration to take browser calls. Desk requests still work.' : 'An administrator needs to connect LiveKit. Desk requests still work.';
   return offer;
@@ -84,9 +91,6 @@ function renderCalling() {
   $('#technicianIdentity').textContent = `${calling.user.name} · AI handles first contact; you join when a customer needs a person.`;
   if (document.activeElement !== $('#presenceSelect')) $('#presenceSelect').value = calling.user.availability;
   $('#presenceSelect').disabled = !!calling.user.current_call_id;
-  $('#callPreferenceControl').hidden = false;
-  $('#receiveCallsToggle').checked = calling.user.calls_enabled;
-  $('#receiveCallsToggle').disabled = !!calling.user.current_call_id;
   const offer = renderIndicators();
   $('#callsQueued').textContent = metrics.queued;
   $('#callsAI').textContent = metrics.ai;
@@ -131,7 +135,6 @@ function renderCallDetail() {
     const phoneReady = c.origin !== 'browser' || calling.ready;
     controls.push(`<button type="button" class="pop" data-call-action="accept" ${phoneReady ? '' : 'disabled aria-describedby="acceptHelp"'}>Accept</button><button type="button" class="pop pop--quiet" data-call-action="decline">Decline</button>${phoneReady ? '' : '<p class="help" id="acceptHelp">Enable your microphone to accept browser calls.</p>'}`);
   }
-  if (c.status === 'Connected' && own && calling.room) controls.push(`<button type="button" class="pop pop--quiet" id="muteCallButton" aria-pressed="${!calling.room.localParticipant.isMicrophoneEnabled}">${!calling.room.localParticipant.isMicrophoneEnabled ? 'Unmute' : 'Mute'}</button>`);
   if ((c.status === 'AI' || c.status === 'Connected') && canManage) controls.push('<button type="button" class="pop pop--quiet" data-call-action="transfer">Transfer to queue</button>');
   if ((c.status === 'Connected' || c.status === 'AI') && canManage) controls.push('<button type="button" class="pop pop--danger" data-call-action="finish">End call</button>');
   const guidance = c.knowledge_matches || [], status = c.knowledge_status;
@@ -189,7 +192,6 @@ async function heartbeat() {
 }
 
 async function enablePhone() {
-  const button = $('#enablePhoneButton'); button.disabled = true; button.setAttribute('aria-busy', 'true');
   try {
     await ResolveAIVoice.microphonePermission();
     calling.micDenied = false;
@@ -201,7 +203,6 @@ async function enablePhone() {
     else showFeedback(`Browser calling check failed: ${error.message}`, true);
     if (calling.data) renderIndicators();
   }
-  finally { button.disabled = false; button.removeAttribute('aria-busy'); }
 }
 
 async function acceptBrowserCall(id, connection) {
@@ -259,10 +260,8 @@ document.addEventListener('click', async event => {
       }
       await loadCalling();
     }
-    if (event.target.closest('#muteCallButton') && calling.room) {await calling.room.localParticipant.setMicrophoneEnabled(!calling.room.localParticipant.isMicrophoneEnabled);renderCallDetail();}
     if (event.target.closest('#resumeAudioButton')) {await calling.room?.startAudio();$('#resumeAudioButton').hidden=true;}
     if (event.target.closest('#signInButton')) location.assign('/login?role=technician');
-    if (event.target.closest('#enablePhoneButton')) await enablePhone();
     if (event.target.closest('#addTechnicianButton')) { $('#technicianForm').reset(); $('#technicianForm').dispatchEvent(new Event('change')); $('#technicianMessage').textContent = ''; $('#technicianModal').showModal(); }
     if (event.target.closest('#retryUsers')) await loadCalling();
     if (event.target.closest('#routeRequestButton')) { $('#requestMessage').textContent = ''; $('#requestModal').showModal(); }
@@ -289,16 +288,22 @@ $('#presenceSelect').addEventListener('change', async event => {
   catch(error) { showFeedback(error.message, true); }
 });
 
-$('#receiveCallsToggle').addEventListener('change', async event => {
-  const enabled = event.target.checked;
-  event.target.disabled = true;
+$('#micSwitch').addEventListener('click', async () => {
+  const button = $('#micSwitch');
+  if (calling.micBusy || button.disabled) return;
+  calling.micBusy = true; button.disabled = true; button.setAttribute('aria-busy', 'true');
   try {
-    calling.user = await api('/api/technicians/me/call-settings', {method:'PATCH',body:JSON.stringify({enabled})});
-    calling.ready = false;
-    if (enabled) await enablePhone();
-    else { await heartbeat(); await loadCalling(); }
-  } catch(error) { showFeedback(error.message, true); }
-  finally { event.target.disabled = false; await loadCalling(); }
+    if (calling.room && calling.roomCallId) {
+      await calling.room.localParticipant.setMicrophoneEnabled(!calling.room.localParticipant.isMicrophoneEnabled);
+    } else if (button.getAttribute('aria-checked') === 'true') {
+      calling.user = await api('/api/technicians/me/call-settings', {method:'PATCH', body:JSON.stringify({enabled:false})});
+      calling.ready = false; await heartbeat();
+    } else {
+      if (!calling.user.calls_enabled) calling.user = await api('/api/technicians/me/call-settings', {method:'PATCH', body:JSON.stringify({enabled:true})});
+      calling.ready = false; await enablePhone();
+    }
+  } catch (error) { showFeedback(error.message, true); }
+  finally { calling.micBusy = false; button.removeAttribute('aria-busy'); await loadCalling(); button.focus(); }
 });
 
 async function submitCallingForm(event, path, messageId, transform, after) {
