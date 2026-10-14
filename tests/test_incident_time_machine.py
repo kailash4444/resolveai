@@ -122,6 +122,27 @@ def test_time_machine_requires_staff_authentication(time_machine):
     assert response.status_code == 401
 
 
+def test_handoff_graph_and_guidance_link_back_to_readable_sources(time_machine):
+    env = time_machine
+    graph_response = env.admin.get(f"/api/cases/{env.case.id}/handoff-graph")
+    assert graph_response.status_code == 200, graph_response.text
+    graph = graph_response.json()['graph']
+    nodes = {item['id']: item for item in graph['nodes']}
+    assert f"ticket:{env.case.id}" in nodes
+    assert any(item['kind'] == 'transcript' for item in nodes.values())
+    assert any(item['kind'] == 'failed_action' for item in nodes.values())
+    assert any(edge['to'] in nodes and edge['from'] in nodes for edge in graph['edges'])
+
+    guidance_response = env.admin.post(f"/api/cases/{env.case.id}/handoff-guidance")
+    assert guidance_response.status_code == 200, guidance_response.text
+    body = guidance_response.json()
+    assert body['guidance']['next_actions']
+    refreshed_nodes = {item['id'] for item in body['graph']['nodes']}
+    assert all(source in refreshed_nodes for action in body['guidance']['next_actions']
+               for source in action['evidence_ids'])
+    assert env.store.get_case(env.case.id).ticket.state == 'Resolved'
+
+
 def test_history_comparison_uses_actual_similar_incidents_and_explicit_outcomes(time_machine):
     candidate = time_machine.store.save_case(make_incident(time_machine.engine))
     comparison = compare_history(time_machine.case, [time_machine.case, candidate])

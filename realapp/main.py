@@ -27,6 +27,7 @@ from realapp.attachments import (save_attachment, get_attachment_data, find_case
                                  validate_attachment, MAX_FILES_PER_REQUEST, MAX_TOTAL_SIZE)
 from realapp.resolution_radar import ResolutionRadar, evidence_digest
 from realapp.incident_time_machine import compare_history, reconstruct as reconstruct_incident
+from realapp.handoff_graph import build_handoff_graph, guidance_context
 
 
 settings = get_settings()
@@ -587,6 +588,64 @@ def get_incident_time_machine(case_id: str, http: Request):
     if user['role'] == 'technician' and not can_report(case, user):
         result['warnings'].append('Transcript and QA details are hidden for incidents assigned to another technician; this reconstruction is partial.')
     return result
+
+
+def _handoff_graph(case: CaseRecord, user: dict, refresh_knowledge: bool = False):
+    safe_case = visible_case(case, user)
+    candidates = [item for item in store.list_cases_for_service(case.ticket.service)
+                  if can_read(item, user)]
+    matches, warnings = safe_case.knowledge_matches, []
+    if refresh_knowledge:
+        query = '\n'.join([
+            safe_case.issue_title, safe_case.ticket.short_description,
+            safe_case.ticket.description[:1200], safe_case.understanding.summary[:500],
+            '\n'.join(turn.text for turn in safe_case.transcript[-8:]),
+            '\n'.join(note.text for note in safe_case.ticket.work_notes[-6:]),
+            '\n'.join(safe_case.attempted_steps),
+        ])[-6000:]
+        try:
+            matches = engine.retrieve(query, limit=5)
+        except Exception:
+            logger.exception('Live handoff knowledge retrieval failed for incident %s', case.id)
+            warnings.append('Live knowledge retrieval was unavailable; showing the knowledge matches saved on this incident.')
+    graph = build_handoff_graph(safe_case, candidates, matches)
+    graph['incident']['assigned_to_you'] = (user['role'] == 'technician'
+        and case.ticket.assigned_user_id == user['id'])
+    return graph, warnings
+
+
+@app.get('/api/cases/{case_id}/handoff-graph')
+def get_handoff_graph(case_id: str, http: Request):
+    user = _require_radar_user(http)
+    case = require_case(store.get_case(case_id), user)
+    graph, warnings = _handoff_graph(case, user)
+    return {'graph': graph, 'guidance': None, 'warnings': warnings}
+
+
+@app.post('/api/cases/{case_id}/handoff-guidance')
+def generate_handoff_guidance(case_id: str, http: Request):
+    user = _require_radar_user(http)
+    case = require_case(store.get_case(case_id), user)
+    graph, warnings = _handoff_graph(case, user, refresh_knowledge=True)
+    guidance = None
+    try:
+        guidance = engine.guide_handoff(guidance_context(graph))
+        allowed = {item['id'] for item in graph['nodes']
+                   if item['kind'] not in {'customer', 'technician'}}
+        guidance.next_actions = [
+            item.model_copy(update={'evidence_ids': [source for source in item.evidence_ids if source in allowed]})
+            for item in guidance.next_actions if any(source in allowed for source in item.evidence_ids)
+        ]
+        if not guidance.next_actions:
+            warnings.append('The model response did not cite usable source evidence, so no action plan was shown.')
+            guidance = None
+    except Exception:
+        logger.exception('Evidence-backed handoff guidance failed for incident %s', case.id)
+        warnings.append('Could not generate a cited next-step plan. The evidence graph is still available for manual review.')
+    cfg = engine.settings
+    return {'graph': graph, 'guidance': guidance.model_dump(mode='json') if guidance else None,
+            'provider': cfg.llm_provider, 'model': cfg.openai_model if cfg.llm_provider in {'openai', 'mock'} else cfg.gemini_model,
+            'warnings': warnings}
 
 
 @app.post('/api/cases/{case_id}/time-machine/counterfactual')

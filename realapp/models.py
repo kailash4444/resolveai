@@ -152,6 +152,21 @@ class CounterfactualDraft(BaseModel):
     unknowns: list[str] = Field(default_factory=list, max_length=8)
 
 
+class HandoffAction(BaseModel):
+    action: str = Field(min_length=3, max_length=300)
+    rationale: str = Field(min_length=3, max_length=700)
+    evidence_ids: list[str] = Field(default_factory=list, max_length=8)
+    verify: str = Field(min_length=3, max_length=400)
+
+
+class HandoffGuidance(BaseModel):
+    summary: str = Field(min_length=3, max_length=900)
+    next_actions: list[HandoffAction] = Field(min_length=1, max_length=5)
+    questions_for_customer: list[str] = Field(default_factory=list, max_length=4)
+    avoid_repeating: list[str] = Field(default_factory=list, max_length=6)
+    unknowns: list[str] = Field(default_factory=list, max_length=6)
+
+
 class QAAuditPayload(BaseModel):
     checks: list[QACheck]
     quality_score: int = Field(ge=0, le=100)

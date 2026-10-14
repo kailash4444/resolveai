@@ -44,6 +44,11 @@ class MemoryStore:
     def list_cases(self) -> list[CaseRecord]:
         return sorted((deepcopy(c) for c in self._cases.values()), key=lambda c: c.created_at, reverse=True)
 
+    def list_cases_for_service(self, service: str) -> list[CaseRecord]:
+        key = service.strip().casefold()
+        return [deepcopy(case) for case in self._cases.values()
+                if case.ticket.service.strip().casefold() == key]
+
     def list_knowledge(self) -> list[KnowledgeArticle]:
         return sorted((deepcopy(a) for a in self._knowledge.values()), key=lambda a: a.id)
 
@@ -153,6 +158,10 @@ class FirestoreStore:
 
     def list_cases(self) -> list[CaseRecord]:
         return sorted((CaseRecord.model_validate(doc.to_dict()) for doc in self.cases.stream()), key=lambda c: c.created_at, reverse=True)
+
+    def list_cases_for_service(self, service: str) -> list[CaseRecord]:
+        docs = self.cases.where('ticket.service', '==', service).stream()
+        return [CaseRecord.model_validate(doc.to_dict()) for doc in docs]
 
     def list_knowledge(self) -> list[KnowledgeArticle]:
         articles = [KnowledgeArticle.model_validate(doc.to_dict()) for doc in self.knowledge.stream()]
@@ -278,6 +287,12 @@ class SQLiteStore(MemoryStore):
         with self.connection() as db:
             rows = db.execute("SELECT body FROM cases").fetchall()
         return sorted((CaseRecord.model_validate_json(row[0]) for row in rows), key=lambda c: c.created_at, reverse=True)
+
+    def list_cases_for_service(self, service):
+        with self.connection() as db:
+            rows = db.execute("SELECT body FROM cases WHERE json_extract(body, '$.ticket.service') = ?",
+                              (service,)).fetchall()
+        return [CaseRecord.model_validate_json(row[0]) for row in rows]
 
     def list_knowledge(self):
         with self.connection() as db:

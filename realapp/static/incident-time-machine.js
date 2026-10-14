@@ -2,7 +2,7 @@
   const $ = selector => document.querySelector(selector);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const byId = id => document.getElementById(id);
-  const state = { caseId: null, data: null, dated: [], undated: [], cursor: 0, activeEvent: null, compare: [], categories: new Set(), zoom: 1, playing: false, timer: null, nodePositions: new Map() };
+  const state = { caseId: null, data: null, graph: null, guidance: null, provider: '', selectedGraphNode: null, dated: [], undated: [], cursor: 0, activeEvent: null, compare: [], categories: new Set(), zoom: 1, playing: false, timer: null, nodePositions: new Map() };
   const palette = { ticket_created:'#3d8f68', customer_observation:'#d27c42', conversation:'#6d7bc2', troubleshooting:'#bd8c2e', technician_action:'#14745a', failed_attempt:'#c84d43', status_change:'#6d53a6', evidence_added:'#348c9f', qa_result:'#718079', durability_assessment:'#a45184', customer_comment:'#d27c42', system_record:'#718079', ai_diagnosis:'#6d7bc2', ai_recommendation:'#806cb4' };
   const groups = { customer_observation:'Customer', conversation:'Conversation', customer_comment:'Customer', technician_action:'Technician', failed_attempt:'Failed steps', troubleshooting:'Reported steps', status_change:'State changes', ticket_created:'Incident', evidence_added:'Attachments', qa_result:'QA', durability_assessment:'Durability', system_record:'System', ai_diagnosis:'AI records', ai_recommendation:'AI records' };
   const allCategories = [...new Set([...Object.values(groups), 'Other'])];
@@ -28,11 +28,22 @@
 
   window.enterIncidentTimeMachine = async caseId => {
     stopPlayback();
-    state.caseId = caseId; state.data = null; state.activeEvent = null; state.compare = []; state.nodePositions.clear();
+    state.caseId = caseId; state.data = null; state.graph = null; state.guidance = null; state.provider = ''; state.selectedGraphNode = null; state.activeEvent = null; state.compare = []; state.nodePositions.clear();
     openView('time-machine');
     byId('tmWorkspace').hidden = true; message('Reconstructing the incident from recorded source evidence…');
     try {
-      state.data = await request(`/api/cases/${encodeURIComponent(caseId)}/time-machine`);
+      const [timeline, graph] = await Promise.allSettled([
+        request(`/api/cases/${encodeURIComponent(caseId)}/time-machine`),
+        request(`/api/cases/${encodeURIComponent(caseId)}/handoff-graph`),
+      ]);
+      if (timeline.status === 'rejected') throw timeline.reason;
+      state.data = timeline.value;
+      if (graph.status === 'fulfilled') {
+        state.graph = graph.value.graph;
+        state.selectedGraphNode = `ticket:${caseId}`;
+        showGraphWarnings(graph.value.warnings);
+      }
+      else showGraphWarnings(['Connected evidence graph could not be loaded. The incident timeline is still available.']);
       state.dated = state.data.events.filter(item => item.occurred_at);
       state.undated = state.data.events.filter(item => !item.occurred_at);
       state.cursor = Math.max(0, state.dated.length - 1);
@@ -54,8 +65,101 @@
     const warnings = byId('tmWarnings');
     warnings.hidden = !state.data.warnings.length;
     warnings.innerHTML = state.data.warnings.map(item => `<p>${esc(item)}</p>`).join('');
-    renderFilters(); renderTimeline(); renderInspector(); renderKnowledge();
+    renderFilters(); renderTimeline(); renderInspector(); renderKnowledge(); renderHandoffGraph();
   }
+
+  const graphKindLabel = {ticket:'Incident',customer:'Customer',technician:'Technician',transcript:'Transcript',action:'Reported action',work_note:'Work note',failed_action:'Failed step',knowledge:'Knowledge',similar_case:'Similar ticket'};
+  const graphKindIcon = {ticket:'T',customer:'C',technician:'S',transcript:'V',action:'A',work_note:'N',failed_action:'!',knowledge:'K',similar_case:'↗'};
+  function showGraphWarnings(items = []) {
+    const box = byId('tmHandoffWarnings'); box.hidden = !items.length;
+    box.innerHTML = items.map(item => `<p>${esc(item)}</p>`).join('');
+  }
+  function graphPositions(graph) {
+    const columns = {
+      people: graph.nodes.filter(item => ['customer','technician'].includes(item.kind)),
+      evidence: graph.nodes.filter(item => ['transcript','action','work_note','failed_action'].includes(item.kind)),
+      ticket: graph.nodes.filter(item => item.kind === 'ticket'),
+      knowledge: graph.nodes.filter(item => item.kind === 'knowledge'),
+      history: graph.nodes.filter(item => item.kind === 'similar_case'),
+    };
+    const height = Math.max(650, ...Object.values(columns).map(items => items.length * 60 + 96));
+    const x = {people:24,evidence:285,ticket:568,knowledge:855,history:1124};
+    const width = {people:224,evidence:242,ticket:250,knowledge:242,history:242};
+    const positions = new Map();
+    for (const [name, items] of Object.entries(columns)) {
+      const gap = 60, start = Math.max(52, (height - items.length * gap) / 2);
+      items.forEach((item,index) => positions.set(item.id, {x:x[name],y:start+index*gap,w:width[name],h:name==='ticket'?80:50}));
+    }
+    const center = columns.ticket[0];
+    if (center) positions.set(center.id,{x:x.ticket,y:(height-80)/2,w:width.ticket,h:80});
+    return {columns,height,width:x.history+width.history+24,positions};
+  }
+  function renderHandoffGraph() {
+    const graph = state.graph, svg = byId('tmHandoffGraph');
+    if (!svg || !graph) return;
+    const layout = graphPositions(graph), {positions,height,width} = layout;
+    const selectedNode = graph.nodes.find(item => item.id === state.selectedGraphNode);
+    svg.setAttribute('viewBox',`0 0 ${width} ${height}`); svg.style.height = `${height}px`;
+    const titles = {people:'PEOPLE & OWNERSHIP',evidence:'WHAT WAS SAID / TRIED',ticket:'ACTIVE INCIDENT',knowledge:'RETRIEVED KNOWLEDGE',history:'SIMILAR INCIDENTS'};
+    const headers = Object.entries(titles).map(([key,title])=>{
+      const x = ({people:24,evidence:285,ticket:568,knowledge:855,history:1124})[key];
+      return `<text class="hg-column-label" x="${x}" y="28">${title}</text>`;
+    }).join('');
+    const edges = graph.edges.map(edge=>{
+      const from=positions.get(edge.from),to=positions.get(edge.to); if(!from||!to)return '';
+      const forward=from.x<to.x,sx=forward?from.x+from.w:from.x,ex=forward?to.x:to.x+to.w;
+      const sy=from.y+from.h/2,ey=to.y+to.h/2,curve=Math.max(24,Math.abs(ex-sx)*.4);
+      const d=`M ${sx} ${sy} C ${sx+(forward?curve:-curve)} ${sy}, ${ex-(forward?curve:-curve)} ${ey}, ${ex} ${ey}`;
+      const active=state.selectedGraphNode===edge.from||state.selectedGraphNode===edge.to;
+      const label=active&&selectedNode?.kind!=='ticket'?`<text class="hg-edge-label" x="${(sx+ex)/2}" y="${(sy+ey)/2-5}" text-anchor="middle">${esc(edge.label)}</text>`:'';
+      return `<path class="hg-edge ${active?'active':''}" d="${d}"><title>${esc(edge.label)}</title></path>${label}`;
+    }).join('');
+    const cards = graph.nodes.map(item=>{
+      const point=positions.get(item.id); if(!point)return '';
+      const selected=state.selectedGraphNode===item.id, color=graphKindIcon[item.kind]||'•';
+      const subtitle=item.kind==='knowledge'?`${Math.round((item.score||0)*100)}% retrieval match`:item.kind==='similar_case'?(item.outcome||'historical match').replaceAll('_',' '):item.kind==='failed_action'?'EXPLICITLY RECORDED FAILURE':graphKindLabel[item.kind]||'';
+      const label=String(item.label||'Evidence').slice(0,34), y=point.y;
+      return `<g class="hg-node ${esc(item.kind)} ${selected?'selected':''}" data-hg-node="${esc(item.id)}" tabindex="0" role="button" aria-label="${esc(`${graphKindLabel[item.kind]||'Evidence'}: ${item.label}`)}"><rect class="hg-card" x="${point.x}" y="${y}" width="${point.w}" height="${point.h}" rx="12"/><circle class="hg-icon-ring" cx="${point.x+22}" cy="${y+point.h/2}" r="13"/><text class="hg-icon" x="${point.x+22}" y="${y+point.h/2}">${esc(color)}</text><text class="hg-label" x="${point.x+44}" y="${y+21}">${esc(label)}</text><text class="hg-sub" x="${point.x+44}" y="${y+37}">${esc(subtitle.slice(0,38))}</text>${item.case_id?`<title>${esc(item.detail)}</title>`:''}</g>`;
+    }).join('');
+    const defs='<defs><linearGradient id="hg-ticket" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0e7653"/><stop offset="1" stop-color="#164c69"/></linearGradient><filter id="hg-shadow" x="-20%" y="-25%" width="150%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#365c45" flood-opacity=".1"/></filter><filter id="hg-glow" x="-25%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#25a878" flood-opacity=".26"/></filter></defs>';
+    svg.innerHTML=defs+headers+edges+cards;
+    const counts=graph.counts;
+    const handoffOwner=graph.incident.assigned_to_you?'you':graph.incident.assigned_to;
+    byId('tmGraphCounts').textContent=`To ${handoffOwner} · ${counts.transcript_and_actions} evidence items · ${counts.knowledge} articles · ${counts.similar_incidents} similar tickets`;
+    byId('tmGuideEyebrow').textContent=graph.incident.assigned_to_you?'YOUR HANDOFF · PICK UP HERE':graph.incident.assigned_to==='Unassigned'?'TECHNICIAN HANDOFF · UNASSIGNED':`TECHNICIAN HANDOFF · ${graph.incident.assigned_to}`;
+    const empty=byId('tmGraphEmpty'); empty.hidden=graph.edges.length>2 || counts.transcript_and_actions>0;
+    empty.textContent='This ticket has little linked history yet. Add work notes and knowledge articles to build a richer evidence map.';
+    renderGraphInspector(); renderGuidance();
+  }
+  function renderGraphInspector() {
+    const panel=byId('tmGraphInspector'), graph=state.graph;
+    if(!graph)return;
+    const item=graph.nodes.find(node=>node.id===state.selectedGraphNode);
+    if(!item){panel.innerHTML='<h3>Select a node</h3><p class="helper">Choose a person, transcript, attempted step, article, or similar ticket to inspect its source.</p>';return;}
+    const meta=[];
+    if(item.state)meta.push(item.state);if(item.priority)meta.push(item.priority);if(item.outcome)meta.push(item.outcome.replaceAll('_',' '));if(Number.isFinite(item.score))meta.push(`${Math.round(item.score*100)}% match`);if(item.similarity_terms?.length)meta.push(`matched: ${item.similarity_terms.join(', ')}`);if(item.timestamp)meta.push(when(item.timestamp));if(item.created_at)meta.push(when(item.created_at));
+    const steps=item.steps?.length?`<div class="handoff-inspector-detail"><b>Documented steps</b><ol>${item.steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol></div>`:'';
+    const open=item.case_id?`<button class="text-button handoff-open-case" type="button" data-hg-open-case="${esc(item.case_id)}">Open source ticket →</button>`:'';
+    panel.innerHTML=`<span class="handoff-chip">${esc(graphKindLabel[item.kind]||'Evidence')}</span><h3>${esc(item.label)}</h3>${meta.length?`<div class="handoff-source-meta">${meta.map(value=>`<span class="handoff-chip">${esc(value)}</span>`).join('')}</div>`:''}<div class="handoff-inspector-detail">${esc(item.detail||'No additional source detail is recorded.')}</div>${steps}${open}`;
+  }
+  function renderGuidance() {
+    const host=byId('tmGuideContent'), guide=state.guidance;
+    if(!guide){host.innerHTML='<p class="helper">Generate a cited plan from this ticket, its conversation, current knowledge, and similar incidents. This makes one live AI request.</p>';byId('tmGuideBadge').textContent=state.provider==='mock'?'DEMO MODE':'EVIDENCE-LED';return;}
+    const providerLabel={vertex:'VERTEX AI',google_ai:'GEMINI API',openai:'OPENAI',mock:'DEMO MODE'}[state.provider]||String(state.provider||'AI').toUpperCase();
+    byId('tmGuideBadge').textContent=state.provider==='mock'?'DEMO MODE':`${providerLabel} · SOURCED`;
+    const actions=guide.next_actions.map((item,index)=>`<li class="handoff-action-card"><div><span class="handoff-step-number">${index+1}</span><b>${esc(item.action)}</b></div><p>${esc(item.rationale)}</p><small><b>Verify:</b> ${esc(item.verify)}</small><div class="handoff-citations">${item.evidence_ids.map(id=>{const source=state.graph.nodes.find(node=>node.id===id);return source?`<button class="handoff-citation" data-hg-citation="${esc(id)}">↗ ${esc(source.label)}</button>`:''}).join('')}</div></li>`).join('');
+    host.innerHTML=`<p class="handoff-guide-summary">${esc(guide.summary)}</p><ol class="handoff-action-list">${actions}</ol>${guide.questions_for_customer?.length?`<div class="handoff-subsection"><h4>Ask the customer</h4><ul>${guide.questions_for_customer.map(item=>`<li>${esc(item)}</li>`).join('')}</ul></div>`:''}${guide.avoid_repeating?.length?`<div class="handoff-subsection"><h4>Avoid repeating</h4><ul>${guide.avoid_repeating.map(item=>`<li>${esc(item)}</li>`).join('')}</ul></div>`:''}${guide.unknowns?.length?`<div class="handoff-subsection"><h4>Still unknown</h4><ul>${guide.unknowns.map(item=>`<li>${esc(item)}</li>`).join('')}</ul></div>`:''}`;
+  }
+  async function generateHandoffGuide() {
+    const button=byId('tmGenerateGuide'); if(!state.caseId||button.disabled)return;
+    button.disabled=true;button.textContent='Reading evidence…';state.guidance=null;renderGuidance();
+    try {
+      const result=await request(`/api/cases/${encodeURIComponent(state.caseId)}/handoff-guidance`,{method:'POST'});
+      state.graph=result.graph;state.guidance=result.guidance;state.provider=result.provider||'';showGraphWarnings(result.warnings);renderHandoffGraph();
+    } catch(error){showGraphWarnings([error.message]);}
+    finally{button.disabled=false;button.textContent=state.guidance?'Refresh plan':'Generate next steps';}
+  }
+  byId('tmGenerateGuide').addEventListener('click',generateHandoffGuide);
 
   function visibleDatedEvents() {
     if (byId('tmRetrospective').checked || !current()) return state.dated;
@@ -303,6 +407,12 @@
       document.querySelectorAll('[data-tm-pane]').forEach(item => { item.hidden = item.dataset.tmPane !== tab.dataset.tmTab; });
       return;
     }
+    const graphNode=event.target.closest('[data-hg-node]');
+    if(graphNode){state.selectedGraphNode=graphNode.dataset.hgNode;renderHandoffGraph();return;}
+    const citation=event.target.closest('[data-hg-citation]');
+    if(citation){state.selectedGraphNode=citation.dataset.hgCitation;renderHandoffGraph();byId('tmGraphInspector').scrollIntoView({behavior:'smooth',block:'nearest'});return;}
+    const sourceCase=event.target.closest('[data-hg-open-case]');
+    if(sourceCase){await window.openTicketDetails?.(sourceCase.dataset.hgOpenCase);return;}
     const filter = event.target.closest('[data-tm-filter]');
     if (filter) {
       const value = filter.dataset.tmFilter;
@@ -323,7 +433,7 @@
     if (articleForm) return;
   });
   document.addEventListener('keydown', event => {
-    const node = event.target.closest('[data-tm-event], [data-tm-node]');
+    const node = event.target.closest('[data-tm-event], [data-tm-node], [data-hg-node]');
     if (node && ['Enter',' '].includes(event.key)) { event.preventDefault(); node.click(); }
   });
   document.addEventListener('submit', async event => {

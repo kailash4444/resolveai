@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css?v=attachments-2">
   <link rel="stylesheet" href="/static/overrides.css?v=18">
+  <link rel="stylesheet" href="/static/handoff-graph.css?v=2">
 <link rel="stylesheet" href="/static/microphone.css?v=2"></head>
 <body>
   <aside class="sidebar">
@@ -97,7 +98,15 @@
       <div id="tmWorkspace" hidden>
         <div class="tm-brief panel"><div><small>INCIDENT</small><strong id="tmIncidentId"></strong></div><div><small>STATUS</small><strong id="tmIncidentState"></strong></div><div><small>CHRONOLOGY COVERAGE</small><strong id="tmCoverage"></strong></div><div><small>RECORDED / UNDATED</small><strong id="tmEventCounts"></strong></div><p id="tmCausalStatus"></p></div>
         <div id="tmWarnings" class="tm-warnings" hidden></div>
-        <div class="tm-tabs" role="tablist" aria-label="Incident investigation tools"><button role="tab" aria-selected="true" data-tm-tab="chronos">Chronos Timeline</button><button role="tab" aria-selected="false" data-tm-tab="causal">Causal Gravity Map</button><button role="tab" aria-selected="false" data-tm-tab="decision">Decision Fingerprint</button><button role="tab" aria-selected="false" data-tm-tab="alternative">Explore an Alternative</button><button role="tab" aria-selected="false" data-tm-tab="knowledge">Knowledge Ripple</button></div>
+        <div class="tm-tabs" role="tablist" aria-label="Incident investigation tools"><button role="tab" aria-selected="true" data-tm-tab="handoff">Handoff intelligence</button><button role="tab" aria-selected="false" data-tm-tab="chronos">Chronos Timeline</button><button role="tab" aria-selected="false" data-tm-tab="causal">Chronology map</button><button role="tab" aria-selected="false" data-tm-tab="decision">Decision Fingerprint</button><button role="tab" aria-selected="false" data-tm-tab="alternative">Explore an Alternative</button><button role="tab" aria-selected="false" data-tm-tab="knowledge">Knowledge Ripple</button></div>
+        <section class="tm-pane" data-tm-pane="handoff">
+          <div class="handoff-head panel"><div><p class="eyebrow">CONNECTED INCIDENT INTELLIGENCE</p><h3>One ticket. Its evidence. The next best move.</h3><p class="helper">See what the customer said, what the team tried, and what related incidents or articles suggest. Select a node to inspect the source; generate a cited plan when you are ready.</p></div><button class="primary" id="tmGenerateGuide">Generate next steps</button></div>
+          <div id="tmHandoffWarnings" class="handoff-warnings" hidden></div>
+          <div class="handoff-layout"><article class="handoff-network-card panel"><div class="handoff-network-top"><div><span class="handoff-live-dot"></span><b>LIVE EVIDENCE GRAPH</b><span id="tmGraphCounts"></span></div><div class="handoff-legend"><span><i class="hg-dot people"></i>People</span><span><i class="hg-dot evidence"></i>Evidence</span><span><i class="hg-dot knowledge"></i>Knowledge</span><span><i class="hg-dot history"></i>History</span></div></div><div class="handoff-network-scroll"><svg id="tmHandoffGraph" role="img" aria-label="Connected ticket evidence graph"></svg></div><div id="tmGraphEmpty" class="handoff-empty" hidden></div></article>
+            <aside class="handoff-side"><article class="handoff-inspector panel"><p class="eyebrow">SOURCE INSPECTOR</p><div id="tmGraphInspector"><h3>Select a node</h3><p class="helper">Every point in this graph opens the evidence it represents.</p></div></article><article class="handoff-guide panel"><div class="handoff-guide-top"><div><p class="eyebrow" id="tmGuideEyebrow">TECHNICIAN HANDOFF</p><h3>Recommended next steps</h3></div><span id="tmGuideBadge" class="handoff-ai-badge">EVIDENCE-LED</span></div><div id="tmGuideContent"><p class="helper">Build a fresh plan using current knowledge and comparable ticket outcomes. The plan will cite its sources and call out unknowns.</p></div></article></aside>
+          </div>
+          <p class="handoff-trust">Recommendations are proposals, not completed actions. Similar cases are evidence of recorded outcomes, not proof of cause. Verify every change with the customer.</p>
+        </section>
         <section class="tm-pane" data-tm-pane="chronos">
           <div class="tm-tools panel"><div class="tm-tool-group"><button class="secondary small" id="tmPlay">▶ Play</button><button class="secondary small" id="tmFirstFailure">First failed step</button><button class="secondary small" id="tmDecisionJump">Major decision</button><button class="secondary small" id="tmResolution">Resolution</button><button class="secondary small" id="tmRecurrence">Recurrence</button><button class="secondary small" id="tmReset">Reset full incident</button></div><div class="tm-tool-group"><label>Replay speed<select id="tmSpeed"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select></label><button class="secondary small" id="tmZoomOut" aria-label="Zoom out">−</button><span id="tmZoomLabel">100%</span><button class="secondary small" id="tmZoomIn" aria-label="Zoom in">+</button><label class="tm-retro-toggle"><input type="checkbox" id="tmRetrospective"> Retrospective overview</label></div></div>
           <div class="tm-filter-row" id="tmFilters"></div>
@@ -203,6 +212,6 @@
   <script src="/static/resolution-radar.js?v=4"></script>
   <script src="/static/calling.js?v=13"></script>
   <script src="/static/transcripts.js?v=7"></script>
-  <script src="/static/incident-time-machine.js?v=2"></script>
+  <script src="/static/incident-time-machine.js?v=4"></script>
 </body>
 </html>
