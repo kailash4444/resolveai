@@ -10,12 +10,13 @@
     calls: '<path d="M6 3h3l2 5-2 2a15 15 0 0 0 5 5l2-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 4 5a2 2 0 0 1 2-2z"/>',
     transcripts: '<path d="M4 6h16M4 11h16M4 16h10M4 21h6"/>',
     analytics: '<path d="M4 20V4M4 20h16"/><path d="M8 16v-4M12 16V8M16 16v-6"/>',
+    'resolution-radar': '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 12l6-6"/>',
     knowledge: '<path d="M4 4h6a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4z"/><path d="M20 4h-6a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h7z"/>',
     qa: '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
     technicians: '<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 6"/>',
     configuration: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
   };
-  const STAFF = [['overview', 'Overview'], ['tickets', 'Tickets'], ['calls', 'Calls & queue'], ['transcripts', 'Transcripts'], ['analytics', 'Analytics'], ['knowledge', 'Knowledge'], ['qa', 'Quality audit']];
+  const STAFF = [['overview', 'Overview'], ['tickets', 'Tickets'], ['calls', 'Calls & queue'], ['transcripts', 'Transcripts'], ['analytics', 'Analytics'], ['resolution-radar', 'Resolution debt'], ['knowledge', 'Knowledge'], ['qa', 'Quality audit']];
   const NAV = {
     customer: [['customer-home', 'My support'], ['customer-create', 'Report an issue'], ['knowledge', 'Help articles']],
     technician: STAFF,
@@ -23,7 +24,7 @@
   };
   const HOME = {customer: '/portal', technician: '/console', admin: '/admin'};
   // Views without their own nav entry highlight their parent section.
-  const PARENT = {'ticket-detail': 'tickets', case: 'overview', 'call-analytics': 'analytics'};
+  const PARENT = {'ticket-detail': 'tickets', 'time-machine': 'tickets', case: 'overview', 'call-analytics': 'analytics'};
   const LABEL = {customer: 'Customer support', technician: 'Technician workspace', admin: 'Admin workspace'};
   let role = 'guest';
 

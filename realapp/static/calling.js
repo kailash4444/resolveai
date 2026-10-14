@@ -7,6 +7,12 @@ window.callBadge = callBadge;
 function setBadge(el, tone, text) { el.className = `badge ${tone}`; el.textContent = text; }
 // Polling re-renders every few seconds; only touch the DOM when content changed so focus and open details survive.
 function patch(el, html) { if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; } }
+// Handoff summary shown with incoming requests: what the customer said, what was tried, what to do next.
+function handoffCard(call) {
+  const tried = call.attempted_steps || [];
+  const next = call.recommended_action || call.next_question || 'Review the transcript and confirm the customer’s impact.';
+  return `<div class="handoff stack stack--sm"><p class="kicker">Technician handoff</p><p><strong>Issue:</strong> ${esc(call.summary || 'Customer issue is still being understood.')}</p>${tried.length ? `<p><strong>Already tried:</strong></p><ul class="plain-steps">${tried.map(step => `<li>${esc(step)}</li>`).join('')}</ul>` : '<p class="help">No troubleshooting steps reported yet.</p>'}<p><strong>Suggested next step:</strong> ${esc(next)}</p></div>`;
+}
 
 window.loadCalling = async () => {
   if (calling.loading) return;
@@ -102,7 +108,7 @@ function renderCalling() {
     : calling.data.calls.length ? '<p class="sec">No calls match this search.</p>' : '<div class="empty"><h3 class="h4">The queue is empty</h3><p class="sec">Incoming browser calls and routed support requests appear here.</p></div>');
   const incoming = calling.data.incoming_calls || [];
   $('#sharedQueuePanel').hidden = !incoming.length;
-  patch($('#sharedQueue'), incoming.map(call => `<li class="list__row"><span class="list__main"><strong>${esc(call.origin === 'browser' ? 'Incoming browser call' : call.channel === 'chat' ? 'Incoming chat' : 'Support request')}</strong><span class="help">${esc(call.service)} · waiting ${elapsed(call.created_at)}</span></span>${priorityBadge(call.priority)}<button type="button" class="pop pop--sm" data-pickup-call="${esc(call.id)}"><span>Answer<span class="sr"> ${esc(call.service)} call</span></span></button></li>`).join(''));
+  patch($('#sharedQueue'), incoming.map(call => `<li class="list__row"><span class="list__main"><strong>${esc(call.origin === 'browser' ? 'Incoming browser call' : call.channel === 'chat' ? 'Incoming chat' : 'Support request')}</strong><span class="help">${esc(call.service)} · waiting ${elapsed(call.created_at)}</span></span>${priorityBadge(call.priority)}<button type="button" class="pop pop--sm" data-pickup-call="${esc(call.id)}"><span>Answer<span class="sr"> ${esc(call.service)} call</span></span></button>${handoffCard(call)}</li>`).join(''));
   if ($('#technicianRows')) renderUsersTable();
   $('#incomingCallBanner').hidden = !offer;
   if (offer) {
@@ -138,19 +144,41 @@ function renderCallDetail() {
   if ((c.status === 'AI' || c.status === 'Connected') && canManage) controls.push('<button type="button" class="call-btn" data-call-action="transfer"><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h7M17 15l3 3-3 3"/></svg></span>Transfer to queue</button>');
   if ((c.status === 'Connected' || c.status === 'AI') && canManage) controls.push(`<button type="button" class="call-btn call-btn--danger" data-call-action="finish"><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15c5-5 13-5 18 0l-2 3-4-1v-3a10 10 0 0 0-6 0v3l-4 1z"/></svg></span>${c.channel === 'chat' ? 'End chat' : 'End call'}</button>`);
   const guidance = c.knowledge_matches || [], status = c.knowledge_status;
+  // Handoff brief written when the AI transfers a call; greetings the AI spoke aren't troubleshooting steps.
+  const brief = c.handoff_brief, customerTurns = c.transcript.filter(turn => turn.speaker === 'Customer' && turn.text?.trim());
+  const boilerplate = ['welcome to resolveai','this call is transcribed','please describe the issue','i am connecting you','i’m connecting you','i will connect you','a technician will help','please stay on the call'];
+  const tried = (brief?.tried || []).filter(item => !boilerplate.some(phrase => item.toLowerCase().includes(phrase)));
+  const briefPanel = brief ? `<section class="handoff stack stack--sm" aria-label="Technician handoff brief"><p class="kicker">Technician handoff brief</p>
+    <p><strong>Issue:</strong> ${esc(customerTurns[0]?.text || (customerTurns.length ? brief.issue : 'No customer issue was captured before the call transferred.'))}</p>${brief.impact ? `<p><strong>Impact:</strong> ${esc(brief.impact)}</p>` : ''}
+    ${tried.length ? `<p><strong>Already tried:</strong></p><ul class="plain-steps">${tried.map(item => `<li>${esc(item)}</li>`).join('')}</ul>` : '<p><strong>Already tried:</strong> No AI troubleshooting steps recorded.</p>'}
+    ${brief.outcome && customerTurns.length ? `<p><strong>Latest customer update:</strong> ${esc(brief.outcome)}</p>` : ''}<p><strong>Why transferred:</strong> ${esc(brief.handoff_reason)}</p><p><strong>Suggested next step:</strong> ${esc(brief.next_step)}</p></section>` : (c.status === 'Ringing' ? handoffCard(c) : '');
+  const joinHint = c.status === 'Queued' ? '<p class="alert alert--info"><strong>◆ Waiting for a technician.</strong><span class="sec">Choose Answer in Waiting for a technician to join. Browser calls need calls switched on and microphone access.</span></p>'
+    : c.status === 'Completed' && c.queued_at && !c.connected_at ? '<p class="alert alert--info"><strong>○ This call ended while waiting.</strong><span class="sec">Its audio room is closed and can’t be joined. Ask the customer to start another support call.</span></p>'
+    : ['Completed', 'Failed'].includes(c.status) ? '<p class="help">○ This call has ended, so it can’t be joined.</p>' : '';
+  // Repeated connection errors are shown once with a count, so the history stays readable.
+  const errorCounts = new Map(), shownErrors = new Set();
+  c.events.forEach(e => { if (/failed|unavailable|interrupted/i.test(e.text)) errorCounts.set(e.text, (errorCounts.get(e.text) || 0) + 1); });
+  const history = c.events.slice().reverse().map(e => {
+    const noisy = /failed|unavailable|interrupted/i.test(e.text);
+    if (noisy && shownErrors.has(e.text)) return '';
+    if (noisy) shownErrors.add(e.text);
+    const count = noisy ? errorCounts.get(e.text) : 1;
+    return `<li><time class="help">${new Date(e.at).toLocaleTimeString()}</time> ${esc(e.text)}${count > 1 ? ` <span class="help">(repeated ${count} times)</span>` : ''}</li>`;
+  }).join('');
   const openKnowledge = new Set([...document.querySelectorAll('#callWorkspace details[data-kb][open]')].map(item => item.dataset.kb));
   patch($('#callWorkspace'), `<div class="section-head section-head--tight"><div><p class="kicker"><span class="mono">${esc(c.id)}</span></p><h2 class="h3" tabindex="-1">${esc(c.caller)}</h2></div>${callBadge(c.status)}</div>
     ${c.summary ? `<p class="sec">${esc(c.summary)}</p>` : ''}
     <dl class="kv"><div><dt>Service</dt><dd>${esc(c.service)}</dd></div><div><dt>Priority</dt><dd>${priorityBadge(c.priority)}</dd></div><div><dt>Technician</dt><dd>${esc(c.technician_name || 'Not assigned')}</dd></div><div><dt>Started</dt><dd>${elapsed(c.created_at)} ago</dd></div></dl>
     ${c.reason ? `<p class="help" data-detail>Routing: ${esc(c.reason)}</p>` : ''}
     ${c.last_error ? `<div class="alert" role="alert"><strong>✕ Call problem.</strong><span class="sec">${esc(c.last_error)}</span></div>` : ''}
+    ${joinHint}${briefPanel}
     ${controls.length ? `<div class="call-controls">${controls.join('')}</div>` : ''}
     <h3 class="h4">Conversation</h3>${c.transcript.length ? transcriptTurns(c.transcript) : '<p class="help">The transcript appears as people speak.</p>'}
     ${c.channel === 'chat' && c.status === 'Connected' && own ? '<form id="techReplyForm" class="stack stack--sm" novalidate><div class="field field--inline"><label for="techReplyText">Reply to customer</label><textarea class="input" id="techReplyText" name="text" rows="2" required maxlength="4000"></textarea></div><div class="row"><button type="submit" class="pop pop--sm">Send</button><p class="form-status" id="techReplyMessage" role="status"></p></div></form>' : ''}
     ${c.origin === 'desk' && c.channel !== 'chat' && c.status === 'AI' ? '<form id="callReplyForm" class="stack stack--sm" novalidate><div class="field field--inline"><label for="callReplyText">Customer reply</label><textarea class="input" id="callReplyText" name="text" rows="2" required maxlength="4000"></textarea></div><div class="row"><button type="submit" class="pop pop--sm">Send reply</button><p class="form-status" id="callReplyMessage" role="status"></p></div></form>' : ''}
     <section class="stack stack--sm" aria-labelledby="callKnowledgeTitle"><h3 class="h4" id="callKnowledgeTitle">Suggested knowledge</h3><p class="help">${status === 'searching' ? '● Finding guidance for the latest customer problem…' : status === 'error' ? `✕ ${esc(c.knowledge_error)}` : 'AI suggestions, updated as the customer describes the issue. Verify before using.'}</p>
     ${guidance.map(k => `<details data-kb="${esc(k.id)}" ${openKnowledge.has(k.id) ? 'open' : ''}><summary><span class="mono">${esc(k.id)}</span>&nbsp;· ${esc(k.title)}</summary><p class="sec">${esc(k.excerpt)}</p><ol class="plain-steps">${k.steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol></details>`).join('') || `<p class="sec">${status === 'ready' ? 'No relevant articles found.' : 'Suggestions appear after the customer speaks.'}</p>`}</section>
-    <details data-detail><summary>Routing history</summary><ol class="plain-steps">${c.events.slice().reverse().map(e => `<li><time class="help">${new Date(e.at).toLocaleTimeString()}</time> ${esc(e.text)}</li>`).join('')}</ol></details>`);
+    <details data-detail><summary>Routing history</summary><ol class="plain-steps">${history || '<li class="help">No routing events recorded.</li>'}</ol></details>`);
   renderCallTicket(c);
 }
 

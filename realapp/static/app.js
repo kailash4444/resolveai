@@ -27,7 +27,12 @@ async function api(path, options = {}) {
   finally { window.Shell?.requestFinished(); }
   if (!response.ok) {
     let message = `Request failed (${response.status})`;
-    try { const detail = (await response.json()).detail; if (typeof detail === 'string') message = detail; else if (Array.isArray(detail) && detail[0]?.msg) message = `${detail[0].msg.replace(/^Value error, /, '')}.`; } catch (_) {}
+    try { const detail = (await response.json()).detail; if (typeof detail === 'string') message = detail; else if (Array.isArray(detail) && detail.length) message = detail.map(item => {
+        const field = Array.isArray(item.loc) ? item.loc.filter(part => part !== 'body').join(' → ') : '';
+        return [field, (item.msg || 'Invalid value').replace(/^Value error, /, '')].filter(Boolean).join(': ');
+      }).join('; ');
+      else if (detail && typeof detail === 'object') message = detail.message || JSON.stringify(detail);
+    } catch (_) {}
     if (response.status === 401 && state.user && !path.startsWith('/api/auth/')) window.Shell?.sessionExpired();
     const error = new Error(message); error.status = response.status;
     throw error;
@@ -62,10 +67,10 @@ document.addEventListener('keydown', event => {
 });
 const VIEW_ACCESS = {
   customer: ['customer-home','customer-create','tickets','ticket-detail','knowledge','transcripts'],
-  technician: ['overview','case','tickets','ticket-detail','calls','transcripts','analytics','knowledge','qa'],
+  technician: ['overview','case','tickets','ticket-detail','time-machine','calls','transcripts','analytics','resolution-radar','knowledge','qa'],
 };
 VIEW_ACCESS.admin = [...VIEW_ACCESS.technician, 'technicians', 'configuration'];
-const VIEW_TITLES = {signin: 'ResolveAI · Less firefighting. More resolution.', 'customer-home': 'My support', 'customer-create': 'Report an issue', overview: 'Overview', case: 'Conversation intake', tickets: 'Tickets', 'ticket-detail': 'Ticket details', calls: 'Calls & queue', transcripts: 'Transcripts', analytics: 'Analytics', knowledge: 'Knowledge', qa: 'Quality audit', technicians: 'Users', configuration: 'Configuration', denied: 'No access', notfound: 'Not found'};
+const VIEW_TITLES = {signin: 'ResolveAI · Less firefighting. More resolution.', 'customer-home': 'My support', 'customer-create': 'Report an issue', overview: 'Overview', case: 'Conversation intake', tickets: 'Tickets', 'ticket-detail': 'Ticket details', 'time-machine': 'Incident Time Machine', 'resolution-radar': 'Resolution debt', calls: 'Calls & queue', transcripts: 'Transcripts', analytics: 'Analytics', knowledge: 'Knowledge', qa: 'Quality audit', technicians: 'Users', configuration: 'Configuration', denied: 'No access', notfound: 'Not found'};
 function homeView(user = state.user) { return !user ? 'signin' : user.role === 'customer' ? 'customer-home' : user.role === 'technician' ? 'calls' : 'overview'; }
 function showView(name) {
   if (name === 'call-analytics') {name = 'analytics'; reportTabs.analytics = 'calls';}
@@ -90,6 +95,7 @@ function showView(name) {
   if (name === "knowledge") loadKnowledge();
   if (name === "analytics") selectReportTab("analytics", reportTabs.analytics);
   if (name === "transcripts") window.loadTranscripts?.();
+  if (name === "resolution-radar") window.loadResolutionRadar?.();
   if (name === "overview") loadOverview();
   if (name === "qa") { state.qaDetail = null; selectReportTab("qa", reportTabs.qa); }
   if (["calls", "technicians", "configuration"].includes(name)) window.loadCalling?.();
@@ -538,7 +544,7 @@ function staffTicketDetails(item) {
   const t = item.ticket, admin = state.user?.role === 'admin', resolved = t.state === 'Resolved';
   const canAudit = admin || t.assigned_user_id === state.user?.id;
   const matches = item.knowledge_matches.map(match => `<li class="source"><strong><span class="mono">${esc(match.id)}</span> · ${esc(match.title)}</strong> <span class="badge badge--low">${Math.round(match.score * 100)}% match</span><p class="help">${esc(match.excerpt)}</p></li>`).join('');
-  return `<div class="page-head"><div><p class="kicker"><span class="mono">${esc(t.id)}</span>${t.call_id ? ` · call <span class="mono">${esc(t.call_id)}</span>` : ''}</p><h1 id="ticketDetailTitle" tabindex="-1">${esc(t.short_description)}</h1></div><div class="row row--sm">${priorityBadge(t.priority)}${stateBadge(t.state)}${exampleTag(item)}</div></div>
+  return `<div class="page-head"><div><p class="kicker"><span class="mono">${esc(t.id)}</span>${t.call_id ? ` · call <span class="mono">${esc(t.call_id)}</span>` : ''}</p><h1 id="ticketDetailTitle" tabindex="-1">${esc(t.short_description)}</h1></div><div class="row row--sm">${priorityBadge(t.priority)}${stateBadge(t.state)}${exampleTag(item)}<button type="button" class="pop pop--quiet pop--sm" data-enter-time-machine="${esc(item.id)}">Enter Time Machine <span aria-hidden="true">→</span></button></div></div>
   <div class="detail-grid">
     <div class="stack stack--lg">
       <section class="card stack" aria-labelledby="contextTitle"><h2 class="h3" id="contextTitle">Customer context</h2><dl class="kv"><div><dt>Customer</dt><dd>${esc(item.caller)}</dd></div><div><dt>Channel</dt><dd>${esc(item.channel)}</dd></div><div><dt>Reported</dt><dd>${esc(when(item.created_at))}</dd></div><div><dt>Service</dt><dd>${esc(t.service)}</dd></div></dl><p class="pre sec">${esc(t.description)}</p></section>
@@ -578,6 +584,9 @@ async function openTicketDetails(caseId, {keepScroll = false} = {}) {
   document.title = `${state.current.ticket.id} · ResolveAI`;
   if (!keepScroll) { window.scrollTo({top: 0}); $('#ticketDetailTitle')?.focus({preventScroll: true}); }
   watchAssist(state.current, fresh => { if ($('#view-ticket-detail').classList.contains('active') && state.current?.id === fresh.id && !window.ResolveDirty?.isDirty?.()) openTicketDetails(fresh.id, {keepScroll: true}); });
+  // Resolution durability (from main's Resolution Debt Radar) is staff-only.
+  $('#ticketDurability').hidden = customer;
+  if (!customer) window.loadCaseResolutionRadar?.(state.current.id);
 }
 
 async function openCase(caseId, target = "case") {
@@ -808,6 +817,7 @@ document.addEventListener("click", event => {
   if (customerRetry) customerRetry.dataset.customerRetry === 'calls' ? loadCustomerCalls() : loadCustomerIncidents();
   if (event.target.closest("[data-open-case]")) startNewCase();
   const direct = event.target.closest("[data-view-target]"); if (direct) showView(direct.dataset.viewTarget);
+  const timeMachine = event.target.closest('[data-enter-time-machine]'); if (timeMachine) window.enterIncidentTimeMachine?.(timeMachine.dataset.enterTimeMachine);
   const qaRow = event.target.closest("[data-qa-case-id]"); if (qaRow) openCase(qaRow.dataset.qaCaseId, "qa");
   if (event.target.closest("[data-open-qa]") && state.current) renderQA(state.current);
   if (event.target.closest("#rerunQa")) rerunQA();
@@ -867,6 +877,7 @@ window.applyAccountRole = user => {
   if (state.user?.id !== user?.id) {
     state.cases = []; state.users = []; state.current = null;
     $('#ticketRows').innerHTML = ''; $('#ticketDetailPage').innerHTML = '';
+    $('#ticketDurability').hidden = true; $('#ticketDurability').innerHTML = '';
     $('#ticketSearch').value = ''; $('#ticketAssignee').innerHTML = '<option value="">All assigned names</option>';
     $('#ticketStateFilter').value = ''; $('#ticketPriorityFilter').value = '';
     analyticsCases = []; lastBulkQaStatus = null; clearTimeout(bulkQaTimer);

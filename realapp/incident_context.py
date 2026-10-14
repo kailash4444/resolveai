@@ -17,6 +17,29 @@ def audit_ticket_json(ticket):
     return json.dumps(value, ensure_ascii=False, indent=2)
 
 
+def resolution_evidence(case):
+    """Bound model context while retaining the most recent, citeable evidence."""
+    transcript_start = max(0, len(case.transcript) - 40)
+    return {
+        'ticket_id': case.ticket.id,
+        'state': case.ticket.state,
+        'issue_title': case.issue_title,
+        'short_description': case.ticket.short_description,
+        'description': case.ticket.description[:2000],
+        'service': case.ticket.service,
+        'priority': case.ticket.priority,
+        'customer_attempted_steps': case.attempted_steps,
+        'resolution': {'id': f'resolution:{case.ticket.id}', 'text': case.ticket.resolution[:4000]},
+        'transcript': [{'id': f'transcript:{i}', 'speaker': turn.speaker, 'text': turn.text[:1200]}
+                       for i, turn in enumerate(case.transcript[-40:], start=transcript_start)],
+        'work_notes': [{'id': f'note:{note.id}', 'author_type': note.author_type,
+                        'text': note.text[:1200]}
+                       for note in case.ticket.work_notes[-30:]],
+        'qa_checks': [{'id': f'qa:{i}', **check.model_dump()}
+                      for i, check in enumerate(case.qa_checks[-20:], start=max(0, len(case.qa_checks) - 20))],
+    }
+
+
 AUDIT_PROMPT = """You are an independent service-desk quality auditor. Audit only these eight fields:
 Short description, Description, Category / Subcategory, Service, Priority, Assignment group,
 Resolution, and Work notes. Return one check for each field. Assess Category / Subcategory together

@@ -1,6 +1,8 @@
 from collections import Counter
+from datetime import datetime, timezone
 import logging
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile, Request, Response
@@ -12,7 +14,8 @@ from realapp.config import get_settings
 from realapp.engine import create_engine
 from realapp.local_secrets import load_local_openai_key, save_local_openai_key
 from realapp.local_secrets import load_local_gemini_key, save_local_gemini_key
-from realapp.models import AnalysisRequest, CaseRecord, KnowledgeArticle, KnowledgeArticleInput, TicketUpdate, WorkNote, WorkNoteCreate
+from realapp.models import (AnalysisRequest, CaseRecord, EngineeringBrief, EngineeringFollowup,
+    KnowledgeArticle, KnowledgeArticleInput, TicketStateTransition, TicketUpdate, WorkNote, WorkNoteCreate)
 from realapp.store import create_store
 from realapp.livekit_setup import restore_livekit_settings
 from realapp.incident_context import knowledge_context
@@ -24,6 +27,8 @@ from realapp.resolved_knowledge import ResolvedKnowledgePublisher
 from realapp.bulk_qa import BulkAudit
 from realapp.attachments import (save_attachment, get_attachment_data, find_case_for_attachment,
                                  validate_attachment, is_image, MAX_FILES_PER_REQUEST, MAX_TOTAL_SIZE)
+from realapp.resolution_radar import ResolutionRadar, evidence_digest
+from realapp.incident_time_machine import compare_history, reconstruct as reconstruct_incident
 
 
 settings = get_settings()
@@ -35,12 +40,19 @@ if not settings.gemini_api_key:
     settings.gemini_api_key = load_local_gemini_key()
 store = create_store(settings)
 engine = create_engine(settings, store.list_knowledge)
+resolution_radar = ResolutionRadar(store, engine)
 static_dir = Path(__file__).parent / "static"
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ResolveAI API", version="2.0.0")
 app.state.bulk_audit = BulkAudit()
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
+def radar_service() -> ResolutionRadar:
+    # Keep service dependencies aligned when the app is reconfigured in-process.
+    resolution_radar.store, resolution_radar.engine = store, engine
+    return resolution_radar
 
 
 class OpenAIKeyRequest(BaseModel):
@@ -55,6 +67,27 @@ def enforce_upload_request_limit(http: Request) -> None:
                 raise HTTPException(413, "The complete upload request must be 21 MB or smaller.")
         except ValueError as exc:
             raise HTTPException(400, "Invalid Content-Length header.") from exc
+
+class RadarStatusUpdate(BaseModel):
+    status: Literal['new', 'investigating', 'monitoring', 'resolved', 'dismissed']
+    note: str = Field(default='', max_length=400)
+
+
+class RadarLinkReview(BaseModel):
+    decision: Literal['confirmed', 'dismissed', 'unreviewed']
+
+
+class EngineeringFollowupUpdate(BaseModel):
+    brief: EngineeringBrief
+    status: Literal['open', 'closed'] = 'open'
+
+
+class CounterfactualRequest(BaseModel):
+    decision_event_id: str = Field(min_length=1, max_length=160)
+    alternative: Literal[
+        'escalate_earlier', 'collect_diagnostic', 'avoid_repeat',
+        'follow_documented', 'verify_before_resolve', 'wait_for_evidence',
+    ]
 
 
 @app.get("/", include_in_schema=False)
@@ -512,6 +545,21 @@ def run_background_knowledge(case_id: str):
         logger.exception("Automatic knowledge publishing failed for incident %s", case_id)
 
 
+def run_background_radar(case_id: str, force: bool = False):
+    case = store.get_case(case_id)
+    if not case or case.ticket.state != 'Resolved':
+        return
+    try:
+        radar_service().assess(case, force=force)
+    except Exception:
+        logger.exception('Resolution durability assessment failed for incident %s', case_id)
+
+
+def run_radar_assessments(case_ids: list[str]):
+    for case_id in case_ids:
+        run_background_radar(case_id)
+
+
 @app.patch("/api/cases/{case_id}/ticket", response_model=CaseRecord)
 def update_ticket(case_id: str, update: TicketUpdate, background_tasks: BackgroundTasks, http: Request = None):
     case = store.get_case(case_id)
@@ -551,6 +599,9 @@ def update_ticket(case_id: str, update: TicketUpdate, background_tasks: Backgrou
         raise HTTPException(status_code=422, detail="Resolution notes can be entered only when the ticket is resolved.")
     for field, value in changes.items():
         setattr(case.ticket, field, value)
+    if before['state'] != case.ticket.state:
+        case.state_history.append(TicketStateTransition(from_state=before['state'],
+            to_state=case.ticket.state, changed_by=user['name'] if user else 'System'))
     case.status = "Resolved" if case.ticket.state == "Resolved" else "Open"
     if case.ticket.state != "Resolved":
         case.ticket.resolution = ""
@@ -580,6 +631,7 @@ def update_ticket(case_id: str, update: TicketUpdate, background_tasks: Backgrou
     if case.ticket.state == "Resolved" and changed_fields:
         background_tasks.add_task(run_background_qa, case.id)
         background_tasks.add_task(run_background_knowledge, case.id)
+        background_tasks.add_task(run_background_radar, case.id)
     return visible_case(saved,user) if user else saved
 
 
@@ -641,6 +693,214 @@ def rerun_qa(case_id: str, http: Request):
     return visible_case(require_case(store.save_audit(case, audit), user),user)
 
 
+def _require_radar_user(http: Request) -> dict:
+    user = actor(http)
+    if user['role'] not in {'admin', 'technician'}:
+        raise HTTPException(403, 'Technician access is required.')
+    return user
+
+
+@app.get('/api/cases/{case_id}/time-machine')
+def get_incident_time_machine(case_id: str, http: Request):
+    user = _require_radar_user(http)
+    case = require_case(store.get_case(case_id), user)
+    # Use the same transcript and QA visibility rules as the incident detail API.
+    safe_case = visible_case(case, user)
+    assessment = store.get_resolution_assessment(case_id) if can_report(case, user) else None
+    if assessment and assessment.evidence_digest != evidence_digest(case):
+        assessment = None
+    result = reconstruct_incident(safe_case, assessment)
+    if user['role'] == 'technician' and not can_report(case, user):
+        result['warnings'].append('Transcript and QA details are hidden for incidents assigned to another technician; this reconstruction is partial.')
+    return result
+
+
+@app.post('/api/cases/{case_id}/time-machine/counterfactual')
+def explore_incident_alternative(case_id: str, request: CounterfactualRequest, http: Request):
+    user = _require_radar_user(http)
+    case = require_case(store.get_case(case_id), user)
+    safe_case = visible_case(case, user)
+    reconstruction = reconstruct_incident(safe_case)
+    events = reconstruction['events']
+    decision = next((item for item in events if item['id'] == request.decision_event_id), None)
+    decision_types = {'technician_action', 'failed_attempt', 'status_change'}
+    if not decision or decision['type'] not in decision_types or not decision['occurred_at']:
+        raise HTTPException(422, 'Choose a dated technician action, failed attempt, or status decision.')
+
+    alternatives = {
+        'escalate_earlier': 'Escalate to a human technician at this point.',
+        'collect_diagnostic': 'Collect a relevant diagnostic signal before trying another fix.',
+        'avoid_repeat': 'Avoid repeating the same unsuccessful troubleshooting step without new evidence.',
+        'follow_documented': 'Use a documented troubleshooting procedure that existed at this point.',
+        'verify_before_resolve': 'Verify the fix with the customer before marking the incident resolved.',
+        'wait_for_evidence': 'Wait for additional evidence before choosing a diagnosis or fix.',
+    }
+    before = [item for item in events if item['occurred_at'] and item['occurred_at'] < decision['occurred_at']]
+    after = [item for item in events if item['occurred_at'] and item['occurred_at'] > decision['occurred_at']]
+    event_view = lambda item: {
+        'id': item['id'], 'timestamp': item['occurred_at'], 'type': item['type'],
+        'actor': item['actor'], 'title': item['title'], 'evidence': item['detail'][:1200],
+        'recorded_outcome': item['outcome'],
+    }
+    available_before = before[-20:]
+    observed_after = after[:12]
+    try:
+        scenario = engine.explore_counterfactual(
+            f"{decision['title']}: {decision['detail']}", alternatives[request.alternative],
+            [event_view(item) for item in available_before],
+            [event_view(item) for item in observed_after],
+        )
+    except RuntimeError as error:
+        raise HTTPException(503, str(error)) from error
+    except Exception:
+        logger.exception('Incident counterfactual generation failed for %s', case_id)
+        raise HTTPException(502, 'Could not create a structured alternative from this incident evidence.') from None
+
+    allowed_evidence = {item['id'] for item in available_before}
+    cited = set(scenario.supporting_evidence_ids + scenario.contradicting_evidence_ids)
+    cited.update(evidence_id for step in scenario.steps for evidence_id in step.evidence_ids)
+    if not cited.issubset(allowed_evidence):
+        raise HTTPException(502, 'The generated scenario cited evidence unavailable at that decision point. Please retry.')
+    return {
+        'label': 'SIMULATED ALTERNATIVE — NOT AN OBSERVED OUTCOME',
+        'decision_point': decision,
+        'alternative': alternatives[request.alternative],
+        'evidence_available_before_decision': [event_view(item) for item in available_before],
+        'events_at_same_timestamp_order_unknown': [event_view(item) for item in events
+                                                   if item['id'] != decision['id']
+                                                   and item['occurred_at'] == decision['occurred_at']],
+        'observed_later_events': [event_view(item) for item in observed_after],
+        'scenario': scenario.model_dump(mode='json'),
+        'historical_validation': {
+            'status': 'not_established', 'comparable_count': 0,
+            'message': 'This incident alone cannot validate what the alternative would have caused. No success rate or time savings is inferred.',
+        },
+    }
+
+
+@app.post('/api/cases/{case_id}/time-machine/validate')
+def validate_incident_alternative(case_id: str, request: CounterfactualRequest, http: Request):
+    user = _require_radar_user(http)
+    case = require_case(store.get_case(case_id), user)
+    reconstruction = reconstruct_incident(visible_case(case, user))
+    decision = next((item for item in reconstruction['events'] if item['id'] == request.decision_event_id), None)
+    if not decision or decision['type'] not in {'technician_action', 'failed_attempt', 'status_change'} or not decision['occurred_at']:
+        raise HTTPException(422, 'Choose a dated technician action, failed attempt, or status decision.')
+    candidates = [item for item in store.list_cases() if can_read(item, user)]
+    comparison = compare_history(case, candidates)
+    return {
+        'decision_point': decision,
+        'alternative': request.alternative,
+        'strategy_validation': {
+            'status': 'not_established',
+            'message': 'The incident store does not consistently record alternative strategies as structured actions, so this cohort cannot estimate their effect.',
+        },
+        'historical_context': comparison,
+    }
+
+
+@app.get('/api/resolution-radar')
+def get_resolution_radar(http: Request, window: str = '30d', service: str = '',
+                         priority: str = '', status: str = '', search: str = '', sort: str = 'debt'):
+    _require_radar_user(http)
+    if window not in {'7d', '30d', '90d', 'all'}:
+        raise HTTPException(422, 'Select a supported time window.')
+    if sort not in {'debt', 'recurrence', 'severity', 'recent'}:
+        raise HTTPException(422, 'Select a supported sort order.')
+    return radar_service().snapshot(window=window, service=service, priority=priority,
+                                    status=status, search=search, sort=sort)
+
+
+@app.post('/api/resolution-radar/analyze-missing', status_code=202)
+def analyze_missing_resolutions(http: Request, background_tasks: BackgroundTasks):
+    _require_radar_user(http)
+    assessments = {item.case_id: item for item in store.list_resolution_assessments()}
+    stale = [case for case in store.list_cases() if case.ticket.state == 'Resolved'
+             and (case.id not in assessments or assessments[case.id].evidence_digest != evidence_digest(case))]
+    selected = stale[:25]
+    if selected:
+        background_tasks.add_task(run_radar_assessments, [case.id for case in selected])
+    return {'scheduled': len(selected), 'remaining': max(0, len(stale) - len(selected)),
+            'message': 'Resolution assessments are running in the background.' if selected else 'All resolved incidents are up to date.'}
+
+
+@app.get('/api/resolution-radar/clusters/{cluster_id}')
+def get_resolution_cluster(cluster_id: str, http: Request):
+    _require_radar_user(http)
+    return radar_service().detail(cluster_id)
+
+
+@app.patch('/api/resolution-radar/clusters/{cluster_id}')
+def update_resolution_cluster(cluster_id: str, update: RadarStatusUpdate, http: Request):
+    user = _require_radar_user(http)
+    cluster = radar_service().change_status(cluster_id, update.status, user['name'], update.note)
+    return cluster.model_dump(mode='json')
+
+
+@app.patch('/api/resolution-radar/clusters/{cluster_id}/links/{case_id}')
+def review_resolution_link(cluster_id: str, case_id: str, update: RadarLinkReview, http: Request):
+    _require_radar_user(http)
+    return radar_service().review_link(cluster_id, case_id, update.decision).model_dump(mode='json')
+
+
+@app.post('/api/resolution-radar/clusters/{cluster_id}/engineering-followups', status_code=201)
+def create_engineering_followup(cluster_id: str, http: Request):
+    user = _require_radar_user(http)
+    try:
+        result = radar_service().generate_followup(cluster_id, user['name'])
+    except HTTPException:
+        raise
+    except RuntimeError as error:
+        raise HTTPException(503, str(error)) from error
+    except Exception:
+        logger.exception('Engineering brief generation failed for cluster %s', cluster_id)
+        raise HTTPException(502, 'Could not generate the engineering brief from linked incident evidence.') from None
+    return result.model_dump(mode='json')
+
+
+@app.patch('/api/resolution-radar/engineering-followups/{followup_id}')
+def update_engineering_followup(followup_id: str, update: EngineeringFollowupUpdate, http: Request):
+    _require_radar_user(http)
+    if update.status not in {'open', 'closed'}:
+        raise HTTPException(422, 'Select open or closed.')
+    current = store.get_engineering_followup(followup_id)
+    if not current:
+        raise HTTPException(404, 'Engineering follow-up not found.')
+    current.brief = update.brief
+    current.status = update.status
+    current.updated_at = datetime.now(timezone.utc)
+    return store.save_engineering_followup(current).model_dump(mode='json')
+
+
+@app.get('/api/cases/{case_id}/resolution-radar')
+def get_case_resolution_radar(case_id: str, http: Request, background_tasks: BackgroundTasks):
+    user = _require_radar_user(http)
+    case = require_case(store.get_case(case_id), user)
+    assessment = store.get_resolution_assessment(case_id)
+    if assessment and assessment.evidence_digest != evidence_digest(case):
+        assessment = None
+    if case.ticket.state == 'Resolved' and (not assessment or assessment.evidence_digest != evidence_digest(case)):
+        background_tasks.add_task(run_background_radar, case_id)
+    clusters = radar_service()._materialize(store.list_cases())
+    cluster = next((item for item in clusters if any(link.case_id == case_id for link in item.links)), None)
+    link = next((item for item in cluster.links if item.case_id == case_id), None) if cluster else None
+    return {'assessment': assessment.model_dump(mode='json') if assessment else None,
+            'cluster_id': cluster.id if cluster else None,
+            'relation_type': link.link_type if link else None,
+            'related_ticket_ids': [item.ticket_id for item in cluster.links if item.case_id != case_id] if cluster else [],
+            'recurrence_ticket_ids': [item.ticket_id for item in cluster.links if item.link_type == 'recurrence'] if cluster else []}
+
+
+@app.post('/api/cases/{case_id}/resolution-radar', status_code=202)
+def rerun_case_resolution_radar(case_id: str, http: Request, background_tasks: BackgroundTasks):
+    user = _require_radar_user(http)
+    case = require_case(store.get_case(case_id), user)
+    if case.ticket.state != 'Resolved':
+        raise HTTPException(409, 'Resolve the incident before reassessing its durability.')
+    background_tasks.add_task(run_background_radar, case_id, True)
+    return {'scheduled': True, 'message': 'Resolution durability reassessment queued.'}
+
+
 @app.get("/api/knowledge", response_model=list[KnowledgeArticle])
 def list_knowledge(http: Request):
     user = actor(http)
@@ -654,8 +914,11 @@ def list_knowledge(http: Request):
 
 @app.post("/api/knowledge", response_model=KnowledgeArticle, status_code=201)
 def add_knowledge(article: KnowledgeArticleInput, http: Request):
+    user = actor(http)
+    if user['role'] not in {'admin', 'technician'}:
+        raise HTTPException(403, 'Staff access is required to add knowledge.')
     if article.source_ticket_ids:
-        article.source_ticket_ids = [case.ticket.id for case in find_incidents(article.source_ticket_ids, actor(http))]
+        article.source_ticket_ids = [case.ticket.id for case in find_incidents(article.source_ticket_ids, user)]
     return store.add_knowledge(article)
 
 

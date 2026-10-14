@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/resolveai-components.css?v=20">
+  <link rel="stylesheet" href="/static/resolveai-components.css?v=21">
   <script src="/static/theme.js?v=5"></script>
 </head>
 <body data-role="guest" data-shell="public" data-mode="focus">
@@ -279,6 +279,7 @@
     <section class="view" id="view-ticket-detail" aria-labelledby="ticketDetailTitle">
       <a class="go go--back back-link" id="ticketDetailBack" href="/console?view=tickets" data-view="tickets">Back to tickets</a>
       <div id="ticketDetailPage"></div>
+      <article id="ticketDurability" class="legacy-ui section" aria-label="Resolution durability" hidden></article>
     </section>
 
     <section class="view" id="view-calls" aria-labelledby="callsTitle">
@@ -321,6 +322,37 @@
       <div class="alert" id="usersError" role="alert" hidden><strong>✕ Couldn’t load users.</strong><span class="sec" id="usersErrorMessage"></span><button type="button" class="pop pop--quiet pop--sm" id="retryUsers">Retry</button></div>
       <div class="tbl-wrap" role="region" aria-labelledby="usersTitle" tabindex="0"><table class="tbl"><caption class="sr">User accounts</caption><thead><tr><th scope="col">User</th><th scope="col">Role</th><th scope="col" class="col-opt">Skills</th><th scope="col" class="col-opt">Languages</th><th scope="col">Call status</th><th scope="col" class="col-opt">Microphone</th></tr></thead><tbody id="technicianRows"><tr><td colspan="6"><div class="skeleton" role="status" aria-label="Loading users"></div></td></tr></tbody></table></div>
       <div class="empty section" id="techniciansEmpty" hidden><h2 class="h3">No other users yet</h2><p class="sec">Add technicians and customers so they can log in.</p></div>
+
+    </section>
+
+    <section class="view legacy-ui" id="view-time-machine" aria-labelledby="tmHeading">
+      <div class="panel-head page-section-head tm-command"><div><p class="eyebrow">INCIDENT INVESTIGATION · CHRONOS</p><h2 id="tmHeading">Incident Time Machine</h2><p class="helper">Reconstruct the past. Investigate the present. Test an alternative.</p></div><div class="tm-command-actions"><span class="tm-demo-label">EVIDENCE VIEW</span><button class="secondary" id="tmReturnIncident">← Return to incident</button></div></div>
+      <div id="tmMessage" class="panel tm-message" role="status" hidden></div>
+      <div id="tmWorkspace" hidden>
+        <div class="tm-brief panel"><div><small>INCIDENT</small><strong id="tmIncidentId"></strong></div><div><small>STATUS</small><strong id="tmIncidentState"></strong></div><div><small>CHRONOLOGY COVERAGE</small><strong id="tmCoverage"></strong></div><div><small>RECORDED / UNDATED</small><strong id="tmEventCounts"></strong></div><p id="tmCausalStatus"></p></div>
+        <div id="tmWarnings" class="tm-warnings" hidden></div>
+        <div class="tm-tabs" role="tablist" aria-label="Incident investigation tools"><button role="tab" aria-selected="true" data-tm-tab="chronos">Chronos Timeline</button><button role="tab" aria-selected="false" data-tm-tab="causal">Causal Gravity Map</button><button role="tab" aria-selected="false" data-tm-tab="decision">Decision Fingerprint</button><button role="tab" aria-selected="false" data-tm-tab="alternative">Explore an Alternative</button><button role="tab" aria-selected="false" data-tm-tab="knowledge">Knowledge Ripple</button></div>
+        <section class="tm-pane" data-tm-pane="chronos">
+          <div class="tm-tools panel"><div class="tm-tool-group"><button class="secondary small" id="tmPlay">▶ Play</button><button class="secondary small" id="tmFirstFailure">First failed step</button><button class="secondary small" id="tmDecisionJump">Major decision</button><button class="secondary small" id="tmResolution">Resolution</button><button class="secondary small" id="tmRecurrence">Recurrence</button><button class="secondary small" id="tmReset">Reset full incident</button></div><div class="tm-tool-group"><label>Replay speed<select id="tmSpeed"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select></label><button class="secondary small" id="tmZoomOut" aria-label="Zoom out">−</button><span id="tmZoomLabel">100%</span><button class="secondary small" id="tmZoomIn" aria-label="Zoom in">+</button><label class="tm-retro-toggle"><input type="checkbox" id="tmRetrospective"> Retrospective overview</label></div></div>
+          <div class="tm-filter-row" id="tmFilters"></div>
+          <div class="tm-stage panel"><div class="tm-axis-labels"><span>EARLIER</span><span id="tmAsOf">Select a recorded moment</span><span>LATER</span></div><div class="tm-scroll" id="tmScroll"><svg id="tmTimeline" class="tm-timeline" viewBox="0 0 1100 430" role="img" aria-label="Interactive incident timeline"></svg></div><label class="tm-scrubber-label" for="tmScrubber"><span>REWIND / REPLAY</span><span id="tmScrubLabel"></span></label><input id="tmScrubber" type="range" min="0" max="0" value="0"><p class="helper tm-undated-note" id="tmUndatedNote"></p><div id="tmUndatedEvidence" class="tm-undated-evidence" hidden></div></div>
+          <div class="tm-inspector panel"><div><p class="eyebrow">EVIDENCE INSPECTOR</p><h3 id="tmEventTitle">Select a timeline event</h3><div id="tmEventDetail" class="helper">The timeline shows records with trustworthy timestamps. Undated source evidence is listed separately. Shift-select two events to compare their source evidence.</div></div><div id="tmCompare" class="tm-compare" hidden></div></div>
+        </section>
+        <section class="tm-pane" data-tm-pane="causal" hidden><div class="tm-map-layout"><article class="tm-map-panel panel"><div class="panel-head"><div><p class="eyebrow">OBSERVED RELATIONSHIPS</p><h3>Chronology is not causation</h3><p class="helper" id="tmMapMode">Historical view follows the selected time.</p></div><button class="secondary small" id="tmResetMap">Reset layout</button></div><div class="tm-causal-canvas" id="tmCausalCanvas"><svg id="tmCausalMap" viewBox="0 0 1000 560" role="img" aria-label="Evidence relationship map"></svg></div><p class="helper">Links show only that recorded timestamps place one event before another. Root cause remains unestablished unless evidence confirms it.</p></article><aside class="panel tm-map-inspector"><p class="eyebrow">EVIDENCE STATUS</p><h3>Root cause not established</h3><p class="helper">Move nodes to explore the evidence map. Selecting a node opens its source detail.</p><div id="tmMapEventList"></div></aside></div></section>
+        <section class="tm-pane" data-tm-pane="decision" hidden><article class="panel"><p class="eyebrow">RECORDED ACTIONS</p><h3>Decision Fingerprint</h3><p class="helper">Counts come from the incident transcript, work notes, and state history. AI calls are not counted as troubleshooting attempts.</p><div id="tmDecisionFingerprint"></div></article></section>
+        <section class="tm-pane" data-tm-pane="alternative" hidden><div class="tm-alt-grid"><article class="panel"><p class="eyebrow">COUNTERFACTUAL REPLAY</p><h3>Explore an Alternative</h3><p class="helper">Choose a dated decision. ResolveAI will use only evidence available before it to describe a simulated path.</p><form id="tmAlternativeForm"><label>Decision point<select id="tmDecisionPoint" required></select></label><label>Alternative action<select id="tmAlternative" required><option value="escalate_earlier">Escalate to a technician earlier</option><option value="collect_diagnostic">Collect diagnostics first</option><option value="avoid_repeat">Avoid repeating an unsuccessful step</option><option value="follow_documented">Use a documented procedure, if it existed then</option><option value="verify_before_resolve">Verify the fix before resolving</option><option value="wait_for_evidence">Wait for more evidence</option></select></label><div class="tm-alt-actions"><button class="primary" id="tmRunAlternative">Run simulated comparison</button><button class="secondary" id="tmValidateHistory" type="button">Validate Against History</button></div><p id="tmAlternativeMessage" class="form-message" role="status"></p></form><div id="tmHistoricalValidation" class="tm-validation" hidden></div></article><article class="tm-scenario panel" id="tmScenario" hidden></article></div></section>
+        <section class="tm-pane" data-tm-pane="knowledge" hidden><div class="tm-map-layout"><article class="panel"><p class="eyebrow">KNOWLEDGE RIPPLE</p><h3>Connect this incident to future troubleshooting</h3><p class="helper">Existing triage matches are recorded links. A new article stays a draft until staff review and approve it.</p><div id="tmKnowledgeMatches"></div><button class="secondary" id="tmDraftKnowledge">Draft a knowledge lesson</button><div id="tmKnowledgeDraft" hidden></div></article><aside class="panel"><p class="eyebrow">HUMAN REVIEW</p><h3>Knowledge changes require approval</h3><p class="helper">ResolveAI will not overwrite trusted articles. The reviewed draft can be added as a new article with its source incident attached.</p></aside></div></section>
+      </div>
+    </section>
+
+    <section class="view legacy-ui" id="view-resolution-radar" aria-label="Resolution debt">
+      <div class="panel-head page-section-head"><div><p class="eyebrow">SERVICE INTELLIGENCE</p><h2>Resolution Debt Radar</h2><p class="helper">Find recurring incidents whose earlier resolutions may not be holding.</p><p class="helper" id="radarPending"></p></div><button class="secondary" id="radarAnalyzeMissing">Analyze resolved history</button></div>
+      <div id="radarDashboard">
+        <div class="metrics radar-metrics"><article><span>Open systemic issues</span><strong id="radarOpen">0</strong><small>New, investigating, or monitoring</small></article><article><span>High-debt issues</span><strong id="radarHigh">0</strong><small>Score of 60 or higher</small></article><article><span>Recurring incidents</span><strong id="radarRepeats">0</strong><small>Observed within 30 days after closure</small></article><article><span>Temporary-workaround rate</span><strong id="radarWorkaround">—</strong><small>Analyzed resolved incidents only</small></article><article><span>Avoidable support effort</span><strong id="radarEffort">Insufficient data</strong><small>Reliable effort duration is not recorded</small></article></div>
+        <div class="panel radar-filter-panel"><label>Time window<select id="radarWindow"><option value="7d">7 days</option><option value="30d" selected>30 days</option><option value="90d">90 days</option><option value="all">All history</option></select></label><label>Service<select id="radarService"><option value="">All services</option></select></label><label>Priority<select id="radarPriority"><option value="">All priorities</option><option>P1</option><option>P2</option><option>P3</option><option>P4</option></select></label><label>Status<select id="radarStatus"><option value="">All statuses</option><option value="new">New</option><option value="investigating">Investigating</option><option value="monitoring">Monitoring</option><option value="resolved">Resolved / verified</option><option value="dismissed">Dismissed</option></select></label><label>Search<input id="radarSearch" type="search" placeholder="Issue, symptom, or INC number"></label><label>Sort by<select id="radarSort"><option value="debt">Resolution debt score</option><option value="recurrence">Recurrence</option><option value="severity">Severity</option><option value="recent">Most recent</option></select></label></div>
+        <article class="panel table-wrap radar-table-wrap"><table><thead><tr><th>Issue cluster</th><th>Debt score</th><th>Priority</th><th>Incidents</th><th>Customers</th><th>Recurrences</th><th>Workarounds</th><th>Latest</th><th>Analysis</th><th>Status</th></tr></thead><tbody id="radarRows"></tbody></table><div id="radarEmpty" class="empty-list" hidden>No recurring incident clusters match these filters.</div><p class="helper radar-score-note">Debt score prioritizes investigation; it is not a probability of recurrence. Missing signals are excluded and remaining weights are renormalized.</p></article>
+      </div>
+      <div id="radarDetail" hidden></div>
     </section>
 
     <section class="view" id="view-configuration" aria-labelledby="configTitle">
@@ -550,12 +582,14 @@
   <script src="/static/resolveai-components.js?v=1"></script>
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=4"></script>
-  <script src="/static/shell.js?v=7"></script>
+  <script src="/static/shell.js?v=8"></script>
   <script src="/static/uploader.js?v=3"></script>
-  <script src="/static/app.js?v=32"></script>
+  <script src="/static/app.js?v=34"></script>
   <script src="/static/auth.js?v=9"></script>
   <script src="/static/support-hub.js?v=2"></script>
-  <script src="/static/calling.js?v=19"></script>
+  <script src="/static/resolution-radar.js?v=4"></script>
+  <script src="/static/calling.js?v=20"></script>
   <script src="/static/transcripts.js?v=7"></script>
+  <script src="/static/incident-time-machine.js?v=3"></script>
 </body>
 </html>

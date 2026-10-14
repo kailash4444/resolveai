@@ -230,7 +230,8 @@ def test_audio_worker_failure_is_reported_instead_of_silenced(service):
             raise RuntimeError('capture stopped')
         session.task(failed_capture())
         await asyncio.sleep(.02)
-        assert 'Audio processing was interrupted' in service.get(call['id'])['last_error']
+        # A failed voice worker is reported and the call is routed to a technician (not silently dropped).
+        assert 'technician' in service.get(call['id'])['last_error']
     asyncio.run(run())
 
 
