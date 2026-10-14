@@ -245,6 +245,13 @@ body[data-shell="public"] .shell__main{max-width:none;padding:0}
 .choice:has(input:checked) .choice__mark{background:var(--text);border-color:var(--text)}
 .choice:has(input:checked) .choice__mark::after{opacity:1}
 .choice:has(input:focus-visible){outline:3px solid var(--focus);outline-offset:3px}
+/* Compact row variant for option lists (Get support). */
+.choices--stack{grid-template-columns:1fr;gap:10px}
+.choice--row{flex-direction:row;align-items:center;gap:12px;padding:12px 48px 12px 12px}
+.choice--row .choice__mark{top:50%;margin-top:-11px}
+.choice--row .choice__body strong{font-size:15px}
+.choice[data-disabled]{opacity:.55;cursor:not-allowed}
+.choice[data-disabled]:hover{border-color:var(--border-strong)}
 
 /* ---- Light theme: same components, light tokens. Toggle in theme.js. ---- */
 :root[data-theme="light"]{--canvas:#F4F6FA;--surface:#FFFFFF;--surface-2:#EAEFF6;--border:#D3DAE6;--border-strong:#6A7891;
@@ -348,6 +355,9 @@ details > summary{cursor:pointer;min-height:44px;display:flex;align-items:center
 .customer-grid{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
 .customer-grid__main{flex:2 1 560px;min-width:0}
 .voice-card{flex:1 1 300px;display:flex;flex-direction:column;gap:12px}
+.chat-log{max-height:340px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2)}
+.turn--you{padding-left:12px;border-left:3px solid var(--edge)}
+#voiceTitle{margin-bottom:4px}
 .voice-frame{width:100%;height:260px;border:0;background:transparent;display:block}
 .incident-card{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:10px;transition:border-color .12s,box-shadow .12s,transform .12s}
 .incident-card__head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;width:100%}

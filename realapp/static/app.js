@@ -82,9 +82,8 @@ function showView(name) {
   state.currentView = name;
 
   if (name === "customer-home") {
-    // Load the voice card only for a signed-in customer; signed out it would redirect into a nested copy of the app.
-    const frame = $('#voiceFrame');
-    if (state.user?.role === 'customer' && !frame.getAttribute('src')) frame.src = frame.dataset.src;
+    // The voice frame only loads when a signed-in customer starts a call (see support-hub.js).
+    if (state.user?.role === 'customer') window.SupportHub?.open();
     loadCustomerCalls(); loadCustomerIncidents();
   }
   if (name === "tickets") loadCases();
@@ -1024,8 +1023,8 @@ async function loadCustomerCalls() {
     const calls = await api('/api/customer/calls');
     target.innerHTML = calls.length ? `<ul class="list">${calls.map(call => {
       const [tone, label] = CALL_STATUS[call.status] || ['badge--medium', `● ${call.status}`];
-      return `<li class="list__row"><span class="list__main"><span class="mono">${esc(call.id)}</span><span class="help">${esc(new Date(call.created_at * 1000).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'}))}</span></span><span class="badge ${tone}">${esc(label)}</span>${call.case_id ? `<a class="pop pop--quiet pop--sm" href="/portal?ticket=${encodeURIComponent(call.case_id)}" data-ticket-link="${esc(call.case_id)}"><span>View incident<span class="sr"> for ${esc(call.id)}</span></span></a>` : '<span class="help">No incident created</span>'}</li>`;
-    }).join('')}</ul>` : '<p class="sec">No calls yet. Calls you make from Talk to support appear here.</p>';
+      return `<li class="list__row"><span class="list__main"><strong>${call.channel === 'chat' ? 'Chat' : 'Voice call'}</strong><span class="mono help">${esc(call.id)}</span><span class="help">${esc(new Date(call.created_at * 1000).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'}))}</span></span><span class="badge ${tone}">${esc(label)}</span>${call.case_id ? `<a class="pop pop--quiet pop--sm" href="/portal?ticket=${encodeURIComponent(call.case_id)}" data-ticket-link="${esc(call.case_id)}"><span>View incident<span class="sr"> for ${esc(call.id)}</span></span></a>` : '<span class="help">No incident created</span>'}</li>`;
+    }).join('')}</ul>` : '<p class="sec">No calls or chats yet. Ones you start from Get support appear here.</p>';
   } catch (error) { target.innerHTML = loadError('calls', 'calls'); }
   finally { target.removeAttribute('aria-busy'); }
 }

@@ -27,6 +27,7 @@ const STATES = {
 
 function setState(name, overrides = {}) {
   voiceState = name;
+  if (embedded && window.parent !== window) window.parent.postMessage({type: 'resolveai-support-state', state: name}, location.origin);
   const spec = {...STATES[name], ...overrides}, show = new Set(spec.show || []);
   $('#voiceBadge').className = `badge ${spec.badge[0]}`; $('#voiceBadge').textContent = spec.badge[1];
   $('#callState').textContent = spec.title;
@@ -189,10 +190,15 @@ if (embedded && window.parent !== window) {
   new ResizeObserver(report).observe(document.body); report();
 }
 
-request('/api/auth/status').then(auth => {
-  if (!auth.user) { signedOut(); return; }
-  $('#customerName').value = auth.user.name;
-  $('#nameField').hidden = true;
-  $('#callingAs').textContent = `Calling as ${auth.user.name}`; $('#callingAs').hidden = false;
-}).catch(() => {});
-checkReady();
+// ?autostart=1 (from Get support → Start voice call) begins the call right away, which shows the microphone prompt.
+const autostart = new URLSearchParams(location.search).has('autostart');
+Promise.all([
+  request('/api/auth/status').then(auth => {
+    if (!auth.user) { signedOut(); return false; }
+    $('#customerName').value = auth.user.name;
+    $('#nameField').hidden = true;
+    $('#callingAs').textContent = `Calling as ${auth.user.name}`; $('#callingAs').hidden = false;
+    return true;
+  }).catch(() => false),
+  checkReady(),
+]).then(([signedIn]) => { if (autostart && signedIn && voiceState === 'ready') $('#supportForm').requestSubmit(); });

@@ -15,6 +15,11 @@ from realapp.livekit_transport import LiveKitTransport
 from realapp.livekit_setup import LiveKitSetup, LiveKitCredentials, check_connection
 
 
+class ChatStart(BaseModel):
+    description: str = Field(min_length=10, max_length=8000)
+    language: str = Field(default='en', pattern=r'^[a-z]{2}(-[A-Z]{2})?$')
+
+
 class BrowserCallRequest(BaseModel):
     caller: str = Field(min_length=2, max_length=100)
     language: str = Field(default='en', pattern=r'^[a-z]{2}(-[A-Z]{2})?$')
@@ -130,7 +135,7 @@ def install_calling(app, settings, store, engine, update_ticket):
     @router.get('/api/customer/calls')
     def customer_calls(request: Request):
         actor = user(request)
-        return [{key:call.get(key) for key in ('id','status','created_at','case_id','technician_name')}
+        return [{key:call.get(key) for key in ('id','status','created_at','case_id','technician_name','origin','channel')}
                 for call in service.snapshot()['calls'] if call.get('customer_id') == actor['id']]
 
     def transcript_sources(actor):
@@ -276,6 +281,73 @@ def install_calling(app, settings, store, engine, update_ticket):
                 await session.queue.put(('Customer', None))
         return transport.customer_status(call)
 
+    # ---- Customer text chat. Reuses desk-request triage, AI replies and technician dispatch;
+    # every route is scoped to the signed-in customer who started the chat.
+    def chat_view(call):
+        case = service.case_store.get_case(call['case_id']) if call.get('case_id') else None
+        return {key: call.get(key) for key in ('id', 'status', 'technician_name', 'case_id', 'created_at', 'ended_at', 'last_error')} | {
+            'ticket_number': case.ticket.id if case else '',
+            'transcript': [{key: turn.get(key) for key in ('speaker', 'text', 'timestamp')} for turn in call.get('transcript', [])[-100:]]}
+
+    def own_chat(request, chat_id):
+        actor = user(request)
+        call = service.repository.mutate(lambda db: db['calls'].get(chat_id))
+        if not call or call.get('channel') != 'chat' or call.get('customer_id') != actor['id']:
+            raise HTTPException(404, 'Chat not found.')
+        return call
+
+    def ai_turn(call_id, background_tasks, resolve_on_confirm):
+        try:
+            reply = service.reply(call_id)
+            service.add_turn(call_id, "AI Agent", reply.reply)
+            if reply.escalate:
+                service.enqueue(call_id, "AI requested technician assistance")
+            elif resolve_on_confirm and reply.customer_confirmed_resolved:
+                call = service.get(call_id)
+                update_ticket(call["case_id"], TicketUpdate(state="Resolved", resolution="Customer confirmed the issue was fixed. " + reply.reply), background_tasks)
+                service.finish(call_id)
+        except Exception:
+            service.enqueue(call_id, "AI assistance is unavailable")
+
+    @router.post('/api/support/chats', status_code=201)
+    def start_chat(value: ChatStart, request: Request, background_tasks: BackgroundTasks):
+        actor = user(request)
+        call = service.create_call(actor['name'], language=value.language, customer_id=actor['id'])
+        service.repository.mutate(lambda db: db['calls'][call['id']].update(channel='chat'))
+        service.add_turn(call['id'], 'Customer', value.description)
+        call = service.triage(call['id'])
+        background_tasks.add_task(service.refresh_knowledge, call['id'])
+        if call['status'] == 'AI':
+            ai_turn(call['id'], background_tasks, resolve_on_confirm=False)
+        return chat_view(service.get(call['id']))
+
+    @router.get('/api/support/chats/{chat_id}')
+    def read_chat(chat_id: str, request: Request):
+        return chat_view(own_chat(request, chat_id))
+
+    @router.post('/api/support/chats/{chat_id}/messages')
+    def chat_message(chat_id: str, value: CustomerMessage, request: Request, background_tasks: BackgroundTasks):
+        call = own_chat(request, chat_id)
+        if call['status'] in TERMINAL:
+            raise HTTPException(409, 'This chat has ended. Start a new one if you still need help.')
+        service.add_turn(chat_id, 'Customer', value.text)
+        background_tasks.add_task(service.refresh_knowledge, chat_id)
+        if call['status'] == 'AI':
+            ai_turn(chat_id, background_tasks, resolve_on_confirm=True)
+        return chat_view(service.get(chat_id))
+
+    @router.post('/api/support/chats/{chat_id}/technician')
+    def chat_technician(chat_id: str, request: Request):
+        call = own_chat(request, chat_id)
+        if call['status'] in {'Triage', 'AI'}:
+            service.enqueue(chat_id, 'Customer asked for a technician')
+        return chat_view(service.get(chat_id))
+
+    @router.post('/api/support/chats/{chat_id}/end')
+    def end_chat(chat_id: str, request: Request):
+        own_chat(request, chat_id)
+        return chat_view(service.finish(chat_id))
+
     @router.post("/api/calling/requests", status_code=201)
     def support_request(value: SupportRequest, request: Request, background_tasks: BackgroundTasks):
         user(request)
@@ -310,6 +382,14 @@ def install_calling(app, settings, store, engine, update_ticket):
                 service.finish(call_id)
         except Exception:
             service.enqueue(call_id, "AI assistance is unavailable")
+        return service.get(call_id)
+
+    @router.post('/api/calling/{call_id}/reply')
+    def technician_reply(call_id: str, value: CustomerMessage, request: Request):
+        actor, call = own_call(request, call_id)
+        if call.get('channel') != 'chat' or call['status'] != 'Connected':
+            raise HTTPException(409, 'You can reply after you accept this chat.')
+        service.add_turn(call_id, 'Technician', value.text)
         return service.get(call_id)
 
     def own_call(request, call_id):

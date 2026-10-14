@@ -94,15 +94,15 @@ function renderCalling() {
   $('#callsAvailable').textContent = metrics.available;
   $('#callPerformance').textContent = `All time: ${metrics.total ?? 0} requests · ${metrics.completed ?? 0} completed · ${metrics.callbacks ?? 0} callbacks to follow up · ${metrics.average_wait_seconds ?? 0} s average wait before a technician connected.`;
   $('#callingSync').textContent = `✓ Updated ${new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}`;
-  patch($('#callList'), calls.length ? `<ul class="list">${calls.map(c => { const selected = c.id === calling.selected; return `<li class="list__row${selected ? ' is-selected' : ''}"><span class="list__main"><strong>${esc(c.caller)}</strong><span class="help">${esc(c.service)} · ${c.origin === 'browser' ? 'Browser call' : 'Desk request'} · ${esc(c.technician_name || (['AI','Triage'].includes(c.status) ? 'AI assistant' : 'Unassigned'))} · ${elapsed(c.created_at)} ago</span></span>${priorityBadge(c.priority)}${callBadge(c.status)}<button type="button" class="pop pop--quiet pop--sm" data-call-select="${esc(c.id)}" aria-pressed="${selected}"><span>${selected ? 'Viewing' : 'Open'}<span class="sr"> call from ${esc(c.caller)}</span></span></button></li>`; }).join('')}</ul>`
+  patch($('#callList'), calls.length ? `<ul class="list">${calls.map(c => { const selected = c.id === calling.selected; return `<li class="list__row${selected ? ' is-selected' : ''}"><span class="list__main"><strong>${esc(c.caller)}</strong><span class="help">${esc(c.service)} · ${(c.origin === 'browser' ? 'Browser call' : c.channel === 'chat' ? 'Chat' : 'Desk request')} · ${esc(c.technician_name || (['AI','Triage'].includes(c.status) ? 'AI assistant' : 'Unassigned'))} · ${elapsed(c.created_at)} ago</span></span>${priorityBadge(c.priority)}${callBadge(c.status)}<button type="button" class="pop pop--quiet pop--sm" data-call-select="${esc(c.id)}" aria-pressed="${selected}"><span>${selected ? 'Viewing' : 'Open'}<span class="sr"> call from ${esc(c.caller)}</span></span></button></li>`; }).join('')}</ul>`
     : calling.data.calls.length ? '<p class="sec">No calls match this search.</p>' : '<div class="empty"><h3 class="h4">The queue is empty</h3><p class="sec">Incoming browser calls and routed support requests appear here.</p></div>');
   const incoming = calling.data.incoming_calls || [];
   $('#sharedQueuePanel').hidden = !incoming.length;
-  patch($('#sharedQueue'), incoming.map(call => `<li class="list__row"><span class="list__main"><strong>${esc(call.origin === 'browser' ? 'Incoming browser call' : 'Support request')}</strong><span class="help">${esc(call.service)} · waiting ${elapsed(call.created_at)}</span></span>${priorityBadge(call.priority)}<button type="button" class="pop pop--sm" data-pickup-call="${esc(call.id)}"><span>Answer<span class="sr"> ${esc(call.service)} call</span></span></button></li>`).join(''));
+  patch($('#sharedQueue'), incoming.map(call => `<li class="list__row"><span class="list__main"><strong>${esc(call.origin === 'browser' ? 'Incoming browser call' : call.channel === 'chat' ? 'Incoming chat' : 'Support request')}</strong><span class="help">${esc(call.service)} · waiting ${elapsed(call.created_at)}</span></span>${priorityBadge(call.priority)}<button type="button" class="pop pop--sm" data-pickup-call="${esc(call.id)}"><span>Answer<span class="sr"> ${esc(call.service)} call</span></span></button></li>`).join(''));
   if ($('#technicianRows')) renderUsersTable();
   $('#incomingCallBanner').hidden = !offer;
   if (offer) {
-    patch($('#incomingCallBanner'), `<div class="stack stack--sm"><strong>◆ Incoming ${offer.origin === 'browser' ? 'call' : 'support request'} · ${esc(offer.caller)}</strong><span class="help">${esc(offer.service)} · answer within ${Math.max(0, Math.ceil(offer.reserved_until - Date.now()/1000))} seconds</span></div><button type="button" class="pop" data-call-select="${esc(offer.id)}">View request</button>`);
+    patch($('#incomingCallBanner'), `<div class="stack stack--sm"><strong>◆ Incoming ${offer.origin === 'browser' ? 'call' : offer.channel === 'chat' ? 'chat' : 'support request'} · ${esc(offer.caller)}</strong><span class="help">${esc(offer.service)} · answer within ${Math.max(0, Math.ceil(offer.reserved_until - Date.now()/1000))} seconds</span></div><button type="button" class="pop" data-call-select="${esc(offer.id)}">View request</button>`);
     if (calling.notice !== offer.dispatch_id) { calling.notice = offer.dispatch_id; calling.selected = offer.id; }
   }
   if (calling.selected) renderCallDetail();
@@ -122,7 +122,7 @@ async function selectCall(id) {
 }
 
 function renderCallDetail() {
-  if ($('#callReplyForm')?.contains(document.activeElement)) return;
+  if ($('#callReplyForm')?.contains(document.activeElement) || $('#techReplyForm')?.contains(document.activeElement)) return;
   const c = calling.data?.calls.find(c => c.id === calling.selected);
   if (!c) { patch($('#callWorkspace'), '<h2 class="h3">No call selected</h2><p class="sec">Choose a call to see the transcript, routing and linked incident.</p>'); $('#callTicketPanel').hidden = true; return; }
   const own = c.technician_id === calling.user.id, canManage = own || calling.user.role === 'admin';
@@ -143,7 +143,8 @@ function renderCallDetail() {
     ${c.last_error ? `<div class="alert" role="alert"><strong>✕ Call problem.</strong><span class="sec">${esc(c.last_error)}</span></div>` : ''}
     ${controls.length ? `<div class="row">${controls.join('')}</div>` : ''}
     <h3 class="h4">Conversation</h3>${c.transcript.length ? transcriptTurns(c.transcript) : '<p class="help">The transcript appears as people speak.</p>'}
-    ${c.origin === 'desk' && c.status === 'AI' ? '<form id="callReplyForm" class="stack stack--sm" novalidate><div class="field field--inline"><label for="callReplyText">Customer reply</label><textarea class="input" id="callReplyText" name="text" rows="2" required maxlength="4000"></textarea></div><div class="row"><button type="submit" class="pop pop--sm">Send reply</button><p class="form-status" id="callReplyMessage" role="status"></p></div></form>' : ''}
+    ${c.channel === 'chat' && c.status === 'Connected' && own ? '<form id="techReplyForm" class="stack stack--sm" novalidate><div class="field field--inline"><label for="techReplyText">Reply to customer</label><textarea class="input" id="techReplyText" name="text" rows="2" required maxlength="4000"></textarea></div><div class="row"><button type="submit" class="pop pop--sm">Send</button><p class="form-status" id="techReplyMessage" role="status"></p></div></form>' : ''}
+    ${c.origin === 'desk' && c.channel !== 'chat' && c.status === 'AI' ? '<form id="callReplyForm" class="stack stack--sm" novalidate><div class="field field--inline"><label for="callReplyText">Customer reply</label><textarea class="input" id="callReplyText" name="text" rows="2" required maxlength="4000"></textarea></div><div class="row"><button type="submit" class="pop pop--sm">Send reply</button><p class="form-status" id="callReplyMessage" role="status"></p></div></form>' : ''}
     <section class="stack stack--sm" aria-labelledby="callKnowledgeTitle"><h3 class="h4" id="callKnowledgeTitle">Suggested knowledge</h3><p class="help">${status === 'searching' ? '● Finding guidance for the latest customer problem…' : status === 'error' ? `✕ ${esc(c.knowledge_error)}` : 'AI suggestions, updated as the customer describes the issue. Verify before using.'}</p>
     ${guidance.map(k => `<details data-kb="${esc(k.id)}" ${openKnowledge.has(k.id) ? 'open' : ''}><summary><span class="mono">${esc(k.id)}</span>&nbsp;· ${esc(k.title)}</summary><p class="sec">${esc(k.excerpt)}</p><ol class="plain-steps">${k.steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol></details>`).join('') || `<p class="sec">${status === 'ready' ? 'No relevant articles found.' : 'Suggestions appear after the customer speaks.'}</p>`}</section>
     <details data-detail><summary>Routing history</summary><ol class="plain-steps">${c.events.slice().reverse().map(e => `<li><time class="help">${new Date(e.at).toLocaleTimeString()}</time> ${esc(e.text)}</li>`).join('')}</ol></details>`);
@@ -319,6 +320,7 @@ async function submitCallingForm(event, path, messageId, transform, after) {
 
 document.addEventListener('submit', event => {
   if (event.target.id === 'callReplyForm') submitCallingForm(event, `/api/calling/${calling.selected}/message`, '#callReplyMessage', null, async () => document.activeElement?.blur());
+  if (event.target.id === 'techReplyForm') submitCallingForm(event, `/api/calling/${calling.selected}/reply`, '#techReplyMessage', null, async () => { document.activeElement?.blur(); });
 });
 $('#technicianForm').addEventListener('change', event => {
   if (event.target.name !== 'role') return;
