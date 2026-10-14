@@ -1,4 +1,4 @@
-const calling = { user: null, data: null, knowledgeData: null, knowledgeSearch: '', selected: null, room: null, roomCallId: null, ready: false, auth: null, loading: false, notice: null, answering: null };
+const calling = { user: null, data: null, knowledgeData: null, knowledgeSearch: '', noteDrafts: {}, noteDraftTimers: {}, noteDraftSaves: {}, selected: null, room: null, roomCallId: null, ready: false, auth: null, loading: false, notice: null, answering: null };
 
 function elapsed(at) {
   if(!at)return '—';
@@ -89,7 +89,7 @@ function renderCalling() {
   $('#callList').className = calls.length ? 'call-list' : 'empty-list';
   $('#callList').innerHTML = calls.length ? calls.map(c => `<button class="call-row ${c.id === calling.selected ? 'selected' : ''}" data-call-select="${esc(c.id)}"><div><strong>${esc(c.caller)}</strong>${callBadge(c.status)}</div><p>${esc(c.service)} · ${esc(c.priority)} · ${c.origin === 'browser' ? 'Browser call' : 'Desk request'}</p><small>${esc(c.technician_name || (c.status === 'AI' ? 'AI assistant' : c.id))} · ${elapsed(c.created_at)} ago</small></button>`).join('') : 'No calls yet. Incoming calls and routed support requests appear here.';
   $('#sharedQueuePanel').hidden = !(calling.data.incoming_calls || []).length;
-  $('#sharedQueue').innerHTML = (calling.data.incoming_calls || []).map(call=>`<div class="incoming-handoff"><div class="panel-head"><div><strong>${esc(call.origin === 'browser' ? 'Incoming call' : 'Support request')}</strong><small>${esc(call.service)} · ${esc(call.priority)}</small></div><button class="primary small" data-pickup-call="${esc(call.id)}">Answer</button></div>${handoffCard(call)}</div>`).join('');
+  $('#sharedQueue').innerHTML = (calling.data.incoming_calls || []).map(call=>`<div class="incoming-handoff"><div class="panel-head"><div><strong>${esc(call.origin === 'browser' ? 'Incoming call' : 'Support request')}</strong><small>${esc(call.service)} · ${esc(call.priority)}${call.reserved_until ? ` · ${Math.max(0, Math.ceil(call.reserved_until - Date.now()/1000))} seconds to answer` : ''}</small></div><button class="primary small" data-pickup-call="${esc(call.id)}">Answer</button></div>${handoffCard(call)}</div>`).join('');
   const users = calling.data.users || technicians;
   $('#technicianRows').innerHTML = users.map(t => `<tr><td><strong>${esc(t.name)}</strong><br><small>${esc(t.role)} · ${esc(t.username)}</small></td><td>${t.role === 'customer' ? '—' : esc(t.skills.join(', '))}</td><td>${esc(t.languages.join(', '))}</td><td>${t.role === 'customer' ? '—' : callBadge(t.status)}</td><td>${t.role === 'customer' ? '—' : t.voice_ready ? 'Connected' : 'Not connected'}</td><td>${esc(t.current_call_id || '—')}</td></tr>`).join('');
   $('#techniciansEmpty').hidden = users.length > 0;
@@ -131,20 +131,17 @@ function renderActiveCallDock() {
   const active = call && (call.status === 'Connected' || calling.roomCallId === call.id);
   const onFullCallPage = $('#view-active-call').classList.contains('active');
   dock.hidden = !active || onFullCallPage;
-  $('#activeCallNav').hidden = !active;
   document.body.classList.toggle('has-active-call', !!active && !onFullCallPage);
   if (!active) return;
   const guidance = dynamicCallSuggestion(call);
   $('#activeCallIdentity').innerHTML = `<span class="call-status status-connected">LIVE CALL</span><strong>${esc(call.caller)}</strong><span>${esc(call.service)} · ${esc(call.id)}</span>`;
   $('#activeCallQuestion').textContent = guidance.question;
   $('#activeCallQuestionSource').textContent = guidance.source;
-  const matches = call.knowledge_matches || [];
-  $('#activeCallDockKnowledge').innerHTML = matches.length ? matches.slice(0, 2).map(item => `<article><button type="button" data-call-knowledge="${esc(item.id)}" data-call-knowledge-title="${esc(item.title)}">${esc(item.title)}</button><p>${esc(item.excerpt || item.steps?.[0] || '')}</p></article>`).join('') : `<p class="helper">${call.knowledge_status === 'searching' ? 'Finding related guidance…' : call.knowledge_status === 'error' ? esc(call.knowledge_error) : 'Related knowledge will appear as the customer describes the issue.'}</p>`;
-  const latest = (call.transcript || []).filter(turn => turn.text?.trim()).slice(-2);
-  $('#activeCallRecent').innerHTML = latest.length ? latest.map(turn => `<p><strong>${esc(turn.speaker)}:</strong> ${esc(turn.text)}</p>`).join('') : '<p class="helper">Waiting for conversation transcript.</p>';
+  const canManage = call.technician_id === calling.user?.id || calling.user?.role === 'admin';
+  $('#activeDockNoteEntry').hidden = call.status !== 'Connected' || !canManage;
+  $('#activeDockNoteText').dataset.callId = call.id;
+  if (document.activeElement !== $('#activeDockNoteText')) $('#activeDockNoteText').value = calling.noteDrafts[call.id] || '';
   $('#activeCallOpen').dataset.openCall = call.id;
-  $('#activeCallNav').dataset.openCall = call.id;
-  $('#activeCallNavLabel').textContent = `Active · ${call.caller}`;
   $('#activeCallFinish').dataset.finishCall = call.id;
   $('#activeCallMute').hidden = !calling.room || calling.roomCallId !== call.id;
   if (calling.room && calling.roomCallId === call.id) $('#activeCallMute').textContent = calling.room.localParticipant.isMicrophoneEnabled ? 'Mute' : 'Unmute';
@@ -160,7 +157,7 @@ async function selectCall(id) {
 }
 
 function renderCallDetail() {
-  if ($('#callReplyForm')?.contains(document.activeElement) || $('#callNoteForm')?.contains(document.activeElement) || $('#activeCallKbSearch')?.contains(document.activeElement)) return;
+  if ($('#callReplyForm')?.contains(document.activeElement) || $('#callNoteText')?.contains(document.activeElement) || $('#activeCallKbSearch')?.contains(document.activeElement)) return;
   const c = calling.data?.calls.find(c => c.id === calling.selected);
   if (!c) {$('#activeCallWorkspace').innerHTML='<p class="helper">Choose an active call to open its workspace.</p>';return;}
   const openKnowledge = new Set([...document.querySelectorAll('#activeCallKnowledge details[open]')].map(item=>item.dataset.kb));
@@ -179,22 +176,11 @@ function renderCallDetail() {
   const handoffBoilerplate = ['welcome to resolveai','this call is transcribed','please describe the issue','i am connecting you','i’m connecting you','i will connect you','a technician will help','please stay on the call'];
   const briefIssue = customerTurns[0]?.text || (customerTurns.length ? brief?.issue : 'No customer issue was captured before the call transferred.');
   const actualGuidance = (brief?.tried || []).filter(item => !handoffBoilerplate.some(phrase => item.toLowerCase().includes(phrase)));
-  const briefPanel = brief ? `<section class="handoff-brief"><h4>Technician handoff brief</h4><p><strong>Issue:</strong> ${esc(briefIssue)}</p>${brief.impact ? `<p><strong>Impact:</strong> ${esc(brief.impact)}</p>` : ''}${actualGuidance.length ? `<p><strong>Already tried:</strong></p><ul>${actualGuidance.map(item => `<li>${esc(item)}</li>`).join('')}</ul>` : '<p><strong>Already tried:</strong> No AI troubleshooting steps recorded.</p>'}${brief.outcome && customerTurns.length ? `<p><strong>Latest customer update:</strong> ${esc(brief.outcome)}</p>` : ''}<p><strong>Why transferred:</strong> ${esc(brief.handoff_reason)}</p><p><strong>Suggested next step:</strong> ${esc(brief.next_step)}</p></section>` : '';
-  const historyEvents = c.events.slice().reverse();
-  const repeatedErrorCounts = new Map();
-  historyEvents.forEach(item => { if (/failed|unavailable|interrupted/i.test(item.text)) repeatedErrorCounts.set(item.text, (repeatedErrorCounts.get(item.text) || 0) + 1); });
-  const shownErrors = new Set();
-  const historyHtml = historyEvents.map(e => {
-    const noisy = /failed|unavailable|interrupted/i.test(e.text);
-    if (noisy && shownErrors.has(e.text)) return '';
-    if (noisy) shownErrors.add(e.text);
-    const count = noisy ? repeatedErrorCounts.get(e.text) : 1;
-    return `<p><small>${new Date(e.at).toLocaleTimeString()}</small> ${esc(e.text)}${count > 1 ? ` <span class="helper">(repeated ${count} times)</span>` : ''}</p>`;
-  }).join('');
-  const joinHint = c.status === 'Queued' ? '<p class="queue-guidance">Waiting for a technician. Choose <strong>Answer</strong> in Incoming calls to join. Browser calls require calls enabled and microphone access.</p>' : c.status === 'Completed' && c.queued_at && !c.connected_at ? '<p class="queue-guidance ended">This call ended while waiting for a technician. Its audio room is closed and cannot be joined. Ask the customer to start another support call.</p>' : c.status === 'Completed' || c.status === 'Failed' ? '<p class="queue-guidance ended">This call has ended, so it cannot be joined.</p>' : '';
+  const latestCustomerUpdate = customerTurns.at(-1)?.text || brief?.outcome || '';
+  const briefPanel = brief ? `<section class="handoff-brief"><div class="panel-head"><h4>Live call brief</h4><span class="tag">Updates with call</span></div><p><strong>Issue:</strong> ${esc(briefIssue)}</p>${brief.impact ? `<p><strong>Impact:</strong> ${esc(brief.impact)}</p>` : ''}${actualGuidance.length ? `<p><strong>AI guidance shared:</strong></p><ul>${actualGuidance.map(item => `<li>${esc(item)}</li>`).join('')}</ul>` : ''}${latestCustomerUpdate ? `<p><strong>Latest customer update:</strong> ${esc(latestCustomerUpdate)}</p>` : ''}<p><strong>Why transferred:</strong> ${esc(brief.handoff_reason)}</p><p><strong>Suggested next step:</strong> ${esc(brief.next_step)}</p></section>` : '';
+  const joinHint = c.status === 'Queued' ? '<p class="queue-guidance">Waiting for a technician. Choose <strong>Answer</strong> in Incoming calls to join. Browser calls require calls enabled and microphone access.</p>' : '';
   const suggestion = dynamicCallSuggestion(c);
-  const techNotes = c.technician_notes || [];
-  $('#activeCallWorkspace').innerHTML = `<div class="panel-head"><div><p class="eyebrow">${esc(c.id)}</p><h3>${esc(c.caller)}</h3></div>${callBadge(c.status)}</div><p>${esc(c.summary)}</p><div class="call-context"><span>${esc(c.service)} · ${esc(c.priority)}</span><span>${esc(c.technician_name || 'Not assigned')}</span></div><p class="helper">${esc(c.reason)}</p>${c.status === 'Ringing' && !brief ? handoffCard(c) : ''}${c.last_error ? `<p class="form-message error">${esc(c.last_error)}</p>` : ''}${joinHint}${briefPanel}<section class="call-ai-suggestion"><p class="eyebrow">SUGGESTED QUESTION · UPDATES WITH THE CONVERSATION</p><p>${esc(suggestion.question)}</p><small>${esc(suggestion.source)}</small></section><div class="call-actions">${controls.join('')}</div><h4 class="call-section-label">Conversation</h4><div class="live-transcript">${c.transcript.map(t => `<div class="transcript-turn"><b>${esc(t.speaker)}${t.speaker_name ? ` · ${esc(t.speaker_name)}` : ''}</b><small>${t.timestamp ? new Date(t.timestamp).toLocaleTimeString() : ''}</small><p>${esc(t.text)}</p></div>`).join('') || '<p class="helper">The transcript will appear as participants speak.</p>'}</div><section class="call-notes"><h4>Technician comments</h4><div class="call-note-list">${techNotes.map(note => `<article><strong>${esc(note.author)}</strong><small>${note.timestamp ? new Date(note.timestamp).toLocaleTimeString() : ''}</small><p>${esc(note.text)}</p></article>`).join('') || '<p class="helper">Add internal notes for the ticket or the next technician.</p>'}</div>${c.status === 'Connected' && canManage ? `<form id="callNoteForm"><label for="callNoteText">Add a comment</label><textarea id="callNoteText" name="text" rows="3" maxlength="4000" required placeholder="Record what you checked, what the customer confirmed, or the next action…"></textarea><button class="secondary small" type="submit">Save comment</button><p class="form-message" id="callNoteMessage" role="status"></p></form>` : ''}</section><details class="routing-history"><summary>Routing history</summary>${historyHtml || '<p class="helper">No routing events recorded.</p>'}</details>`;
+  $('#activeCallWorkspace').innerHTML = `<div class="panel-head"><div><p class="eyebrow">${esc(c.id)}</p><h3>${esc(c.caller)}</h3></div>${callBadge(c.status)}</div>${c.status === 'Connected' && canManage ? `<section class="call-note-entry"><label for="callNoteText">Technician scratchpad</label><textarea id="callNoteText" data-call-id="${esc(c.id)}" rows="3" maxlength="4000" placeholder="Jot down a note; it will be attached to the incident when the call ends…">${esc(calling.noteDrafts[c.id] || '')}</textarea><small>Your scratchpad note will be added to the incident when you end the call.</small></section>` : ''}<p>${esc(c.summary)}</p><div class="call-context"><span>${esc(c.service)} · ${esc(c.priority)}</span><span>${esc(c.technician_name || 'Not assigned')}</span></div><p class="helper">${esc(c.reason)}</p>${c.status === 'Ringing' && !brief ? handoffCard(c) : ''}${c.last_error ? `<p class="form-message error">${esc(c.last_error)}</p>` : ''}${joinHint}${briefPanel}<section class="call-ai-suggestion"><p class="eyebrow">SUGGESTED QUESTION · UPDATES WITH THE CONVERSATION</p><p>${esc(suggestion.question)}</p><small>${esc(suggestion.source)}</small></section><div class="call-actions">${controls.join('')}</div>`;
   if (c.origin === 'desk' && c.status === 'AI') $('#activeCallWorkspace').insertAdjacentHTML('beforeend', '<form id="callReplyForm"><label>Customer reply<textarea name="text" rows="2" required maxlength="4000"></textarea></label><button class="primary small">Send reply</button><p class="form-message" id="callReplyMessage"></p></form>');
   renderCallKnowledge(c, openKnowledge);
   renderCallTicket(c);
@@ -356,7 +342,9 @@ document.addEventListener('click', async event => {
       const id = calling.selected, kind = action.dataset.callAction;
       if(kind==='accept') {await answerCall(id);return;}
       action.disabled = true;
-      const result = await api(`/api/calling/${id}/${kind}`, {method:'POST',body:'{}'});
+      const comment = kind === 'finish' ? (calling.noteDrafts[id] ?? $('#callNoteText')?.value ?? '') : '';
+      const result = await api(`/api/calling/${id}/${kind}`, {method:'POST',body:JSON.stringify({technician_comment:comment})});
+      if (kind === 'finish') delete calling.noteDrafts[id];
       if (kind === 'accept' && result.token) await acceptBrowserCall(id, result);
       if (['decline','finish','transfer'].includes(kind) && calling.roomCallId === id) {
         const room=calling.room; calling.room=null;calling.roomCallId=null;await room?.disconnect();
@@ -371,7 +359,9 @@ document.addEventListener('click', async event => {
     if (finishActiveCall) {
       const id = finishActiveCall.dataset.finishCall;
       finishActiveCall.disabled = true;
-      await api(`/api/calling/${id}/finish`, {method:'POST',body:'{}'});
+      const comment = calling.noteDrafts[id] ?? $('#activeDockNoteText')?.value ?? '';
+      await api(`/api/calling/${id}/finish`, {method:'POST',body:JSON.stringify({technician_comment:comment})});
+      delete calling.noteDrafts[id];
       if (calling.roomCallId === id) { const room=calling.room;calling.room=null;calling.roomCallId=null;await room?.disconnect(); }
       await loadCalling();
     }
@@ -420,7 +410,18 @@ $('#authForm').addEventListener('submit', event => submitCallingForm(event, call
 }));
 document.addEventListener('submit', event => {
   if (event.target.id === 'callReplyForm') submitCallingForm(event, `/api/calling/${calling.selected}/message`, '#callReplyMessage', null, async () => document.activeElement?.blur());
-  if (event.target.id === 'callNoteForm') submitCallingForm(event, `/api/calling/${calling.selected}/notes`, '#callNoteMessage', null, async () => document.activeElement?.blur());
+});
+document.addEventListener('input', event => {
+  const note = event.target.closest('#activeDockNoteText, #callNoteText');
+  if (!note?.dataset.callId) return;
+  const callId = note.dataset.callId;
+  const text = note.value;
+  calling.noteDrafts[callId] = text;
+  clearTimeout(calling.noteDraftTimers[callId]);
+  calling.noteDraftTimers[callId] = setTimeout(() => {
+    calling.noteDraftSaves[callId] = (calling.noteDraftSaves[callId] || Promise.resolve())
+      .catch(() => {}).then(() => api(`/api/calling/${callId}/note-draft`, {method:'PUT', body:JSON.stringify({text})}));
+  }, 350);
 });
 $('#activeCallKbSearch').addEventListener('input', event => {
   calling.knowledgeSearch = event.target.value;

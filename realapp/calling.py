@@ -200,10 +200,11 @@ class CallingService:
             incoming = []
             if actor and actor['role'] in {'admin', 'technician'}:
                 incoming = [{k:c.get(k) for k in ('id','origin','status','created_at','service','priority',
-                            'summary','attempted_steps','recommended_action','next_question')}
+                            'summary','attempted_steps','recommended_action','next_question','reserved_until')}
                             for c in calls if c['status'] in {'Queued','Ringing'} and not c.get('pickup_claimed')
                             and c.get('ready_at') is not None and c['ready_at'] <= self.now()
-                            and c['technician_id'] != actor['id']]
+                            and c['technician_id'] != actor['id']
+                            and (c['status'] == 'Queued' or actor['id'] in c.get('offered_technician_ids', []))]
             if actor and actor['role'] == 'technician':
                 calls = [c for c in calls if c['technician_id'] == actor['id']]
                 techs = [t for t in techs if t['id'] == actor['id']]
@@ -252,6 +253,8 @@ class CallingService:
             call = db["calls"][call_id]
             call["transcript"].append({"speaker": speaker, "text": text[:8000], "timestamp": stamp()})
             call["transcript"] = call["transcript"][-150:]
+            if call.get("handoff_brief"):
+                self._set_handoff_brief(call, call["handoff_brief"].get("handoff_reason"))
             return call
         call = self.repository.mutate(append, call_ids=(call_id,))
         if call["case_id"]:
@@ -266,6 +269,8 @@ class CallingService:
         def append(db):
             call = db["calls"][call_id]
             call.setdefault("technician_notes", []).append(note)
+            call.pop('technician_note_draft', None)
+            call.pop('technician_note_author', None)
             return call
         call = self.repository.mutate(append)
         if call.get("case_id"):
@@ -275,6 +280,18 @@ class CallingService:
                     author_type="Technician", text=text[:4000]))
                 self.case_store.save_case(case)
         return call
+
+    def save_technician_note_draft(self, call_id, author, text):
+        def save(db):
+            call = db['calls'][call_id]
+            if text.strip():
+                call['technician_note_draft'] = text[:4000]
+                call['technician_note_author'] = author
+            else:
+                call.pop('technician_note_draft', None)
+                call.pop('technician_note_author', None)
+            return call
+        return self.repository.mutate(save, call_ids=(call_id,))
 
     @staticmethod
     def knowledge_query(call):
@@ -425,11 +442,16 @@ class CallingService:
                 candidates = specialists or [t for t in eligible if "general" in t["skills"]]
                 if not candidates:
                     continue
-                tech = min(candidates, key=lambda t: (t["last_assigned"], t["name"], t["id"]))
+                candidates.sort(key=lambda t: (t["last_assigned"], t["name"], t["id"]))
+                offer_count = min(3, max(1, self.settings.call_offer_technician_count))
+                offered = candidates[:offer_count]
+                tech = offered[0]
                 tech.update(status="Busy", current_call_id=call["id"], last_assigned=now)
                 call.update(status="Ringing", technician_id=tech["id"], technician_name=tech["name"],
-                    reserved_until=now + self.settings.call_reservation_seconds, dispatch_id=uuid4().hex, dispatch_sent=False)
-                history(call, f"Offered to {tech['name']}")
+                    offered_technician_ids=[candidate['id'] for candidate in offered],
+                    reserved_until=now + self.settings.call_reservation_seconds, dispatch_id=uuid4().hex, dispatch_sent=False,
+                    pickup_claimed=False, pickup_claimed_at=None)
+                history(call, f"Offered to {', '.join(candidate['name'] for candidate in offered)}")
                 offers.append(call)
             return offers
         return self.repository.mutate(route)
@@ -448,7 +470,8 @@ class CallingService:
         if tech and tech["current_call_id"] == call["id"]:
             call["declined"][tech["id"]] = self.now() + 30
             tech.update(status=public_technician(tech)['availability'], current_call_id=None)
-        call.update(status="Queued", technician_id=None, technician_name="", reserved_until=None, dispatch_sent=False, pickup_claimed=False)
+        call.update(status="Queued", technician_id=None, technician_name="", offered_technician_ids=[], reserved_until=None,
+                    dispatch_sent=False, pickup_claimed=False, pickup_claimed_at=None)
         self._set_handoff_brief(call, reason)
         history(call, reason)
 
@@ -509,6 +532,8 @@ class CallingService:
             if call.get('ready_at') is None or call['ready_at'] > self.now():
                 raise HTTPException(409, 'The call is not ready for pickup yet.')
             mine = call['technician_id'] == tech_id
+            if call['status'] == 'Ringing' and not mine and tech_id not in call.get('offered_technician_ids', []):
+                raise HTTPException(409, 'This call was offered to other technicians.')
             if (not mine and (tech['status'] != 'Available' or tech['current_call_id'])) or self.now()-tech['last_seen'] > self.settings.technician_heartbeat_seconds:
                 raise HTTPException(409, 'Set yourself Available before answering a call.')
             if call['origin'] == 'browser' and not tech['voice_ready']:
@@ -521,6 +546,8 @@ class CallingService:
                             status='Ringing',reserved_until=self.now()+self.settings.call_reservation_seconds)
                 tech.update(status='Busy',current_call_id=call_id,last_assigned=self.now())
             call['pickup_claimed'] = True
+            call['pickup_claimed_at'] = self.now()
+            call['reserved_until'] = self.now() + self.settings.call_reservation_seconds
             return call
         return self.repository.mutate(claim, call_ids=(call_id,))
 
@@ -533,6 +560,10 @@ class CallingService:
         return self.repository.mutate(update, call_ids=(call_id,))
 
     def finish(self, call_id, status="Completed"):
+        pending = self.get(call_id)
+        if pending.get('status') == 'Connected' and pending.get('technician_note_draft', '').strip():
+            self.add_technician_note(call_id, pending.get('technician_note_author') or pending.get('technician_name') or 'Technician',
+                                     pending['technician_note_draft'])
         def update(db):
             call = db["calls"][call_id]
             if call["status"] in TERMINAL:

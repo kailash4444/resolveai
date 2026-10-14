@@ -24,6 +24,14 @@ class TechnicianCallNote(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
 
 
+class FinishCallRequest(BaseModel):
+    technician_comment: str = Field(default='', max_length=4000)
+
+
+class TechnicianCallNoteDraft(BaseModel):
+    text: str = Field(default='', max_length=4000)
+
+
 def install_calling(app, settings, store, engine, update_ticket):
     service = CallingService(settings, create_calling_store(settings), store, engine)
     transport = LiveKitTransport(settings, service)
@@ -336,6 +344,13 @@ def install_calling(app, settings, store, engine, update_ticket):
             raise HTTPException(409, "Technician notes can be added while the call is connected.")
         return service.add_technician_note(call_id, actor["name"], value.text.strip())
 
+    @router.put("/api/calling/{call_id}/note-draft")
+    def save_call_note_draft(call_id: str, value: TechnicianCallNoteDraft, request: Request):
+        actor, call = own_call(request, call_id)
+        if call["status"] != "Connected":
+            raise HTTPException(409, "Technician notes can be drafted while the call is connected.")
+        return service.save_technician_note_draft(call_id, actor['name'], value.text)
+
     @router.post("/api/calling/{call_id}/connected")
     async def connected(call_id: str, request: Request):
         actor = await asyncio.to_thread(user, request, staff=True)
@@ -349,8 +364,11 @@ def install_calling(app, settings, store, engine, update_ticket):
         return service.decline(call_id, actor["id"])
 
     @router.post("/api/calling/{call_id}/finish")
-    async def finish(call_id: str, request: Request):
-        _, call = own_call(request, call_id)
+    async def finish(call_id: str, request: Request, value: FinishCallRequest | None = None):
+        actor, call = own_call(request, call_id)
+        comment = (value.technician_comment if value else '').strip()
+        if comment and call['status'] == 'Connected':
+            service.add_technician_note(call_id, actor['name'], comment)
         return await transport.end(call_id) if call["origin"] == "browser" else service.finish(call_id)
 
     @router.post("/api/calling/{call_id}/transfer")

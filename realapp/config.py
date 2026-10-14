@@ -42,7 +42,8 @@ class Settings(BaseSettings):
     speech_language: str = 'en-IN'
     voice_silence_ms: int = 400
     voice_max_segment_seconds: int = 12
-    call_reservation_seconds: int = 25
+    call_reservation_seconds: int = 60
+    call_offer_technician_count: int = 3
     technician_heartbeat_seconds: int = 45
     call_queue_timeout_seconds: int = 300
     ai_routing_confidence: float = 0.85
