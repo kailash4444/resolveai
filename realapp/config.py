@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     gemini_provider: str = "google_ai"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.8-flash"
-    gemini_transcription_model: str = "gemini-3.8-flash"
+    gemini_transcription_model: str = "gemini-3.5-transcribe"
     gemini_tts_model: str = "gemini-3.8-flash-lite-tts"
     gemini_voice: str = "Kore"
     embedding_model: str = "gemini-embedding-001"

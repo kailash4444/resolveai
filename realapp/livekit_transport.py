@@ -8,6 +8,8 @@ import secrets
 import time
 import wave
 import logging
+import re
+from collections import deque
 from datetime import timedelta
 
 from fastapi import HTTPException
@@ -17,34 +19,67 @@ from realapp.calling import TERMINAL
 from realapp.livekit_setup import check_connection, livekit_client
 
 
+def _safe_provider_error(error):
+    """Keep useful provider diagnostics in local logs without logging credentials."""
+    message = getattr(error, 'message', None)
+    if not isinstance(message, str):
+        return ''
+    message = re.sub(r'AIza[0-9A-Za-z_-]{20,}', '[redacted-key]', message)
+    message = re.sub(r'(?i)(api[_ -]?key|authorization|access[_ -]?token)(\s*[=:]\s*)[^\s,}\]]+', r'\1\2[redacted]', message)
+    return ' '.join(message.split())[:240]
+
+
 class AudioTurns:
-    """Bound 16-bit, 16 kHz mono utterances by silence and duration."""
+    """Adaptive endpointer for 16-bit 16 kHz mono audio.
+
+    This detects acoustic activity only; transcription and meaning are handled later.
+    """
     def __init__(self, threshold=450):
-        self.threshold, self.buffer, self.silence, self.voiced = threshold, bytearray(), 0, 0
+        self.threshold = max(90, threshold)
+        self.buffer = bytearray()
+        self.silence = self.voiced = 0
         self.noise_floor = 30.0
+        self.pre_roll = deque(maxlen=6)  # 120 ms at the 20 ms frames used by LiveKit.
+        self.onset_frames = deque(maxlen=4)
+        self.active = False
 
     def feed(self, pcm):
+        if not pcm:
+            return
         level = audioop.rms(pcm, 2)
-        # Adapt to quiet microphones instead of dropping everything below a fixed
-        # loudness threshold. Only learn background noise between utterances.
-        threshold = min(self.threshold, max(90, self.noise_floor * 3))
-        speech = level >= threshold
-        if not speech and not self.buffer:
-            self.noise_floor = self.noise_floor * .95 + level * .05
-        if speech:
+        onset_threshold = min(self.threshold, max(90, self.noise_floor * 3.0))
+        release_threshold = max(65, onset_threshold * 0.68)
+        if not self.active:
+            is_speech = level >= onset_threshold
+            self.onset_frames.append((pcm, is_speech))
+            if sum(is_speech for _, is_speech in self.onset_frames) >= 3:
+                self.active = True
+                self.buffer.extend(b''.join(self.pre_roll))
+                self.buffer.extend(b''.join(frame for frame, _ in self.onset_frames))
+                self.voiced = sum(len(frame) for frame, is_speech in self.onset_frames if is_speech)
+                self.onset_frames.clear()
+                self.silence = 0
+            else:
+                if not is_speech:
+                    self.pre_roll.append(pcm)
+                    self.noise_floor = self.noise_floor * .98 + level * .02
+        elif level >= release_threshold:
             self.voiced += len(pcm)
             self.silence = 0
-        elif self.buffer:
-            self.silence += len(pcm)
-        if speech or self.buffer:
             self.buffer.extend(pcm)
-        if self.buffer and (self.silence >= 22400 or len(self.buffer) >= 384000):
+        else:
+            self.silence += len(pcm)
+            self.buffer.extend(pcm)
+        if self.active and (self.silence >= 20800 or len(self.buffer) >= 384000):
             return self.flush()
 
     def flush(self):
         raw = bytes(self.buffer) if self.voiced >= 6400 else None
         self.buffer.clear()
         self.silence = self.voiced = 0
+        self.active = False
+        self.onset_frames.clear()
+        self.pre_roll.clear()
         if raw:
             output = io.BytesIO()
             with wave.open(output, 'wb') as stream:
@@ -267,10 +302,19 @@ class BrowserSession:
             if not done.cancelled():
                 error = done.exception()
                 if error and not self.closed:
-                    logging.getLogger(__name__).error('Call worker failed: %s', type(error).__name__)
-                    self.service.error(self.call_id, 'Audio processing was interrupted. Restart your microphone or start a new call.')
+                    code = getattr(error, 'code', None)
+                    safe_code = code if isinstance(code, (str, int)) else 'unknown'
+                    detail = _safe_provider_error(error)
+                    logging.getLogger(__name__).error('Call worker failed (%s; provider code %s): %s', type(error).__name__, safe_code, detail)
+                    self.service.error(self.call_id, 'ResolveAI could not produce a voice response. The call is being routed to a technician.')
+                    self.task(self.recover_voice_failure())
         task.add_done_callback(consume_error)
         return task
+
+    async def recover_voice_failure(self):
+        call = await asyncio.to_thread(self.service.get, self.call_id)
+        if call['status'] in {'Triage', 'AI'}:
+            await self.escalate('Voice assistant unavailable')
 
     async def connect(self):
         @self.room.on('track_subscribed')
@@ -370,9 +414,12 @@ class BrowserSession:
         async with self.speech_lock:
             if self.closed:
                 return
-            self.service.add_turn(self.call_id, 'AI Agent', text)
             async def publish():
                 pcm = await asyncio.to_thread(self.service.engine.synthesize, text)
+                if not pcm:
+                    raise RuntimeError('Speech synthesis returned empty audio.')
+                # Only record an AI turn once audio has actually been generated.
+                self.service.add_turn(self.call_id, 'AI Agent', text)
                 for start in range(0, len(pcm), 960):
                     chunk = pcm[start:start + 960]
                     if len(chunk) % 2:
@@ -440,8 +487,12 @@ class BrowserSession:
                 await self.process_utterance(speaker, chunk)
             except asyncio.CancelledError:
                 raise
-            except Exception:
-                self.service.error(self.call_id, 'Voice processing failed. The request is retained for technician assistance.')
+            except Exception as error:
+                code = getattr(error, 'code', None)
+                safe_code = code if isinstance(code, (str, int)) else 'unknown'
+                detail = _safe_provider_error(error)
+                logging.getLogger(__name__).error('Voice turn failed (%s; provider code %s): %s', type(error).__name__, safe_code, detail)
+                self.service.error(self.call_id, 'ResolveAI could not process or speak that turn. The request is retained for technician assistance.')
                 call = self.service.get(self.call_id)
                 if call['status'] in {'Triage', 'AI'}:
                     try:

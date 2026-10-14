@@ -56,6 +56,8 @@ body[data-role="customer"] #callPreferenceControl{display:none!important}
 .quality-metric strong{display:block;font-size:30px;margin:12px 0;color:#147054}
 .quality-metric h4{margin:0}.quality-metric p{line-height:1.6}
 .transcript-detail{margin-top:22px}.transcript-detail .live-transcript{max-height:650px}
+.handoff-brief{margin:16px 0;padding:16px 18px;border:1px solid #cfe2d5;border-left:4px solid #39815d;border-radius:10px;background:#f2f8f3}.handoff-brief h4{margin:0 0 12px;color:#214a36}.handoff-brief p{margin:8px 0;line-height:1.5;font-size:13px}.handoff-brief ul{margin:4px 0 12px;padding-left:22px;font-size:13px}.handoff-brief li{padding:3px 0;line-height:1.45}
+.queue-guidance{margin:14px 0;padding:12px 15px;border-radius:9px;background:#eef6f0;border:1px solid #d7e6db;color:#315844;font-size:13px;line-height:1.55}.queue-guidance.ended{background:#fff7ed;border-color:#eedec8;color:#725126}
 .transcript-detail .panel-head{gap:18px}.transcript-list-row{cursor:pointer}
 .transcript-assessment details{border:1px solid #dce7e1;border-radius:10px;padding:14px;margin-top:12px}
 .transcript-assessment summary{cursor:pointer;font-weight:700}.transcript-assessment blockquote{margin:12px 0;border-left:3px solid #81b299;padding-left:14px}
