@@ -81,7 +81,12 @@ function showView(name) {
   } else if (!state.user) document.title = VIEW_TITLES.signin;
   state.currentView = name;
 
-  if (name === "customer-home") { loadCustomerCalls(); loadCustomerIncidents(); }
+  if (name === "customer-home") {
+    // Load the voice card only for a signed-in customer; signed out it would redirect into a nested copy of the app.
+    const frame = $('#voiceFrame');
+    if (state.user?.role === 'customer' && !frame.getAttribute('src')) frame.src = frame.dataset.src;
+    loadCustomerCalls(); loadCustomerIncidents();
+  }
   if (name === "tickets") loadCases();
   if (name === "knowledge") loadKnowledge();
   if (name === "analytics") selectReportTab("analytics", reportTabs.analytics);

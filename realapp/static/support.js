@@ -59,7 +59,7 @@ async function request(path, options = {}) {
   let result = {};
   try { result = await response.json(); } catch (_) {}
   if (!response.ok) {
-    if (response.status === 401 && !session) { location.href = '/?next=support'; }
+    if (response.status === 401 && !session) { signedOut(); }
     throw new Error(typeof result.detail === 'string' ? result.detail : 'The call could not be started. Please try again.');
   }
   return result;
@@ -162,6 +162,14 @@ $('#askTechnician').addEventListener('click', async () => {
 $('#resumeAudioButton').addEventListener('click', async () => { await room?.startAudio(); $('#resumeAudioButton').hidden = true; });
 window.addEventListener('pagehide', () => { if (session) fetch(`/api/support/calls/${session.call_id}/end`, {method: 'POST', headers: {'X-Support-Token': session.access_token}, keepalive: true}).catch(() => {}); });
 
+// Signed out: a standalone page goes to sign-in; the embedded card offers a link that opens in the full window.
+function signedOut() {
+  if (!embedded) { location.href = '/?next=support'; return; }
+  setState('error', {badge: ['badge--low', '○ Signed out'], title: 'Your session has ended', text: 'Sign in again to call support.', show: []});
+  $('#supportRecovery').hidden = false; $('#reportInstead').hidden = false;
+  $('#reportInstead').textContent = 'Sign in again'; $('#reportInstead').href = '/login?role=customer';
+}
+
 async function checkReady() {
   setState('checking');
   if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) { setState('unsupported'); return; }
@@ -182,7 +190,7 @@ if (embedded && window.parent !== window) {
 }
 
 request('/api/auth/status').then(auth => {
-  if (!auth.user) { location.href = '/?next=support'; return; }
+  if (!auth.user) { signedOut(); return; }
   $('#customerName').value = auth.user.name;
   $('#nameField').hidden = true;
   $('#callingAs').textContent = `Calling as ${auth.user.name}`; $('#callingAs').hidden = false;
