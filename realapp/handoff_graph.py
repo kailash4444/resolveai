@@ -138,7 +138,7 @@ def build_handoff_graph(case, candidates, knowledge_matches):
         if similar.ticket.resolution.strip():
             detail += f"\nRecorded resolution: {similar.ticket.resolution[:440]}"
         identifier = node(f"similar:{similar.id}", 'similar_case', match['ticket_id'], detail,
-                          title=match['title'], state=match['state'], priority=match['priority'],
+                          title=similar.ticket.short_description, state=match['state'], priority=match['priority'],
                           outcome=match['outcome'], similarity_terms=match['similarity_terms'],
                           created_at=match['created_at'], demo_dataset=match['demo_dataset'],
                           case_id=similar.id, source_label='Historical incident')

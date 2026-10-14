@@ -338,7 +338,9 @@
   byId('tmFirstFailure').addEventListener('click', () => jumpTo(item => item.type === 'failed_attempt', 'No explicitly failed action with a reliable timestamp is recorded.'));
   byId('tmDecisionJump').addEventListener('click', () => jumpTo(item => item.type === 'technician_action' || item.type === 'status_change', 'No timestamped technician decision or state change is recorded.'));
   byId('tmResolution').addEventListener('click', () => jumpTo(item => item.type === 'status_change' && /resolved/i.test(item.title), 'No recorded resolved-state transition is available.'));
-  byId('tmRecurrence').addEventListener('click', () => jumpTo(item => /reopen|recurr|again|returned/i.test(`${item.title} ${item.detail}`), 'No explicit recurrence or reopening record was found in this incident.'));
+  byId('tmRecurrence').addEventListener('click', () => jumpTo(item =>
+    item.type === 'status_change' && /^Resolved\s*→\s*(?!Resolved\b)/i.test(item.title),
+    'No recorded reopening after resolution was found in this incident.'));
   byId('tmReset').addEventListener('click', () => {
     stopPlayback(); state.cursor = Math.max(0, state.dated.length - 1); state.categories = new Set(allCategories); state.zoom = 1; state.compare = []; state.nodePositions.clear();
     byId('tmRetrospective').checked = false; byId('tmZoomLabel').textContent = '100%'; renderFilters(); renderTimeline(); renderInspector();
