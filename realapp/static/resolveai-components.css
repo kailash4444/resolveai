@@ -1258,3 +1258,15 @@ p + .turns{margin-top:10px}
 /* Back arrow at the top-left of the workspace bar. */
 .topbar__back{flex:none;width:40px;height:40px}
 .chat-note{align-self:center;margin:4px 0;padding:4px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--border);font-size:13px;color:var(--text-2)}
+/* Analytics: chart cards sit side by side in a fixed grid (2 across, 4 on very wide screens, 1 on phones), every card
+   the same size; anything longer scrolls inside its card with its header row kept in view. */
+.chart-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:1700px){.chart-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:760px){.chart-grid{grid-template-columns:minmax(0,1fr)}}
+.chart-grid .card > .help{margin:0}
+.chart-grid .tbl-wrap.chart__body .tbl{min-width:0}
+.chart-grid .tbl-wrap.chart__body thead th,#view-analytics .tbl-wrap:not(.chart__body) thead th{position:sticky;top:0;z-index:1}
+#view-analytics .tbl-wrap:not(.chart__body){max-height:400px;overflow:auto}
+/* Tables inside a chart-sized card are compact so every column fits; long labels wrap. */
+.chart-grid .chart__body .tbl :is(th,td){padding:9px 8px;font-size:13px;white-space:normal;overflow-wrap:break-word}
+.chart-grid .chart__body .tbl thead th{white-space:nowrap}

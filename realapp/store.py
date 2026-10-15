@@ -2,7 +2,7 @@ from copy import deepcopy
 import json
 import sqlite3
 from pathlib import Path
-from threading import RLock
+from threading import Lock, RLock
 
 from realapp.knowledge import SEED_ARTICLES
 from realapp.models import (CaseRecord, EngineeringFollowup, IssueCluster, KnowledgeArticle,
@@ -123,6 +123,19 @@ class FirestoreStore:
         self.radar_assessments = self.client.collection(f"{collection}_resolution_assessments")
         self.radar_clusters = self.client.collection(f"{collection}_resolution_clusters")
         self.radar_followups = self.client.collection(f"{collection}_engineering_followups")
+        # Lists of incidents and articles are cached per server instance. Every write bumps a counter in the numbers
+        # document (inside the same transaction), so one small read tells any instance whether its copy is current.
+        self._cache_lock = Lock()
+        self._cases_cache = None       # (cases_version, [CaseRecord])
+        self._knowledge_cache = None   # (knowledge_version, [KnowledgeArticle])
+
+    def _versions(self):
+        snapshot = self.numbers.get()
+        return snapshot.to_dict() if snapshot.exists else {}
+
+    @staticmethod
+    def _bump(meta, key):
+        meta[key] = meta.get(key, 0) + 1
 
     def save_case(self, case: CaseRecord) -> CaseRecord:
         from google.cloud import firestore
@@ -134,6 +147,7 @@ class FirestoreStore:
             meta = counter.to_dict() if counter.exists else {}
             existing = CaseRecord.model_validate(snapshot.to_dict()) if snapshot.exists else None
             saved = assign_case(case,existing,meta)
+            self._bump(meta, 'cases_version')
             transaction.set(self.numbers,meta)
             transaction.set(ref,saved.model_dump(mode='json'))
             return saved
@@ -149,7 +163,11 @@ class FirestoreStore:
             current = CaseRecord.model_validate(snapshot.to_dict()) if snapshot.exists else None
             if current and current == original:
                 current.qa_checks, current.quality_score = audit.checks, audit.quality_score
+                counter = self.numbers.get(transaction=transaction)
+                meta = counter.to_dict() if counter.exists else {}
+                self._bump(meta, 'cases_version')
                 transaction.update(ref, {'qa_checks': current.model_dump(mode='json')['qa_checks'], 'quality_score': current.quality_score})
+                transaction.set(self.numbers, meta)
             return current
 
         return commit(self.client.transaction())
@@ -159,15 +177,31 @@ class FirestoreStore:
         return CaseRecord.model_validate(snapshot.to_dict()) if snapshot.exists else None
 
     def list_cases(self) -> list[CaseRecord]:
-        return sorted((CaseRecord.model_validate(doc.to_dict()) for doc in self.cases.stream()), key=lambda c: c.created_at, reverse=True)
+        version = self._versions().get('cases_version', 0)
+        with self._cache_lock:
+            cached = self._cases_cache
+        if cached and cached[0] == version:
+            return [case.model_copy(deep=True) for case in cached[1]]
+        cases = sorted((CaseRecord.model_validate(doc.to_dict()) for doc in self.cases.stream()), key=lambda c: c.created_at, reverse=True)
+        with self._cache_lock:
+            self._cases_cache = (version, cases)
+        return [case.model_copy(deep=True) for case in cases]
 
     def list_cases_for_service(self, service: str) -> list[CaseRecord]:
         docs = self.cases.where('ticket.service', '==', service).stream()
         return [CaseRecord.model_validate(doc.to_dict()) for doc in docs]
 
     def list_knowledge(self) -> list[KnowledgeArticle]:
+        version = self._versions().get('knowledge_version', 0)
+        with self._cache_lock:
+            cached = self._knowledge_cache
+        if cached and cached[0] == version:
+            return [article.model_copy(deep=True) for article in cached[1]]
         articles = [KnowledgeArticle.model_validate(doc.to_dict()) for doc in self.knowledge.stream()]
-        return sorted(articles or [deepcopy(a) for a in SEED_ARTICLES], key=lambda a: a.id)
+        articles = sorted(articles or [deepcopy(a) for a in SEED_ARTICLES], key=lambda a: a.id)
+        with self._cache_lock:
+            self._knowledge_cache = (version, articles)
+        return [article.model_copy(deep=True) for article in articles]
 
     def add_knowledge(self, value: KnowledgeArticleInput) -> KnowledgeArticle:
         from google.cloud import firestore
@@ -179,6 +213,7 @@ class FirestoreStore:
             current = self.knowledge.document(key).get(transaction=transaction) if key else None
             existing = KnowledgeArticle.model_validate(current.to_dict()) if current and current.exists else None
             saved = assign_article(value,existing,meta)
+            self._bump(meta, 'knowledge_version')
             transaction.set(self.numbers,meta)
             transaction.set(self.knowledge.document(saved.id),saved.model_dump(mode='json'))
             return saved
@@ -202,6 +237,7 @@ class FirestoreStore:
             old_ids = {doc.id for doc in article_docs} - {a.id for a in articles}
             for key in old_ids: transaction.delete(self.knowledge.document(key))
             for article in articles: transaction.set(self.knowledge.document(article.id),article.model_dump(mode='json'))
+            self._bump(meta, 'cases_version'); self._bump(meta, 'knowledge_version')
             transaction.set(self.numbers,meta)
             return aliases
         return convert(self.client.transaction())

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/resolveai-components.css?v=20261015-ux17">
+  <link rel="stylesheet" href="/static/resolveai-components.css?v=20261015-ux21">
   <script src="/static/theme.js?v=7"></script>
 </head>
 <body data-role="guest" data-shell="public" data-mode="focus">
@@ -490,7 +490,7 @@
           <article class="card stack"><h2 class="h3">Calls by service</h2><div id="callServiceChart"></div></article>
           <article class="card stack"><h2 class="h3">Calls by status</h2><div id="callStateChart"></div></article>
           <article class="card stack"><h2 class="h3">Calls by day</h2><div id="callDailyChart"></div></article>
-          <article class="card stack"><h2 class="h3" id="techPerfTitle">Technician performance</h2><div class="tbl-wrap" role="region" aria-labelledby="techPerfTitle" tabindex="0"><table class="tbl"><thead><tr><th scope="col">Technician</th><th scope="col">Calls</th><th scope="col">Completed</th><th scope="col">Quality</th></tr></thead><tbody id="callTechnicianRows"></tbody></table></div></article>
+          <article class="card stack"><h2 class="h3" id="techPerfTitle">Technician performance</h2><p class="help">Calls handled and completed by each technician</p><div class="tbl-wrap chart__body" role="region" aria-labelledby="techPerfTitle" tabindex="0"><table class="tbl"><thead><tr><th scope="col">Technician</th><th scope="col">Calls</th><th scope="col">Completed</th><th scope="col">Quality</th></tr></thead><tbody id="callTechnicianRows"></tbody></table></div></article>
         </div>
         <article class="card stack"><h2 class="h3" id="callScoresTitle">Call quality scores</h2><div class="tbl-wrap" role="region" aria-labelledby="callScoresTitle" tabindex="0"><table class="tbl"><thead><tr><th scope="col">Call ID</th><th scope="col">Technician</th><th scope="col" class="col-opt">Service</th><th scope="col">Overall score</th><th scope="col">Percent</th></tr></thead><tbody id="callAnalyticsRows"></tbody></table></div><nav id="callAnalyticsPagination" class="pagination" aria-label="Call pages" hidden></nav></article>
       </div>
@@ -654,7 +654,7 @@
   <script src="/static/voice-browser.js?v=6"></script>
   <script src="/static/shell.js?v=20261015-ux"></script>
   <script src="/static/uploader.js?v=20261015-qa"></script>
-  <script src="/static/app.js?v=20261015-ux9"></script>
+  <script src="/static/app.js?v=20261015-ux10"></script>
   <script src="/static/auth.js?v=15"></script>
   <script src="/static/landing.js?v=2"></script>
   <script src="/static/support-hub.js?v=10"></script>

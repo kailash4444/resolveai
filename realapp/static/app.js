@@ -1354,8 +1354,11 @@ window.loadApplication = async () => {
     // Signed in: hide whatever was on screen (landing, log in) and show a short loading state until the first page is ready.
     if(!state.currentView || state.currentView==='signin'){$$('.view').forEach(view=>view.classList.remove('active'));$('#appLoading').hidden=false;}
     if((['/login','/signup'].includes(location.pathname) || new URLSearchParams(location.search).get('auth')==='login') && new URLSearchParams(location.search).get('next')!=='support'){history.replaceState(null,'',window.Shell.home(auth.user.role));}
-    // Settings, knowledge and (for admins) users load together rather than one after another.
-    await Promise.all([loadConfig(),loadKnowledge(),auth.user.role==='admin'?api('/api/users').then(users=>{state.users=users;}):null]);
+    // Only the (quick) settings are needed before the first page shows. Knowledge and, for admins, the user list load
+    // in the background; the pages that use them load or refresh them when they open.
+    await loadConfig();
+    loadKnowledge().then(() => { if (typeof renderCallSearch === 'function') renderCallSearch(); }).catch(() => {});
+    if (auth.user.role === 'admin') api('/api/users').then(users => { state.users = users; }).catch(() => {});
     const params=new URLSearchParams(location.search);
     if(params.get('next')==='support'){location.href='/support';return;}
     if(params.get('ticket'))return openTicketDetails(params.get('ticket'));
