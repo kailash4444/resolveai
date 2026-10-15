@@ -244,7 +244,8 @@ progress.meter,meter.meter{width:100%;height:10px;accent-color:var(--edge)}
 
 /* ---- App shell: sidebar (.side), top bar, drawer at 768 and below ---- */
 .brand{display:inline-flex;align-items:center;gap:12px;min-height:44px;font-weight:800;font-size:20px;color:var(--text);text-decoration:none}
-.brand__mark{width:36px;height:36px;border-radius:8px;background:var(--text);color:var(--canvas);display:grid;place-items:center;font-size:18px}
+/* Brand mark: the theme accent (Evergreen green in light mode, Graphite in dark mode). */
+.brand__mark{width:36px;height:36px;border-radius:8px;background:var(--edge);color:var(--on-edge);display:grid;place-items:center;font-size:18px}
 .view:not(.active){display:none}
 body[data-shell="staff"] .shell{display:grid;grid-template-columns:var(--side-w) minmax(0,1fr);min-height:100vh}
 .shell__side{position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding:20px 8px 24px;background:var(--surface-2);border-right:1px solid var(--border)}
@@ -827,8 +828,8 @@ body[data-shell="customer"] :is(.shell__main,.shell__notices){max-width:1440px}
 
 /* ---- Motion: three timings, one easing; only transform, opacity, colours and shadows ever animate. ---- */
 /* Page and route changes: the new view fades in from 6px below. */
-.view.active{animation:view-in var(--t-slow) var(--ease)}
-@keyframes view-in{from{opacity:0;transform:translateY(6px)}}
+.view.active{animation:view-in 140ms var(--ease)}
+@keyframes view-in{from{opacity:.4}}
 /* Theme switch: theme.js adds .theme-fade only while toggling, so first paint never animates. */
 :root.theme-fade,:root.theme-fade *{transition:background-color var(--t-slow) var(--ease),color var(--t-slow) var(--ease),border-color var(--t-slow) var(--ease),fill var(--t-slow) var(--ease)}
 
@@ -1172,6 +1173,14 @@ th:hover .sort-arrow, .column-sort:hover .sort-arrow, .column-sort:focus-visible
 .dock-msg:last-child{border:0;padding:0}
 .dock-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px}
 .dock-actions .btn-soft{background:color-mix(in srgb,var(--surface) 55%,transparent);border-color:color-mix(in srgb,var(--surface) 70%,var(--border))}
+/* Desktop: the live-call panel fills most of the window below the top bar; its three sections stretch to the bottom
+   and scroll on their own. The page stays visible through the glass. */
+@media (min-width:861px){
+  .call-dock{height:calc(100vh - 72px - 36px);min-height:420px}
+  .dock-grid{flex:1;min-height:0;align-items:stretch}
+  .dock-pane{min-height:0}
+  .dock-scroll{flex:1;max-height:none;min-height:0}
+}
 @media (max-width:860px){
   .call-dock{position:fixed;top:auto;bottom:calc(12px + env(safe-area-inset-bottom,0px));left:16px;right:16px;z-index:30;max-height:min(72vh,calc(100vh - 24px));overflow-y:auto;margin:0;padding:12px 14px;gap:10px;animation-name:dock-up}
   @keyframes dock-up{from{opacity:0;transform:translateY(24px)}}
@@ -1270,3 +1279,45 @@ p + .turns{margin-top:10px}
 /* Tables inside a chart-sized card are compact so every column fits; long labels wrap. */
 .chart-grid .chart__body .tbl :is(th,td){padding:9px 8px;font-size:13px;white-space:normal;overflow-wrap:break-word}
 .chart-grid .chart__body .tbl thead th{white-space:nowrap}
+
+/* ---- Full call page, ordered by importance: fixed-size cards that scroll inside ---- */
+.calls--focused .call-page{width:100%;max-width:1100px;margin-inline:auto}
+.cf-grid{display:grid;gap:16px;align-items:start}
+.cf-grid--chat{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}
+.cf-grid--call{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.cf-col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.cf-card{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden;padding:16px}
+.cf-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:4px;scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+.cf-body:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
+.cf-chat{height:632px}
+.cf-kb{height:250px}.cf-steps{height:210px}.cf-pad{height:140px}
+.cf-steps--main{height:250px}.cf-pad--main{height:330px}.cf-kb--tall{height:596px}
+.cf-chat .chat-window{flex:1;height:auto;min-height:0}
+.cf-chat__actions{display:flex;gap:8px;padding-top:10px;border-top:1px solid var(--border)}
+.cf-chat__actions:empty{display:none}
+.cf-live{color:var(--ok);font-weight:700}
+.cf-kb-hint{margin:0}
+.cf-pad__text{flex:1;min-height:0;resize:none}
+/* AI summary banner: collapses after 10 seconds; a thin bar counts down. */
+.cf-summary{position:relative;display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:hidden;padding:12px 40px 14px 14px;border:1px solid var(--border);border-left:4px solid var(--edge);border-radius:12px;
+  background:color-mix(in srgb,var(--edge) 7%,var(--surface));transition:max-height .35s var(--ease),padding .35s var(--ease),opacity .35s var(--ease),border-width .35s var(--ease)}
+.cf-summary.is-collapsed{max-height:0;padding-block:0;opacity:0;border-width:0}
+.cf-summary__text{margin:0;font-size:16px;line-height:1.45}
+.cf-summary__brief{margin:0;font-size:13px}
+.cf-summary__close{position:absolute;top:6px;right:8px;width:30px;height:30px;border:0;border-radius:8px;background:none;color:var(--text-2);font-size:18px;cursor:pointer}
+.cf-summary__close:hover{background:var(--surface-2);color:var(--text)}
+.cf-summary__close:focus-visible{outline:2px solid var(--focus)}
+.cf-summary__bar{position:absolute;left:0;bottom:0;height:3px;width:100%;background:var(--edge)}
+.cf-summary-chip{align-self:flex-start;min-height:34px;padding:0 12px;font-size:13px;color:var(--link)}
+/* One slim strip for the call's state. */
+.cf-strip{display:flex;align-items:center;gap:10px;height:56px;margin:0;padding:0 14px;overflow:hidden;border:1px solid var(--border);border-left:4px solid var(--high);border-radius:12px;background:var(--surface)}
+.cf-strip strong{white-space:nowrap}
+.cf-strip .sec{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (prefers-reduced-motion:reduce){.cf-summary,.cf-summary__bar{transition:none!important}}
+@media (max-width:760px){
+  .cf-grid--chat,.cf-grid--call{grid-template-columns:minmax(0,1fr)}
+  .cf-grid--call .cf-col--side{order:-1}          /* phones: Knowledge, AI next steps, Scratch pad */
+  .cf-strip{height:auto;min-height:56px;padding-block:8px;flex-wrap:wrap}
+  .cf-strip .sec{white-space:normal}
+}
+.calls--focused .calls-grid{margin-top:0}

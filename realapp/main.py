@@ -527,10 +527,17 @@ async def add_case_attachment(case_id: str, http: Request):
     return visible_case(store.save_case(case), user)
 
 
+def list_view(case: CaseRecord) -> CaseRecord:
+    """Lists show summaries. The conversation, work notes, image analysis and matched articles (most of each incident's
+    size) load when the incident itself is opened."""
+    ticket = case.ticket.model_copy(update={'work_notes': [], 'visual_analysis': None})
+    return case.model_copy(update={'transcript': [], 'knowledge_matches': [], 'ticket': ticket})
+
+
 @app.get("/api/cases", response_model=list[CaseRecord])
 def list_cases(http: Request, ticket_number: str = '', assigned_to: str = ''):
     user = actor(http)
-    return [visible_case(case, user) for case in store.list_cases() if can_read(case, user)
+    return [list_view(visible_case(case, user)) for case in store.list_cases() if can_read(case, user)
             and ticket_number.strip().casefold() in case.ticket.id.casefold()
             and (not assigned_to or (not case.ticket.assigned_to if assigned_to == '__unassigned__'
                  else assigned_to.strip().casefold() == case.ticket.assigned_to.casefold()))]
@@ -683,7 +690,7 @@ def reporting_tickets(http: Request):
     user = actor(http)
     if user['role'] not in {'admin', 'technician'}:
         raise HTTPException(403, 'Technician access is required.')
-    return [visible_case(case, user) for case in store.list_cases() if can_report(case, user)]
+    return [list_view(visible_case(case, user)) for case in store.list_cases() if can_report(case, user)]
 
 
 @app.post('/api/qa/rerun-all', status_code=202)

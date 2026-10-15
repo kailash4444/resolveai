@@ -62,7 +62,7 @@
 
   // ---- Voice: the embedded call page starts immediately, which triggers the microphone prompt. ----
   function startVoice() {
-    voiceActive = true;
+    voiceActive = true; callStartedAt = Date.now() / 1000; watchVoiceCall();
     const frame = $('#voiceFrame');
     frame.src = `${frame.dataset.src}&autostart=1&t=${Date.now()}`;
     show('voice');
@@ -102,11 +102,31 @@
     if (event.source !== $('#voiceFrame').contentWindow) return;
     if (voiceActive && ['ended', 'error'].includes(event.data.state)) {
       refreshAfterSupport();
-      if (event.data.state === 'ended') returnToOptions('Call ended. Your incident stays on My support.', 6000);
+      returnToOptions('Call ended. Your incident stays on My support.', event.data.state === 'ended' ? 6000 : 4000);
     }
     voiceActive = ['requesting', 'connecting', 'active', 'muted', 'requested', 'connected', 'reconnecting'].includes(event.data.state);
     if (!$('#voicePanel').hidden) show('voice');
   });
+
+  // Second safeguard for calls: while a call is open, check the customer's own newest call on the server. When it has
+  // finished (the technician or the assistant ended it), Get support goes back to its options even if the call window
+  // never reported the end.
+  let callStartedAt = 0, voiceWatch = null;
+  function watchVoiceCall() {
+    clearInterval(voiceWatch);
+    voiceWatch = setInterval(async () => {
+      if ($('#voicePanel').hidden) { clearInterval(voiceWatch); return; }
+      try {
+        const calls = await api('/api/customer/calls');
+        const mine = calls.filter(call => call.channel !== 'chat' && call.created_at >= callStartedAt - 5).sort((a, b) => b.created_at - a.created_at)[0];
+        if (mine && ENDED.has(mine.status)) {
+          clearInterval(voiceWatch); voiceActive = false;
+          refreshAfterSupport();
+          returnToOptions('Call ended. Your incident stays on My support.', 3000);
+        }
+      } catch (_) {}
+    }, 3000);
+  }
 
   // ---- Chat ----
   const who = turn => turn.speaker === 'Customer' ? 'You' : turn.speaker === 'AI Agent' ? 'ResolveAI assistant' : (chat?.technician_name || 'Technician');

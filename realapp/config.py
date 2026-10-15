@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     call_offer_technician_count: int = 3
     technician_heartbeat_seconds: int = 45
     call_queue_timeout_seconds: int = 300
+    chat_idle_close_seconds: int = 600
     ai_routing_confidence: float = 0.85
     firestore_collection: str = "resolveai_cases"
     enable_demo_data: bool = False

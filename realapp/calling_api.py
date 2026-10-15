@@ -198,10 +198,28 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
         actor = user(request, staff=True)
         data = service.snapshot(actor)
         data['technicians'] = [t for t in data['technicians'] if t['role'] in {'admin', 'technician'}]
-        data["calls"] = [{k: v for k, v in c.items() if k not in {"customer_token_hash", "draft_case", "typing"}} | (
-            {'customer_typing': service.is_typing(c, 'customer')} if c.get('channel') == 'chat' else {}) for c in data["calls"]]
+        data["calls"] = [call_view(c, full=c['status'] not in TERMINAL) for c in data["calls"]]
         data.update(user=actor, voice=transport.config())
         return data
+
+    # The calls feed is polled every few seconds, so finished calls are sent as summaries; the call page fetches a
+    # finished call's conversation and history once, from the route below.
+    HEAVY = {'transcript', 'events', 'knowledge_matches', 'handoff_brief', 'attempted_steps', 'technician_notes', 'technician_note_draft'}
+    def call_view(call, full=True):
+        view = {k: v for k, v in call.items() if k not in {"customer_token_hash", "draft_case", "typing"} and (full or k not in HEAVY)}
+        if call.get('channel') == 'chat':
+            view['customer_typing'] = service.is_typing(call, 'customer')
+        if not full:
+            view['trimmed'] = True
+        return view
+
+    @router.get("/api/calling/calls/{call_id}")
+    def read_call(call_id: str, request: Request):
+        actor = user(request, staff=True)
+        call = service.get(call_id)
+        if actor['role'] != 'admin' and call.get('technician_id') != actor['id']:
+            raise HTTPException(404, "Call not found.")
+        return call_view(call)
 
     @router.get('/api/customer/calls')
     def customer_calls(request: Request):

@@ -255,6 +255,7 @@ class LiveKitTransport:
 
     async def maintenance(self):
         await asyncio.to_thread(self.service.dispatch)
+        await asyncio.to_thread(self.service.close_idle_chats)
         for call_id, session in list(self.sessions.items()):
             if session.finalizing:
                 continue

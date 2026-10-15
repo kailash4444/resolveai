@@ -138,6 +138,7 @@ class CallingService:
         from realapp.gemini import GeminiEngine
         self.knowledge_engine = engine if isinstance(engine, GeminiEngine) else GeminiEngine(settings, case_store.list_knowledge)
         self._ticket_lock = RLock()
+        self._idle_checked = 0
         self.on_finished = None
         # Running apps schedule durable post-call jobs; standalone integrations may supply an executor.
         self.background = None
@@ -340,6 +341,8 @@ class CallingService:
             call["transcript"].append({"speaker": speaker, "text": text[:8000], "timestamp": stamp()})
             # Whoever just sent a message has stopped typing.
             call.setdefault('typing', {})['customer' if speaker == 'Customer' else 'agent'] = 0
+            if speaker == 'Customer':
+                call['customer_active_at'] = self.now()
             call["transcript"] = call["transcript"][-150:]
             if speaker == 'Customer' and call['status'] not in TERMINAL:
                 call.pop('ai_resolution', None)
@@ -498,7 +501,25 @@ class CallingService:
             call = db['calls'].get(call_id)
             if call and call['status'] not in TERMINAL:
                 call.setdefault('typing', {})[who] = self.now() + seconds
+                if who == 'customer':
+                    call['customer_active_at'] = self.now()
         self.repository.mutate(mark, call_ids=(call_id,))
+
+    def close_idle_chats(self, every=30):
+        """End technician chats the customer has left: nothing sent or typed for chat_idle_close_seconds. Otherwise the
+        technician stays 'on a call' and gets no new offers. Checked at most every `every` seconds."""
+        now, limit = self.now(), self.settings.chat_idle_close_seconds
+        if now - self._idle_checked < every:
+            return []
+        self._idle_checked = now
+        idle = [c['id'] for c in self.repository.read(lambda db: list(db['calls'].values()))
+                if c.get('channel') == 'chat' and c['status'] == 'Connected'
+                and now - max(c.get('customer_active_at') or 0, c.get('connected_at') or 0) > limit]
+        for call_id in idle:
+            self.add_turn(call_id, 'AI Agent', f'This chat was closed because there was no reply for {limit // 60} minutes. '
+                          'Start a new chat any time if you still need help.')
+            self.finish(call_id)
+        return idle
 
     def is_typing(self, call, who):
         return call.get('status') not in TERMINAL and (call.get('typing') or {}).get(who, 0) > self.now()

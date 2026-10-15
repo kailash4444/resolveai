@@ -112,3 +112,31 @@ def test_chats_are_never_offered_to_a_technician_who_is_on_a_call(webapp):
     casey.post(f"/api/support/chats/{chat['id']}/technician")
     service.dispatch()
     assert service.get(chat['id'])['technician_id'] != tara_id and service.get(chat['id'])['status'] == 'Queued'
+
+
+def test_a_chat_the_customer_left_is_closed_and_frees_the_technician(webapp):
+    app, service, _ = _setup(webapp)
+    casey = _client(app, 'casey', 'casey-password-1234')
+    chat = casey.post('/api/support/chats', json={'description': 'My VPN keeps disconnecting every few minutes.'}).json()
+    casey.post(f"/api/support/chats/{chat['id']}/technician")
+    tara = _client(app, 'tara', 'tara-password-1234', 'technician')
+    tara_id = service.authenticate(tara.cookies.get('resolveai_session'))['id']
+    service.presence(tara_id, 'Available'); service.heartbeat(tara_id, False)
+    assert tara.post(f"/api/calling/{chat['id']}/accept").status_code == 200
+
+    start, clock = service.now(), service.now
+    # The customer still typing counts as being there.
+    service.now = lambda: start + 400
+    casey.post(f"/api/support/chats/{chat['id']}/typing")
+    service.now = lambda: start + 900
+    assert service.close_idle_chats(every=0) == [] and service.get(chat['id'])['status'] == 'Connected'
+
+    service.now = lambda: start + 400 + service.settings.chat_idle_close_seconds + 1
+    try:
+        assert service.close_idle_chats(every=0) == [chat['id']]
+    finally:
+        service.now = clock
+    closed = casey.get(f"/api/support/chats/{chat['id']}").json()
+    assert closed['status'] == 'Completed' and 'no reply' in closed['transcript'][-1]['text']
+    tech = next(t for t in service.snapshot()['technicians'] if t['id'] == tara_id)
+    assert tech['current_call_id'] is None

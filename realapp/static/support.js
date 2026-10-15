@@ -79,12 +79,17 @@ function endedBy(call) {
 // The audio room closed. Ask the server why before deciding: a call that was ended normally isn't an error.
 async function audioClosed() {
   const current = session;
-  try {
-    const call = await request(`/api/support/calls/${current.call_id}`);
+  // The audio can close a moment before the server records that the call was ended, so check a few times.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      const call = await request(`/api/support/calls/${current.call_id}`);
+      if (session !== current) return;
+      if (call.status === 'Completed') return await finish('ended', endedBy(call), false);
+      if (call.status === 'Callback requested') return await finish('ended', {title: 'No technician was available', text: 'Nobody could take the call right now. Please try again later, or report the issue in writing.'}, false);
+    } catch (_) {}
+    await new Promise(resolve => setTimeout(resolve, 1000));
     if (session !== current) return;
-    if (call.status === 'Completed') return await finish('ended', endedBy(call), false);
-    if (call.status === 'Callback requested') return await finish('ended', {title: 'No technician was available', text: 'Nobody could take the call right now. Please try again later, or report the issue in writing.'}, false);
-  } catch (_) {}
+  }
   if (session === current) finish('error', {text: 'The voice connection ended. Start another call to continue.'});
 }
 
