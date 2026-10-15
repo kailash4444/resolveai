@@ -73,6 +73,7 @@ VIEW_ACCESS.admin = [...VIEW_ACCESS.technician, 'technicians'];
 const VIEW_TITLES = {signin: 'ResolveAI · Less firefighting. More resolution.', 'customer-home': 'My support', 'customer-create': 'Report an issue', overview: 'Overview', case: 'Conversation intake', tickets: 'Tickets', 'ticket-detail': 'Ticket details', 'time-machine': 'Incident Time Machine', 'resolution-radar': 'Resolution debt', calls: 'Calls & queue', transcripts: 'Transcripts', analytics: 'Analytics', knowledge: 'Knowledge', qa: 'Quality audit', technicians: 'Users', denied: 'No access', notfound: 'Not found'};
 function homeView(user = state.user) { return !user ? 'signin' : user.role === 'customer' ? 'customer-home' : user.role === 'technician' ? 'calls' : 'overview'; }
 function showView(name) {
+  $('#appLoading').hidden = true;
   if (name === 'configuration') name = homeView();
   if (name === 'call-analytics') {name = 'analytics'; reportTabs.analytics = 'calls';}
   if (!state.user) name = 'signin';
@@ -1298,9 +1299,11 @@ window.loadApplication = async () => {
   try {
     const auth=await api('/api/auth/status');applyAccountRole(auth.user);
     if(!auth.user){showView('signin');await window.Auth.showPublic(auth);return;}
+    // Signed in: hide whatever was on screen (landing, log in) and show a short loading state until the first page is ready.
+    if(!state.currentView || state.currentView==='signin'){$$('.view').forEach(view=>view.classList.remove('active'));$('#appLoading').hidden=false;}
     if((['/login','/signup'].includes(location.pathname) || new URLSearchParams(location.search).get('auth')==='login') && new URLSearchParams(location.search).get('next')!=='support'){history.replaceState(null,'',window.Shell.home(auth.user.role));}
-    await Promise.all([loadConfig(),loadKnowledge()]);
-    if(auth.user.role==='admin')state.users=await api('/api/users');
+    // Settings, knowledge and (for admins) users load together rather than one after another.
+    await Promise.all([loadConfig(),loadKnowledge(),auth.user.role==='admin'?api('/api/users').then(users=>{state.users=users;}):null]);
     const params=new URLSearchParams(location.search);
     if(params.get('next')==='support'){location.href='/support';return;}
     if(params.get('ticket'))return openTicketDetails(params.get('ticket'));
@@ -1313,7 +1316,7 @@ window.loadApplication = async () => {
     document.body.dataset.entry = path;
     const routeView = path === '/portal' ? 'customer-home' : path === '/console' ? 'calls' : path === '/admin' ? 'overview' : null;
     showView(params.get('view') || routeView || (auth.user.role==='customer'?'customer-home':auth.user.role==='technician'?'calls':'overview'));
-  } catch(error){showFeedback(error.message, true);}
+  } catch(error){$('#appLoading').hidden=true;showFeedback(error.message, true);}
 };
 window.addEventListener('popstate', () => {
   if (!state.user) return;

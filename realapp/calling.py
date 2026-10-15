@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 import hashlib
 import hmac
@@ -97,6 +98,9 @@ class CallingService:
         self.knowledge_engine = engine if isinstance(engine, GeminiEngine) else GeminiEngine(settings, case_store.list_knowledge)
         self._ticket_lock = RLock()
         self.on_finished = None
+        # When set (the running app), the incident for a finished browser call is written in the background, so
+        # "End call" returns at once instead of waiting 20-45 s for the AI analysis. Unset, it runs inline.
+        self.background = None
 
     def has_users(self):
         return self.repository.read(lambda db: bool(db["technicians"]), call_ids=())
@@ -611,10 +615,24 @@ class CallingService:
             return call
         call = self.repository.mutate(update, call_ids=(call_id,))
         if call['origin'] == 'browser' and not call['case_id']:
-            self.finalize_ticket(call_id)
+            if self.background:
+                self.background.submit(self.finalize_ticket_safely, call_id)
+            else:
+                self.finalize_ticket(call_id)
         if self.on_finished:
             self.on_finished(call_id)
         return self.get(call_id)
+
+    def finalize_ticket_safely(self, call_id):
+        try:
+            self.finalize_ticket(call_id)
+        except Exception as error:
+            logging.getLogger(__name__).warning('Incident for %s not created yet (%s); retried on next start', call_id, type(error).__name__)
+
+    def needs_incident(self, call):
+        """A finished browser call whose incident hasn't been written (for example the process stopped mid-analysis)."""
+        return (call['origin'] == 'browser' and call['status'] in TERMINAL and not call.get('case_id')
+                and any(turn['speaker'] == 'Customer' and turn['text'].strip() for turn in call.get('transcript', [])))
 
     def finalize_ticket(self, call_id):
         with self._ticket_lock:

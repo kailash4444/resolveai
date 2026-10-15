@@ -146,7 +146,8 @@
       const next = mode === 'staff' ? null : nextParam();
       if (next) { location.assign(NEXT[next]); return; }
       history.replaceState(null, '', window.Shell.home(user.role));
-      $('#authPage').hidden = true; $('#landing').hidden = false;
+      // Straight into the workspace: never flash the landing page while it loads.
+      $('#authPage').hidden = true; $('#appLoading').hidden = false;
       form.reset();
       await window.loadApplication();
       if (path === '/api/auth/register') window.toast?.(`Welcome, ${user.name}. Your account is ready.`);

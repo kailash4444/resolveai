@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/resolveai-components.css?v=20261015-qa">
+  <link rel="stylesheet" href="/static/resolveai-components.css?v=20261015-qa3">
   <script src="/static/theme.js?v=7"></script>
 </head>
 <body data-role="guest" data-shell="public" data-mode="focus">
@@ -42,6 +42,7 @@
       <div id="signOutCallNotice" class="alert" role="alert" tabindex="-1" hidden><strong>✕ You’re on an active call.</strong><span class="sec" id="signOutCallMessage">Finish or transfer your call in Calls &amp; queue before logging out, so the customer isn’t dropped.</span><button type="button" class="btn btn-soft btn-sm" data-view="calls">Go to call</button></div>
     </div>
     <main id="mainContent" class="shell__main" tabindex="-1">
+    <div class="app-loading" id="appLoading" role="status" hidden><span class="app-loading__spin" aria-hidden="true"></span>Opening your workspace…</div>
     <section class="view" id="view-denied" aria-labelledby="deniedTitle">
       <div class="empty stack"><h1 id="deniedTitle">You don’t have access to this page</h1><p class="sec">Your account role doesn’t include this area. If you need it, ask your administrator.</p><div class="row" style="justify-content:center"><button class="btn btn-primary" type="button" data-go-home>Go to your workspace</button></div></div>
     </section>
@@ -658,8 +659,8 @@
   <script src="/static/voice-browser.js?v=6"></script>
   <script src="/static/shell.js?v=20261015-qa"></script>
   <script src="/static/uploader.js?v=20261015-qa"></script>
-  <script src="/static/app.js?v=20261015-vectors"></script>
-  <script src="/static/auth.js?v=10"></script>
+  <script src="/static/app.js?v=20261015-vectors2"></script>
+  <script src="/static/auth.js?v=12"></script>
   <script src="/static/landing.js?v=2"></script>
   <script src="/static/support-hub.js?v=6b"></script>
   <script src="/static/resolution-radar.js?v=5"></script>

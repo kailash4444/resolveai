@@ -1035,3 +1035,8 @@ th:hover .sort-arrow, .column-sort:hover .sort-arrow, .column-sort:focus-visible
 #qa-calls-panel .split { min-width:0; grid-template-columns:minmax(0,1fr); }
 #qa-calls-panel .split > * { min-width:0; }
 #view-qa .tbl-wrap { position:relative; }
+
+/* Shown between log in and the first workspace page, instead of the landing page. */
+.app-loading{display:flex;align-items:center;justify-content:center;gap:12px;min-height:50vh;color:var(--text-2);font-size:15px;font-weight:600}
+.app-loading[hidden]{display:none}
+.app-loading__spin{width:20px;height:20px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--text);animation:spin .8s linear infinite}

@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import time
 import hmac
@@ -47,6 +48,7 @@ def install_calling(app, settings, store, engine, update_ticket):
     quality = CallQuality(service)
     app.state.call_quality = quality
     service.on_finished = quality.submit
+    service.background = ThreadPoolExecutor(max_workers=2, thread_name_prefix='incident')
     app.state.voice = transport
     app.state.calling_task = None
     app.state.qa_tasks = set()
@@ -536,6 +538,10 @@ def install_calling(app, settings, store, engine, update_ticket):
             if call["origin"] != "desk" and call["status"] not in TERMINAL:
                 service.error(call["id"], "Voice service restarted. Please start a new call.")
                 service.finish(call["id"], "Failed")
+        # Finish writing incidents that a restart interrupted (incident ids are deterministic, so this can't duplicate).
+        for call in service.snapshot()["calls"]:
+            if service.needs_incident(call):
+                service.background.submit(service.finalize_ticket_safely, call["id"])
         app.state.calling_task = asyncio.create_task(loop())
         try:
             yield
