@@ -26,6 +26,10 @@ class MemoryCallingStore:
             self.data = data
             return deepcopy(result)
 
+    def read(self, operation, call_ids=None):
+        with self.lock:
+            return deepcopy(operation(deepcopy(self.data)))
+
 
 class SQLiteCallingStore:
     def __init__(self, path):
@@ -39,6 +43,12 @@ class SQLiteCallingStore:
         with sqlite3.connect(self.path, timeout=20) as db:
             data = json.loads(db.execute('SELECT body FROM routing WHERE id=1').fetchone()[0])
             return data['calls'].get(call_id)
+
+    def read(self, operation, call_ids=None):
+        # Read-only: no write lock, so reads never wait behind heartbeats or call updates.
+        with sqlite3.connect(self.path, timeout=20) as db:
+            data = json.loads(db.execute('SELECT body FROM routing WHERE id=1').fetchone()[0])
+        return deepcopy(operation(data))
 
     def mutate(self, operation, call_ids=None):
         with sqlite3.connect(self.path, timeout=20, isolation_level=None) as db:
@@ -72,6 +82,15 @@ class FirestoreCallingStore:
     def get_call(self, call_id):
         snapshot = self.calls.document(call_id).get()
         return snapshot.to_dict() if snapshot.exists else None
+
+    def read(self, operation, call_ids=None):
+        """Read-only snapshot without a transaction. Firestore transactions lock what they read, so using them for
+        lookups (sessions, the calls overview) made every request queue behind heartbeats and call updates."""
+        snapshot = self.ref.get()
+        data = snapshot.to_dict() if snapshot.exists else empty_state()
+        docs = (self.calls.stream() if call_ids is None else (self.calls.document(cid).get() for cid in call_ids))
+        data["calls"] = {doc.id: doc.to_dict() for doc in docs if doc.exists}
+        return operation(data)
 
     def mutate(self, operation, call_ids=None):
         from google.cloud import firestore

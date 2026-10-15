@@ -619,7 +619,7 @@ function staffTicketDetails(item) {
     <div class="stack stack--lg">
       <section class="card stack" aria-labelledby="fieldsTitle"><h2 class="h3" id="fieldsTitle">Ticket fields</h2>${ticketForm(item)}</section>
       ${followupPanels(item)}
-      ${renderAttachments(t.attachments, false, t)}${transcriptPanel(item)}
+      ${renderAttachments(t.attachments, false, t)}${renderVisualAnalysis(t, item.id)}${staffAssist(item)}${transcriptPanel(item)}
     </div>
     <aside class="stack detail-aside" aria-label="Ticket summary">
       <section class="card stack stack--sm" aria-labelledby="assignTitle"><h2 class="h4" id="assignTitle">Assignment</h2><p>${esc(t.assigned_to || 'Unassigned')}</p><p class="help">${esc(t.assignment_group)}</p><p class="help">${admin ? 'Change it in Ticket fields.' : 'Only administrators can reassign tickets.'}</p></section>

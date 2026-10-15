@@ -99,7 +99,7 @@ class CallingService:
         self.on_finished = None
 
     def has_users(self):
-        return self.repository.mutate(lambda db: bool(db["technicians"]), call_ids=())
+        return self.repository.read(lambda db: bool(db["technicians"]), call_ids=())
 
     def create_technician(self, value, first=False):
         salt = secrets.token_hex(16)
@@ -163,7 +163,7 @@ class CallingService:
             session = db["sessions"].get(hashed)
             if session and session["expires"] > self.now():
                 return public_technician(db["technicians"][session["technician_id"]])
-        return self.repository.mutate(read, call_ids=())
+        return self.repository.read(read, call_ids=())
 
     def logout(self, token, tech_id):
         def remove(db):
@@ -175,6 +175,22 @@ class CallingService:
         self.repository.mutate(remove, call_ids=())
 
     def heartbeat(self, tech_id, voice_ready):
+        # Browsers beat every 10 s. Writing last_seen each time kept the shared routing document busy; write only when
+        # something changed or last_seen is a third of the way to expiring (presence still updates well within 45 s).
+        def current(db):
+            tech = db["technicians"].get(tech_id)
+            if not tech or tech['role'] not in {'admin', 'technician'}:
+                return None
+            preferences = public_technician(tech)
+            unchanged = (tech.get('availability') == preferences['availability'] and tech.get('calls_enabled') == preferences['calls_enabled']
+                         and tech.get('voice_ready') == (voice_ready and preferences['calls_enabled'])
+                         and (tech['current_call_id'] or tech.get('status') == tech.get('availability'))
+                         and self.now() - tech.get('last_seen', 0) < self.settings.technician_heartbeat_seconds / 3)
+            return public_technician(tech) if unchanged else None
+        fresh = self.repository.read(current, call_ids=())
+        if fresh:
+            return fresh
+
         def update(db):
             tech = db["technicians"][tech_id]
             if tech['role'] not in {'admin', 'technician'}:
@@ -237,7 +253,7 @@ class CallingService:
                                 "demo_available": sum(t.get("demo_available", False) for t in techs),
                                 "available": sum(t['role'] in {'admin','technician'} and t["status"] == "Available"
                                     and (t['voice_ready'] and self.now()-t['last_seen'] <= self.settings.technician_heartbeat_seconds) or t.get('demo_available', False) for t in techs)}}
-        return self.repository.mutate(read)
+        return self.repository.read(read)
 
     def get(self, call_id):
         call = self.repository.get_call(call_id)
@@ -246,7 +262,7 @@ class CallingService:
         return call
 
     def by_sid(self, sid):
-        return self.repository.mutate(lambda db: next((c for c in db["calls"].values() if c["provider_sid"] == sid), None))
+        return self.repository.read(lambda db: next((c for c in db["calls"].values() if c["provider_sid"] == sid), None))
 
     def create_call(self, caller, origin="desk", provider_sid=None, language="en", customer_id=''):
         def create(db):
@@ -291,7 +307,7 @@ class CallingService:
             call.pop('technician_note_draft', None)
             call.pop('technician_note_author', None)
             return call
-        call = self.repository.mutate(append)
+        call = self.repository.mutate(append, call_ids=(call_id,))
         if call.get("case_id"):
             case = self.case_store.get_case(call["case_id"])
             if case:
@@ -427,7 +443,7 @@ class CallingService:
             self._set_handoff_brief(call, reason)
             history(call, f"Transferred to technician queue: {reason}")
             return call
-        call = self.repository.mutate(update)
+        call = self.repository.mutate(update, call_ids=(call_id,))
         if call["case_id"]:
             case = self.case_store.get_case(call["case_id"])
             if case:
@@ -482,7 +498,7 @@ class CallingService:
                 return False
             call["dispatch_sent"] = True
             return True
-        return self.repository.mutate(claim)
+        return self.repository.mutate(claim, call_ids=(call_id,))
 
     def _release(self, db, call, reason, away=False):
         tech = db["technicians"].get(call["technician_id"])
@@ -503,7 +519,7 @@ class CallingService:
                 raise HTTPException(403, "This offer belongs to another technician.")
             self._release(db, call, reason, away=True)
             return call
-        return self.repository.mutate(update)
+        return self.repository.mutate(update, call_ids=(call_id,))
 
     def accept(self, call_id, tech_id, dispatch_id=None):
         def update(db):
@@ -593,7 +609,7 @@ class CallingService:
             call.update(status=status, ended_at=self.now(), reserved_until=None)
             history(call, "Call ended; incident remains available for updates" if status == "Completed" else status)
             return call
-        call = self.repository.mutate(update)
+        call = self.repository.mutate(update, call_ids=(call_id,))
         if call['origin'] == 'browser' and not call['case_id']:
             self.finalize_ticket(call_id)
         if self.on_finished:
@@ -641,7 +657,7 @@ class CallingService:
                 current['case_id'] = case.id
                 current.pop('draft_case', None)
                 history(current, 'Incident created from the completed conversation')
-            self.repository.mutate(link)
+            self.repository.mutate(link, call_ids=(call_id,))
 
     def error(self, call_id, message):
         def update(db):

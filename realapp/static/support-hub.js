@@ -172,6 +172,7 @@
   $('#chatEnd').addEventListener('click', () => $('#endChatDialog').showModal());
   $('#confirmEndChat').addEventListener('click', async () => {
     $('#endChatDialog').close();
+    if (!chat) return;   // nothing to end (no chat started in this tab)
     try { chat = await api(`/api/support/chats/${encodeURIComponent(chat.id)}/end`, {method: 'POST', body: '{}'}); renderChat(); window.loadCustomerCalls?.(); }
     catch (error) { setFormStatus($('#chatStatus'), `✕ ${error.message}`, true); }
   });

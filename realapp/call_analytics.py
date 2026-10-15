@@ -120,9 +120,9 @@ class CallQuality:
                 if fingerprint(current)!=source: return 'skipped'
                 current['quality_audit']=payload;current.pop('quality_error',None)
                 return 'completed'
-            return self.service.repository.mutate(save)
+            return self.service.repository.mutate(save, call_ids=(call_id,))
         except Exception:
-            self.service.repository.mutate(lambda db:db['calls'][call_id].update(quality_error='Call assessment failed. Check the AI connection and retry.'))
+            self.service.repository.mutate(lambda db:db['calls'][call_id].update(quality_error='Call assessment failed. Check the AI connection and retry.'), call_ids=(call_id,))
             return 'failed'
         finally:
             with self.lock: self.inflight.discard(call_id)

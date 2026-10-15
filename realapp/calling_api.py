@@ -64,7 +64,8 @@ def install_calling(app, settings, store, engine, update_ticket):
         return settings.environment == "local" and request.client.host in {"127.0.0.1", "::1", "testclient"} and request.url.hostname in {"127.0.0.1", "localhost", "::1", "testserver"}
 
     def user(request, admin=False, staff=False):
-        result = service.authenticate(request.cookies.get("resolveai_session"))
+        # The API guard already looked the session up for this request; reuse it instead of reading it again.
+        result = getattr(request.state, 'user', None) or service.authenticate(request.cookies.get("resolveai_session"))
         if not result:
             raise HTTPException(401, "Log in to ResolveAI.")
         if admin and result["role"] != "admin":
@@ -333,7 +334,7 @@ def install_calling(app, settings, store, engine, update_ticket):
 
     def own_chat(request, chat_id):
         actor = user(request)
-        call = service.repository.mutate(lambda db: db['calls'].get(chat_id))
+        call = service.repository.read(lambda db: db['calls'].get(chat_id), call_ids=(chat_id,))
         if not call or call.get('channel') != 'chat' or call.get('customer_id') != actor['id']:
             raise HTTPException(404, 'Chat not found.')
         return call
@@ -355,7 +356,7 @@ def install_calling(app, settings, store, engine, update_ticket):
     def start_chat(value: ChatStart, request: Request, background_tasks: BackgroundTasks):
         actor = user(request)
         call = service.create_call(actor['name'], language=value.language, customer_id=actor['id'])
-        service.repository.mutate(lambda db: db['calls'][call['id']].update(channel='chat'))
+        service.repository.mutate(lambda db: db['calls'][call['id']].update(channel='chat'), call_ids=(call['id'],))
         service.add_turn(call['id'], 'Customer', value.description)
         call = service.triage(call['id'])
         background_tasks.add_task(service.refresh_knowledge, call['id'])
