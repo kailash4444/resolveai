@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/resolveai-components.css?v=45">
+  <link rel="stylesheet" href="/static/resolveai-components.css?v=20261015-qa">
   <script src="/static/theme.js?v=7"></script>
 </head>
 <body data-role="guest" data-shell="public" data-mode="focus">
@@ -140,7 +140,7 @@
           <div class="landing__roles">
             <article class="card role-card" style="--tint:var(--ok)"><span class="role-card__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><h3>Customer</h3><p class="sec">Report a problem, talk or chat with support, and follow every incident to closure.</p><a class="link" href="/?auth=login">Open customer portal</a></article>
             <article class="card role-card" style="--tint:var(--link)"><span class="role-card__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg></span><h3>Technician</h3><p class="sec">Work the queue, take browser calls, and review AI suggestions before anything ships.</p><a class="link" href="/?auth=login&amp;as=staff">Open technician console</a></article>
-            <article class="card role-card" style="--tint:var(--high)"><span class="role-card__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span><h3>Admin</h3><p class="sec">Manage users, knowledge and configuration, and watch resolution debt over time.</p><a class="link" href="/?auth=login&amp;as=staff">Open admin workspace</a></article>
+            <article class="card role-card" style="--tint:var(--high)"><span class="role-card__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span><h3>Admin</h3><p class="sec">Manage users and knowledge, and watch resolution debt over time.</p><a class="link" href="/?auth=login&amp;as=staff">Open admin workspace</a></article>
           </div>
         </section>
         </div>
@@ -258,12 +258,6 @@
       <div id="overviewLoading" class="stack" role="status" aria-label="Loading overview"><div class="skeleton" style="height:180px"></div><div class="skeleton" style="height:96px"></div></div>
       <div id="overviewError" class="alert" role="alert" hidden><strong>✕ Couldn’t load the overview.</strong><span class="sec" id="overviewErrorMessage"></span><button class="btn btn-soft btn-sm" id="retryOverview" type="button">Retry</button></div>
       <div id="overviewContent" class="stack stack--lg" hidden>
-        <section class="card stack" aria-labelledby="queueTitle">
-          <div class="section-head section-head--tight"><h2 id="queueTitle">Work queue</h2><span class="help" id="queueCount" aria-live="polite"></span></div>
-          <p class="help">Open incidents, P1 first, then oldest first. Open one to review the evidence before acting.</p>
-          <div id="recentCases"></div>
-          <div><a class="btn btn-soft btn-sm" href="?view=tickets" data-view="tickets">All tickets</a></div>
-        </section>
         <section aria-labelledby="metricsTitle" class="stack">
           <div class="section-head section-head--tight"><h2 id="metricsTitle">Numbers at a glance</h2><span class="help" id="metricsScope"></span></div>
           <div class="stats">
@@ -273,6 +267,13 @@
             <article class="metric"><h3 class="metric__label">Average QA score</h3><p class="metric__value" id="metricQA">—</p><p class="help" id="metricQAHelp">Percent · mean of audited, resolved tickets</p></article>
           </div>
         </section>
+        <section class="card stack" aria-labelledby="queueTitle">
+          <div class="section-head section-head--tight"><h2 id="queueTitle">Work queue</h2><span class="help" id="queueCount" aria-live="polite"></span></div>
+          <p class="help">Open incidents, P1 first, then oldest first. Open one to review the evidence before acting.</p>
+          <div id="recentCases"></div>
+          <div><a class="btn btn-soft btn-sm" href="?view=tickets" data-view="tickets">All tickets</a></div>
+        </section>
+
         <section class="card stack" aria-labelledby="recentTitle"><h2 class="h3" id="recentTitle">Recent incidents</h2><div id="recentIncidents"></div></section>
         <section class="card stack" aria-labelledby="themesTitle" data-detail><h2 class="h3" id="themesTitle">Issue themes</h2><p class="help">Incident count by category, all time. Top 6.</p><div id="themeList"></div></section>
       </div>
@@ -280,11 +281,11 @@
 
     <section class="view" id="view-case" aria-labelledby="caseTitle">
       <div class="page-head"><div><p class="kicker">Conversation intake</p><h1 id="caseTitle">Analyze a conversation</h1><p class="sec">Paste, upload or record the conversation and add photos. AI drafts an incident; nothing is final until you review it.</p></div><span class="badge badge--muted" id="connectionBadge">○ Checking AI provider</span></div>
-      <div class="alert alert--info" id="caseProviderNotice" role="status" hidden><strong>◆ The AI provider isn’t configured.</strong><span class="sec">Transcription and analysis are unavailable until an administrator connects it in Configuration.</span></div>
+      <div class="alert alert--info" id="caseProviderNotice" role="status" hidden><strong>◆ The AI provider isn’t configured.</strong><span class="sec">Ask an administrator to configure the AI provider on the server.</span></div>
       <div class="create-grid">
         <form class="card" id="caseForm" novalidate>
           <div class="fields">
-            <div class="field"><label for="callerInput">Caller</label><input class="input" id="callerInput" value="Customer" maxlength="100"></div>
+            <div class="field"><label for="callerInput">Customer name</label><input class="input" id="callerInput" value="Customer" maxlength="100"></div>
             <div class="field"><label for="channelInput">Channel</label><select class="input" id="channelInput"><option>Voice</option><option>Chat</option><option>Email</option><option>Walk-up</option></select></div>
           </div>
           <div class="field"><label for="transcriptInput">Conversation</label><textarea class="input" id="transcriptInput" rows="12" aria-describedby="transcriptHelp transcriptError" placeholder="Customer: I can’t access my account this morning.&#10;Agent: What message do you see?"></textarea><p class="help" id="transcriptHelp">Paste the conversation, or fill it from an audio file or a browser recording below. At least 20 characters.</p><p class="err" id="transcriptError" hidden></p></div>
@@ -320,13 +321,12 @@
           <div class="field"><label for="ticketAssignee">Assigned to</label><select class="input" id="ticketAssignee"><option value="">Anyone</option></select></div>
           <div class="field"><label for="ticketStateFilter">State</label><select class="input" id="ticketStateFilter"><option value="">Any state</option><option>New</option><option>In Progress</option><option>On Hold</option><option>Resolved</option></select></div>
           <div class="field"><label for="ticketPriorityFilter">Priority</label><select class="input" id="ticketPriorityFilter"><option value="">Any priority</option><option value="P1">▲ Critical · P1</option><option value="P2">◆ High · P2</option><option value="P3">● Medium · P3</option><option value="P4">○ Low · P4</option></select></div>
-          <div class="field"><label for="ticketSort">Sort by time</label><select class="input" id="ticketSort"><option value="newest">Newest reported first</option><option value="oldest">Oldest reported first</option></select></div>
         </div>
         <div class="row row--between"><div class="row row--sm" id="ticketChips" aria-label="Active filters"></div><div class="row row--sm"><span class="help" id="ticketResultCount" aria-live="polite"></span><button type="button" class="btn btn-soft btn-sm" id="clearTicketFilters">Clear filters</button></div></div>
       </div>
       <div id="ticketsLoading" class="stack" role="status" aria-label="Loading tickets" hidden><div class="skeleton"></div><div class="skeleton" style="width:85%"></div><div class="skeleton" style="width:70%"></div></div>
       <div id="ticketsLoadError" class="alert" role="alert" hidden><strong>✕ Couldn’t load tickets.</strong><span class="sec" id="ticketsLoadErrorMessage"></span><button type="button" class="btn btn-soft btn-sm" id="retryTickets">Retry</button></div>
-      <div class="tbl-wrap" id="ticketsTable" role="region" aria-labelledby="ticketsTitle" tabindex="0"><table class="tbl"><caption class="sr">Tickets matching the filters</caption><thead><tr><th scope="col">Ticket</th><th scope="col">Issue</th><th scope="col" class="col-opt">Service</th><th scope="col">Priority</th><th scope="col" class="col-opt">Assigned to</th><th scope="col">State</th></tr></thead><tbody id="ticketRows"></tbody></table></div><nav id="ticketPagination" class="pagination" aria-label="Ticket pages" hidden></nav>
+      <div class="tbl-wrap" id="ticketsTable" role="region" aria-labelledby="ticketsTitle" tabindex="0"><table class="tbl"><caption class="sr">Tickets matching the filters</caption><thead><tr><th scope="col" id="ticketSortHeader" aria-sort="descending"><button class="column-sort" id="ticketSort" type="button" data-direction="newest" aria-label="Ticket: newest reported first. Sort oldest first">Ticket <span class="sort-arrow" aria-hidden="true">↓</span></button></th><th scope="col">Issue</th><th scope="col" class="col-opt">Service</th><th scope="col">Priority</th><th scope="col" class="col-opt">Assigned to</th><th scope="col">State</th></tr></thead><tbody id="ticketRows"></tbody></table></div><nav id="ticketPagination" class="pagination" aria-label="Ticket pages" hidden></nav>
       <div id="ticketsEmpty" class="empty stack" hidden></div>
     </section>
     <section class="view" id="view-ticket-detail" aria-labelledby="ticketDetailTitle">
@@ -338,7 +338,17 @@
     <section class="view" id="view-calls" aria-labelledby="callsTitle">
       <div class="page-head"><div><p class="kicker">Browser voice</p><h1 id="callsTitle">Calls &amp; queue</h1><p class="sec" id="technicianIdentity">AI handles first contact; you join when a customer needs a person.</p></div><button class="btn btn-soft" id="routeRequestButton" type="button">Route a support request</button></div>
       <div class="alert" id="callsUnavailable" role="alert" hidden><strong>✕ Calls are unavailable.</strong><span class="sec" id="callsUnavailableMessage">We couldn’t reach the calling service.</span><button class="btn btn-soft btn-sm" type="button" id="retryCalls">Retry</button></div>
-      <div class="alert alert--info" id="voiceNotConfigured" role="status" hidden><strong>◆ Browser calling isn’t configured.</strong><span class="sec" id="voiceNotConfiguredText">An administrator can connect LiveKit in Configuration. Desk requests still work.</span></div>
+      <section class="section stack" aria-labelledby="callNumbersTitle">
+        <h2 class="h3" id="callNumbersTitle">Queue numbers</h2>
+        <div class="stats call-metrics">
+          <article class="metric"><h3 class="metric__label">Waiting</h3><p class="metric__value" id="callsQueued">0</p><p class="help">Calls · in technician queues now</p></article>
+          <article class="metric"><h3 class="metric__label">With AI</h3><p class="metric__value" id="callsAI">0</p><p class="help">Calls · AI assistant handling now</p></article>
+          <article class="metric"><h3 class="metric__label">Connected</h3><p class="metric__value" id="callsConnected">0</p><p class="help">Calls · with a technician now</p></article>
+          <article class="metric"><h3 class="metric__label">Available</h3><p class="metric__value" id="callsAvailable">0</p><p class="help">Technicians · ready for calls now</p><p class="help" id="demoQueueAvailability"></p></article>
+        </div>
+        <p class="help" id="callPerformance"></p>
+      </section>
+      <div class="alert alert--info" id="voiceNotConfigured" role="status" hidden><strong>◆ Browser calling isn’t configured.</strong><span class="sec" id="voiceNotConfiguredText">An administrator can configure LiveKit on the server. Desk requests still work.</span></div>
       <ul class="inds" aria-label="Call readiness">
         <li><span class="muted">Presence</span><span id="presenceIndicator" class="badge badge--muted">○ Unknown</span>
           <div class="field field--inline" id="presenceControl" hidden><label for="presenceSelect">Availability</label><select class="input" id="presenceSelect"><option>Offline</option><option>Available</option><option>Away</option></select></div></li>
@@ -349,10 +359,10 @@
       <section class="card stack section" id="sharedQueuePanel" aria-labelledby="sharedQueueTitle" hidden><h2 class="h3" id="sharedQueueTitle">Waiting for a technician</h2><p class="help" id="answerHint" hidden>Turn the Microphone on to answer browser calls. Chats and desk requests can be answered any time.</p><div class="alert" id="answerError" role="alert" tabindex="-1" hidden><strong>✕ Couldn’t answer.</strong><span class="sec" id="answerErrorMessage"></span></div><ul class="list" id="sharedQueue"></ul></section>
       <div class="calls-grid section">
         <section class="card stack" id="callActivity" aria-labelledby="callActivityTitle">
-          <div class="section-head section-head--tight"><h2 class="h3" id="callActivityTitle">Call activity</h2><span class="help" id="callingSync" aria-live="polite">Live queue</span></div>
+          <div class="section-head section-head--tight"><h2 class="h3" id="callActivityTitle"><button class="column-sort" id="callSort" type="button" data-direction="newest" aria-label="Calls: newest first. Sort oldest first">Call activity <span class="sort-arrow" aria-hidden="true">↓</span></button></h2><span class="help" id="callingSync" aria-live="polite">Live queue</span></div>
           <div class="field field--inline"><label for="callSearch">Search calls</label><input type="search" id="callSearch" class="input" placeholder="Call ID, customer, technician or issue"></div>
           <div class="row row--between"><div class="row row--sm" role="group" aria-label="Filter calls by priority"><button type="button" class="chip" data-call-filter="All" aria-pressed="true">All</button><button type="button" class="chip" data-call-filter="P1" aria-pressed="false">▲ P1</button><button type="button" class="chip" data-call-filter="P2" aria-pressed="false">◆ P2</button><button type="button" class="chip" data-call-filter="P3" aria-pressed="false">● P3</button></div>
-          <div class="field field--inline"><label class="sr" for="callSort">Sort calls by time</label><select class="input" id="callSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></div></div>
+          </div>
           <div id="callList" aria-live="polite"><div class="skeleton"></div></div><nav id="callPagination" class="pagination" aria-label="Call pages" hidden></nav>
         </section>
         <div class="call-page stack" id="callPage" hidden>
@@ -364,19 +374,10 @@
         </div>
         <p class="sr" id="callAnnouncer" aria-live="polite"></p>
       </div>
-      <section class="section stack" aria-labelledby="callNumbersTitle" data-detail>
-        <h2 class="h3" id="callNumbersTitle">Queue numbers</h2>
-        <div class="stats call-metrics">
-          <article class="metric"><h3 class="metric__label">Waiting</h3><p class="metric__value" id="callsQueued">0</p><p class="help">Calls · in technician queues now</p></article>
-          <article class="metric"><h3 class="metric__label">With AI</h3><p class="metric__value" id="callsAI">0</p><p class="help">Calls · AI assistant handling now</p></article>
-          <article class="metric"><h3 class="metric__label">Connected</h3><p class="metric__value" id="callsConnected">0</p><p class="help">Calls · with a technician now</p></article>
-          <article class="metric"><h3 class="metric__label">Available</h3><p class="metric__value" id="callsAvailable">0</p><p class="help">Technicians · ready for calls now</p></article>
-        </div>
-        <p class="help" id="callPerformance"></p>
-      </section>
+
     </section>
     <section class="view" id="view-technicians" aria-labelledby="usersTitle">
-      <div class="page-head"><div><p class="kicker">Administration</p><h1 id="usersTitle">Users</h1><p class="sec">Technicians and administrators who work the support queue. Add technicians here; customers create their own accounts and aren’t listed. Editing, disabling and password resets aren’t available yet.</p></div><button class="btn btn-primary" id="addTechnicianButton" type="button" hidden>Add technician</button></div>
+      <div class="page-head"><div><p class="kicker">Administration</p><h1 id="usersTitle">Users</h1><p class="help" id="demoAvailabilitySummary"></p><p class="sec">Technicians and administrators who work the support queue. Add technicians here; customers create their own accounts and aren’t listed. Editing, disabling and password resets aren’t available yet.</p></div><button class="btn btn-primary" id="addTechnicianButton" type="button" hidden>Add technician</button></div>
       <div class="alert" id="usersError" role="alert" hidden><strong>✕ Couldn’t load users.</strong><span class="sec" id="usersErrorMessage"></span><button type="button" class="btn btn-soft btn-sm" id="retryUsers">Retry</button></div>
       <div class="tbl-wrap" role="region" aria-labelledby="usersTitle" tabindex="0"><table class="tbl"><caption class="sr">User accounts</caption><thead><tr><th scope="col">User</th><th scope="col">Role</th><th scope="col" class="col-opt">Skills</th><th scope="col" class="col-opt">Languages</th><th scope="col">Call status</th><th scope="col" class="col-opt">Microphone</th><th scope="col">Current call</th></tr></thead><tbody id="technicianRows"><tr><td colspan="7"><div class="skeleton" role="status" aria-label="Loading users"></div></td></tr></tbody></table></div><nav id="userPagination" class="pagination" aria-label="User pages" hidden></nav>
       <div class="empty section" id="techniciansEmpty" hidden><h2 class="h3">No technicians yet</h2><p class="sec">Add a technician so they can log in and take support work.</p></div>
@@ -419,27 +420,6 @@
         <article class="panel table-wrap radar-table-wrap"><table><thead><tr><th>Issue cluster</th><th>Debt score</th><th>Priority</th><th>Incidents</th><th>Customers</th><th>Recurrences</th><th>Workarounds</th><th>Latest</th><th>Analysis</th><th>Status</th></tr></thead><tbody id="radarRows"></tbody></table><nav id="radarPagination" class="pagination" aria-label="Resolution debt pages" hidden></nav><div id="radarEmpty" class="empty-list" hidden>No recurring incident clusters match these filters.</div><p class="helper radar-score-note">Debt score prioritizes investigation; it is not a probability of recurrence. Missing signals are excluded and remaining weights are renormalized.</p></article>
       </div>
       <div id="radarDetail" hidden></div>
-    </section>
-
-    <section class="view" id="view-configuration" aria-labelledby="configTitle">
-      <div class="page-head"><div><p class="kicker">Administration</p><h1 id="configTitle">Configuration</h1><p class="sec">Connections ResolveAI needs. Secrets are never shown after saving. Cloud deployments set these through environment configuration instead.</p></div></div>
-      <div class="grid grid--2">
-        <section class="card stack" aria-labelledby="aiConfigTitle">
-          <div class="row row--between"><h2 class="h3" id="aiConfigTitle">AI provider</h2><span class="badge badge--muted" id="configurationAiStatus" role="status">○ Checking</span></div>
-          <p class="sec">Used for transcription, analysis, image analysis, knowledge drafts and QA.</p>
-          <dl class="kv" id="aiConfigDetails"></dl>
-          <p class="help" id="aiConfigHelp"></p>
-          <div><button class="btn btn-primary" id="configurationAiButton" type="button" hidden>Set API key</button></div>
-        </section>
-        <section class="card stack" aria-labelledby="lkConfigTitle">
-          <div class="row row--between"><h2 class="h3" id="lkConfigTitle">Browser voice (LiveKit)</h2><span class="badge badge--muted" id="configurationLiveKitStatus" role="status">○ Checking</span></div>
-          <p class="sec">Carries audio for browser voice support and technician calls.</p>
-          <ul class="checklist" id="liveKitChecks" aria-label="LiveKit checks"></ul>
-          <p class="help" id="liveKitHelp"></p>
-          <div><button class="btn btn-soft" id="configurationLiveKitButton" type="button">Configure LiveKit</button></div>
-          <p class="form-status" id="configurationLiveKitMessage" role="status"></p>
-        </section>
-      </div>
     </section>
 
     <section class="view" id="view-knowledge" aria-labelledby="knowledgeTitle">
@@ -516,7 +496,6 @@
           <div class="field"><label for="transcriptSearch">Search</label><input class="input" id="transcriptSearch" type="search" placeholder="Call ID, incident number or person"></div>
           <div class="field" id="transcriptTechnicianLabel" hidden><label for="transcriptTechnicianFilter">Technician</label><select class="input" id="transcriptTechnicianFilter"><option value="">All technicians</option></select></div>
           <div class="field"><label for="transcriptServiceFilter">Service</label><select class="input" id="transcriptServiceFilter"><option value="">All services</option></select></div>
-          <div class="field"><label for="transcriptSort">Sort by time</label><select class="input" id="transcriptSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></div>
           <div class="field"><label for="transcriptDurationMin">Shortest (minutes)</label><input class="input" id="transcriptDurationMin" type="number" min="0" step="any" inputmode="decimal" placeholder="No minimum" aria-describedby="transcriptDurationLabel"></div>
           <div class="field"><label for="transcriptDurationMax">Longest (minutes)</label><input class="input" id="transcriptDurationMax" type="number" min="0" step="any" inputmode="decimal" placeholder="No maximum" aria-describedby="transcriptDurationLabel"></div>
         </div>
@@ -533,12 +512,33 @@
       <div class="page-head"><div><p class="kicker">Independent review</p><h1 id="qaTitle">Quality audit</h1><p class="sec">AI checks resolved tickets against their source conversation, and scores completed calls. A person reviews every result.</p></div></div>
       <div class="tabs" role="tablist" aria-label="Audit type"><button type="button" role="tab" id="qa-tickets-tab" aria-controls="qa-tickets-panel" aria-selected="true" tabindex="0" data-report="qa" data-report-tab="tickets">Ticket audits</button><button type="button" role="tab" id="qa-calls-tab" aria-controls="qa-calls-panel" aria-selected="false" tabindex="-1" data-report="qa" data-report-tab="calls">Call audits</button></div>
       <div id="qa-tickets-panel" role="tabpanel" aria-labelledby="qa-tickets-tab" class="stack">
+        <section id="ticketQaSummary" class="qa-summary stack stack--sm" aria-label="Tickets audit averages">
+          <div id="ticketQaMetrics" class="qa-metrics" aria-live="polite"></div>
+          <p id="ticketQaCoverage" class="help"></p>
+          <div class="qa-filters" role="search" aria-label="Filter tickets audits">
+
+            <label id="ticketQaTechnicianWrap"><span class="sr">Technician</span><select class="input" id="ticketQaTechnicianFilter"><option value="">All technicians</option></select></label>
+            <label><span class="sr">Service</span><select class="input" id="ticketQaServiceFilter"><option value="">All services</option></select></label>
+            <button type="button" id="ticketQaClear" class="btn btn-soft btn-sm">Clear</button>
+            <span class="help" id="ticketQaCount" role="status"></span>
+          </div>
+        </section>
         <div class="card stack stack--sm"><div class="row row--between"><h2 class="h3">Ticket audit job</h2><button class="btn btn-primary btn-sm" id="rerunAllQa" type="button">Rerun all audits</button></div><p class="help" id="bulkQaStatus" role="status" aria-live="polite">Reruns AI QA for every resolved ticket you can see.</p><progress class="meter" id="bulkQaProgress" max="1" value="0" aria-label="Ticket audit progress" hidden></progress></div>
         <div id="qaWorkspace"></div><nav id="ticketQaPagination" class="pagination" aria-label="Ticket audit pages" hidden></nav>
       </div>
       <div id="qa-calls-panel" role="tabpanel" aria-labelledby="qa-calls-tab" class="stack" hidden>
+        <section id="callQaSummary" class="qa-summary stack stack--sm" aria-label="Calls audit averages">
+          <div id="callQaMetrics" class="qa-metrics" aria-live="polite"></div>
+          <p id="callQaCoverage" class="help"></p>
+          <div class="qa-filters" role="search" aria-label="Filter calls audits">
+            <input class="input" id="callQaSearch" type="search" aria-label="Search call audits" placeholder="Call ID, incident or person">
+            <label id="callQaTechnicianWrap"><span class="sr">Technician</span><select class="input" id="callQaTechnicianFilter"><option value="">All technicians</option></select></label>
+            <label><span class="sr">Service</span><select class="input" id="callQaServiceFilter"><option value="">All services</option></select></label>
+            <button type="button" id="callQaClear" class="btn btn-soft btn-sm">Clear</button>
+            <span class="help" id="callQaCount" role="status"></span>
+          </div>
+        </section>
         <div class="card stack stack--sm"><div class="row row--between"><h2 class="h3">Call audit job</h2><button class="btn btn-primary btn-sm" id="evaluateCalls" type="button">Evaluate completed calls</button></div><p class="help" id="callAuditStatus" role="status" aria-live="polite"></p><progress class="meter" id="callAuditProgress" max="1" value="0" aria-label="Call audit progress" hidden></progress><p class="help">Six metrics: greeting, problem solving, empathy, communication, verification and closure.</p></div>
-        <div class="field field--inline"><label for="callQaSearch">Search call audits</label><input class="input" id="callQaSearch" type="search" placeholder="Call ID, incident number or person"></div>
         <div class="split"><div id="callQaList"></div><nav id="callQaPagination" class="pagination" aria-label="Call audit pages" hidden></nav><article class="card stack split__detail" id="callQaDetail" aria-label="Call audit" tabindex="-1" hidden></article></div>
       </div>
     </section>
@@ -650,15 +650,15 @@
   <script src="/static/resolveai-components.js?v=2"></script>
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=6"></script>
-  <script src="/static/shell.js?v=11"></script>
-  <script src="/static/uploader.js?v=5"></script>
-  <script src="/static/app.js?v=45"></script>
+  <script src="/static/shell.js?v=20261015-qa"></script>
+  <script src="/static/uploader.js?v=20261015-qa"></script>
+  <script src="/static/app.js?v=20261015-qa"></script>
   <script src="/static/auth.js?v=9"></script>
   <script src="/static/landing.js?v=2"></script>
   <script src="/static/support-hub.js?v=6"></script>
   <script src="/static/resolution-radar.js?v=5"></script>
-  <script src="/static/calling.js?v=30"></script>
-  <script src="/static/transcripts.js?v=14"></script>
+  <script src="/static/calling.js?v=20261015-qa"></script>
+  <script src="/static/transcripts.js?v=20261015-qa"></script>
   <script src="/static/incident-time-machine.js?v=4"></script>
 </body>
 </html>

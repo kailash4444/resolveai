@@ -53,6 +53,7 @@ window.loadTranscripts = async () => {
   }
 };
 
+let transcriptSortDirection = 'newest';
 const transcriptPager = {page: 1, key: null};
 bindPagination('#transcriptPagination', transcriptPager, renderTranscripts);
 function renderTranscripts() {
@@ -67,12 +68,12 @@ function renderTranscripts() {
   const sources = invalid ? [] : transcriptSources.filter(source => (!query || [source.source_id, source.ticket_number, source.customer, source.technician, source.service].join(' ').toLowerCase().includes(query)) &&
     (!technician || source.technician === technician) && (!service || (source.service || 'General') === service) &&
     (allLengths || source.duration_seconds != null && source.duration_seconds / 60 >= min && source.duration_seconds / 60 <= max));
-  const newest = $('#transcriptSort').value !== 'oldest';
+  const newest = transcriptSortDirection !== 'oldest';
   sources.sort((a, b) => newest ? b.created_at - a.created_at : a.created_at - b.created_at);
   const pageSources = paginateItems(sources, transcriptPager, JSON.stringify([state.user?.id, query, technician, service, minInput.value, maxInput.value, newest]), '#transcriptPagination');
   if (!transcriptPage() && !sources.some(source => source.source_id === transcriptSelected)) { transcriptSelected = null; $('#transcriptDetail').hidden = true; }
   $('#transcriptCount').textContent = invalid ? 'Check the call length range.' : `${sources.length} of ${transcriptSources.length} conversations`;
-  $('#transcriptList').innerHTML = sources.length ? `<div class="tbl-wrap" role="region" aria-label="Conversations" tabindex="0"><table class="tbl"><caption class="sr">Conversations matching the filters</caption><thead><tr><th scope="col">Conversation</th><th scope="col">Incident</th><th scope="col" class="col-opt">Customer</th><th scope="col" class="col-opt">Technician</th><th scope="col" class="col-opt">Service</th><th scope="col" class="col-opt">Length</th><th scope="col"><span class="sr">Action</span></th></tr></thead><tbody>${pageSources.map(source => `<tr${source.source_id === transcriptSelected ? ' aria-current="true"' : ''}><td><span class="mono">${esc(source.call_id || source.source_id)}</span></td><td>${esc(source.ticket_number || 'Pending')}</td><td class="col-opt">${esc(source.customer)}</td><td class="col-opt">${esc(source.technician)}</td><td class="col-opt">${esc(source.service || 'General')}</td><td class="col-opt">${durationLabel(source.duration_seconds)}</td><td><a class="link" href="${esc(transcriptLink(source.source_id))}" target="_blank" rel="noopener"><span>View<span class="sr"> transcript ${esc(source.call_id || source.ticket_number || source.source_id)} (opens in a new tab)</span></span></a></td></tr>`).join('')}</tbody></table></div>`
+  $('#transcriptList').innerHTML = sources.length ? `<div class="tbl-wrap" role="region" aria-label="Conversations" tabindex="0"><table class="tbl"><caption class="sr">Conversations matching the filters</caption><thead><tr><th scope="col" aria-sort="${newest ? 'descending' : 'ascending'}"><button class="column-sort" data-transcript-sort data-direction="${transcriptSortDirection}" type="button" aria-label="Conversations: ${newest ? 'newest' : 'oldest'} first. Reverse order">Conversation <span class="sort-arrow" aria-hidden="true">${newest ? '↓' : '↑'}</span></button></th><th scope="col">Incident</th><th scope="col" class="col-opt">Customer</th><th scope="col" class="col-opt">Technician</th><th scope="col" class="col-opt">Service</th><th scope="col" class="col-opt">Length</th><th scope="col"><span class="sr">Action</span></th></tr></thead><tbody>${pageSources.map(source => `<tr${source.source_id === transcriptSelected ? ' aria-current="true"' : ''}><td><span class="mono">${esc(source.call_id || source.source_id)}</span></td><td>${esc(source.ticket_number || 'Pending')}</td><td class="col-opt">${esc(source.customer)}</td><td class="col-opt">${esc(source.technician)}</td><td class="col-opt">${esc(source.service || 'General')}</td><td class="col-opt">${durationLabel(source.duration_seconds)}</td><td><a class="link" href="${esc(transcriptLink(source.source_id))}" target="_blank" rel="noopener"><span>View<span class="sr"> transcript ${esc(source.call_id || source.ticket_number || source.source_id)} (opens in a new tab)</span></span></a></td></tr>`).join('')}</tbody></table></div>`
     : invalid ? '<p class="sec">Enter a valid length range to see matching conversations.</p>'
       : transcriptSources.length ? '<div class="empty"><h2 class="h3">No conversations match</h2><p class="sec">Change the filters or clear them.</p></div>' : '<div class="empty"><h2 class="h3">No conversations yet</h2><p class="sec">Call transcripts and conversation intakes appear here.</p></div>';
 }
@@ -138,12 +139,15 @@ window.loadCallAnalytics = async () => {
   }
 };
 
-let callQaSources = [], callQaSelected = null;
+let callQaSources = [], callQaSelected = null, callQaRequest = 0;
+window.resetCallQa = () => { callQaSources=[]; callQaSelected=null; ++callQaRequest; };
+const CALL_QA_FIELDS = [['greeting','Greeting'],['problem_solving','Problem solving'],['empathy','Empathy'],['communication','Communication'],['verification','Verification'],['closure','Closure']];
 window.loadCallQA = async () => {
+  const request = ++callQaRequest;
   try {
     const userId = state.user?.id;
     const sources = await api('/api/transcripts');
-    if (state.user?.id !== userId) return;
+    if (state.user?.id !== userId || request !== callQaRequest) return;
     callQaSources = sources.filter(source => source.call_id && ['Completed', 'Callback requested', 'Failed'].includes(source.status));
     renderCallQA();
     if (!callQaSources.some(source => source.source_id === callQaSelected)) { callQaSelected = null; $('#callQaDetail').hidden = true; }
@@ -154,8 +158,15 @@ const callQaPager = {page: 1, key: null};
 bindPagination('#callQaPagination', callQaPager, () => { callQaSelected = null; $('#callQaDetail').hidden = true; renderCallQA(); });
 function renderCallQA() {
   const query = $('#callQaSearch').value.trim().toLowerCase();
-  const sources = callQaSources.filter(source => !query || [source.call_id, source.ticket_number, source.customer, source.technician].join(' ').toLowerCase().includes(query));
-  const page = paginateItems(sources, callQaPager, JSON.stringify([state.user?.id, query]), '#callQaPagination');
+  const {technician,service} = prepareQaFilters('callQa',callQaSources.map(source=>source.technician || 'Unassigned'),callQaSources.map(source=>source.service || 'General'));
+  const sources = callQaSources.filter(source => (!query || [source.call_id, source.ticket_number, source.customer, source.technician].join(' ').toLowerCase().includes(query)) && (!technician || (source.technician || 'Unassigned')===technician) && (!service || (source.service || 'General')===service));
+  const complete = sources.filter(source=>source.overall_quality?.status === 'complete' && typeof source.overall_quality.score === 'number');
+  const total = qaMean(complete.map(source=>source.overall_quality.score));
+  $('#callQaMetrics').innerHTML = qaMetric('Overall average',total,complete.length,' / 600') + CALL_QA_FIELDS.map(([key,label])=>{const scores=sources.map(source=>source.quality_scores?.[key]).filter(value=>typeof value==='number');return qaMetric(label,qaMean(scores),scores.length);}).join('');
+  $('#callQaCoverage').textContent = `Overall: ${total === null ? '—' : Math.round(total/6*10)/10+'%'} · ${complete.length} fully scored of ${sources.length} calls. All filtered results; field averages include available scores. Missing / outdated scores excluded.`;
+  $('#callQaCount').textContent = `${sources.length} of ${callQaSources.length} calls`;
+  if (!sources.some(source=>source.source_id===callQaSelected)) {callQaSelected=null; $('#callQaDetail').hidden=true;}
+  const page = paginateItems(sources, callQaPager, JSON.stringify([state.user?.id, query, technician, service]), '#callQaPagination');
   $('#callQaList').innerHTML = sources.length ? `<div class="tbl-wrap" role="region" aria-label="Call audits" tabindex="0"><table class="tbl"><caption class="sr">Completed calls and their quality status</caption><thead><tr><th scope="col">Call</th><th scope="col" class="col-opt">Incident</th><th scope="col" class="col-opt">Customer</th><th scope="col" class="col-opt">Technician</th><th scope="col">Call status</th><th scope="col">Quality</th><th scope="col"><span class="sr">Action</span></th></tr></thead><tbody>${page.map(source => `<tr><td><span class="mono">${esc(source.call_id)}</span></td><td class="col-opt">${esc(source.ticket_number || 'Pending')}</td><td class="col-opt">${esc(source.customer)}</td><td class="col-opt">${esc(source.technician)}</td><td>${callBadge(source.status)}</td><td>${overallBadge(source.overall_quality)}</td><td><button type="button" class="link" data-call-qa="${esc(source.source_id)}"><span>Review<span class="sr"> audit for ${esc(source.call_id)}</span></span></button></td></tr>`).join('')}</tbody></table></div>`
     : callQaSources.length ? '<p class="sec">No completed calls match this search.</p>' : '<div class="empty"><h2 class="h3">No completed calls yet</h2><p class="sec">Finished browser calls appear here for quality review.</p></div>';
 }
@@ -184,10 +195,13 @@ async function refreshCallAudit() {
 }
 
 $('#transcriptSearch').addEventListener('input', renderTranscripts);
-['transcriptTechnicianFilter', 'transcriptServiceFilter', 'transcriptSort'].forEach(id => $('#' + id).addEventListener('change', renderTranscripts));
+['transcriptTechnicianFilter', 'transcriptServiceFilter'].forEach(id => $('#' + id).addEventListener('change', renderTranscripts));
 ['Min', 'Max'].forEach(bound => $('#transcriptDuration' + bound).addEventListener('input', renderTranscripts));
 $('#clearTranscriptFilters').addEventListener('click', () => { resetTranscriptFilters(); renderTranscripts(); $('#transcriptSearch').focus(); });
-$('#callQaSearch').addEventListener('input', renderCallQA);
+function filterCallQA() { callQaSelected=null; $('#callQaDetail').hidden=true; renderCallQA(); }
+$('#callQaSearch').addEventListener('input', filterCallQA);
+['callQaTechnicianFilter','callQaServiceFilter'].forEach(id=>$('#'+id).addEventListener('change',filterCallQA));
+$('#callQaClear').addEventListener('click',()=>{ $('#callQaSearch').value=''; $('#callQaTechnicianFilter').value=''; $('#callQaServiceFilter').value=''; filterCallQA(); });
 document.addEventListener('click', async event => {
   const target = event.target.closest('[data-transcript]');
   if (target) await openTranscript(target.dataset.transcript);
@@ -216,3 +230,5 @@ function renderCallAnalyticsRows() {
   $('#callAnalyticsRows').innerHTML = calls.length ? paginateItems(calls, callAnalyticsPager, callAnalyticsKey, '#callAnalyticsPagination').map(call => `<tr><td><span class="mono">${esc(call.id)}</span></td><td>${esc(call.technician)}</td><td class="col-opt">${esc(call.service)}</td><td>${call.overall.score === null ? esc(overallLabel(call.overall)) : `${call.overall.score} / 600`}</td><td>${call.overall.percentage === null ? '—' : call.overall.percentage + '%'}</td></tr>`).join('') : '<tr><td colspan="5">No calls match these filters.</td></tr>';
 }
 bindPagination('#callAnalyticsPagination', callAnalyticsPager, renderCallAnalyticsRows);
+
+document.addEventListener('click', event => { if(event.target.closest('[data-transcript-sort]')) { transcriptSortDirection = transcriptSortDirection === 'newest' ? 'oldest' : 'newest'; renderTranscripts(); document.querySelector('[data-transcript-sort]')?.focus(); } });

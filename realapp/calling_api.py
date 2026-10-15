@@ -169,7 +169,15 @@ def install_calling(app, settings, store, engine, update_ticket):
 
     @router.get('/api/transcripts')
     def transcript_list(request: Request):
-        return [{k:v for k,v in source.items() if k not in {'transcript','quality_audit'}} for source in transcript_sources(user(request))]
+        actor = user(request)
+        result = []
+        for source in transcript_sources(actor):
+            item = {k:v for k,v in source.items() if k not in {'transcript','quality_audit'}}
+            if actor['role'] != 'customer':
+                item['quality_scores'] = {key:metric.get('score') for key, metric in
+                    (source.get('quality_audit') or {}).get('metrics', {}).items()}
+            result.append(item)
+        return result
 
     def transcript_for(source_id,request):
         source=next((s for s in transcript_sources(user(request)) if s['source_id']==source_id),None)

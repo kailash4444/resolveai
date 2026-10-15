@@ -64,6 +64,10 @@ def public_technician(tech):
     value = {k: v for k, v in tech.items() if k not in {"password_hash", "salt"}}
     value.setdefault('availability', tech['status'] if tech['status'] in {'Available', 'Away'} else 'Available')
     value.setdefault('calls_enabled', tech['role'] in {'admin', 'technician'})
+    # These seeded accounts are presentation-only when unattended. Never fabricate
+    # heartbeats, microphone readiness or actual routing availability.
+    value['demo_available'] = (tech['role'] == 'technician' and
+        tech.get('username') in {f'demo.tech.{index:02d}' for index in range(1, 12)})
     return value
 
 
@@ -216,8 +220,9 @@ class CallingService:
                                 "queued": sum(c["status"] == "Queued" for c in calls),
                                 "ai": sum(c["status"] == "AI" for c in calls),
                                 "connected": sum(c["status"] == "Connected" for c in calls),
+                                "demo_available": sum(t.get("demo_available", False) for t in techs),
                                 "available": sum(t['role'] in {'admin','technician'} and t["status"] == "Available"
-                                    and t['voice_ready'] and self.now()-t['last_seen'] <= self.settings.technician_heartbeat_seconds for t in techs)}}
+                                    and (t['voice_ready'] and self.now()-t['last_seen'] <= self.settings.technician_heartbeat_seconds) or t.get('demo_available', False) for t in techs)}}
         return self.repository.mutate(read)
 
     def get(self, call_id):

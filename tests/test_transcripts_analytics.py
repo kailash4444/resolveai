@@ -114,3 +114,26 @@ def test_active_calls_and_missing_handler_evidence_are_not_scored(service):
     assert quality.evaluate(call['id'])=='skipped'
     assert analytics([service.get(call['id'])])['metrics'][0]['score'] is None
     quality.pool.shutdown(wait=True)
+
+
+def test_transcript_list_exposes_only_current_numeric_scores_to_authorized_staff(accounts, monkeypatch):
+    f = accounts
+    monkeypatch.setattr(f.service, 'on_finished', None)
+    one = add_completed(f.service, f.customer_a_id, f.tech_a_id)
+    two = add_completed(f.service, f.customer_b_id, f.tech_b_id)
+    def score(db):
+        call = db['calls'][one['id']]
+        call['quality_audit'] = {'fingerprint': fingerprint(call), 'metrics': {
+            key: {'score': 0 if key == 'greeting' else None if key == 'empathy' else 80,
+                  'evidence': 'private audit evidence'} for key, _, _ in METRICS}}
+    f.service.repository.mutate(score)
+    staff = f.tech_a.get('/api/transcripts').json()
+    assert len(staff) == 1 and staff[0]['source_id'] == one['id']
+    assert staff[0]['quality_scores']['greeting'] == 0
+    assert staff[0]['quality_scores']['empathy'] is None
+    assert 'private audit evidence' not in str(staff)
+    assert len(f.admin.get('/api/transcripts').json()) == 2
+    assert all('quality_scores' not in item for item in f.customer_a.get('/api/transcripts').json())
+    assert all(item['source_id'] != one['id'] for item in f.tech_b.get('/api/transcripts').json())
+    f.service.add_turn(one['id'], 'Customer', 'New information changes the conversation.')
+    assert f.tech_a.get('/api/transcripts').json()[0]['quality_scores'] == {}

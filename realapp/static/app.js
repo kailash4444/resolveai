@@ -69,10 +69,11 @@ const VIEW_ACCESS = {
   customer: ['customer-home','customer-create','tickets','ticket-detail','knowledge','transcripts'],
   technician: ['overview','case','tickets','ticket-detail','time-machine','calls','transcripts','analytics','resolution-radar','knowledge','qa'],
 };
-VIEW_ACCESS.admin = [...VIEW_ACCESS.technician, 'technicians', 'configuration'];
-const VIEW_TITLES = {signin: 'ResolveAI · Less firefighting. More resolution.', 'customer-home': 'My support', 'customer-create': 'Report an issue', overview: 'Overview', case: 'Conversation intake', tickets: 'Tickets', 'ticket-detail': 'Ticket details', 'time-machine': 'Incident Time Machine', 'resolution-radar': 'Resolution debt', calls: 'Calls & queue', transcripts: 'Transcripts', analytics: 'Analytics', knowledge: 'Knowledge', qa: 'Quality audit', technicians: 'Users', configuration: 'Configuration', denied: 'No access', notfound: 'Not found'};
+VIEW_ACCESS.admin = [...VIEW_ACCESS.technician, 'technicians'];
+const VIEW_TITLES = {signin: 'ResolveAI · Less firefighting. More resolution.', 'customer-home': 'My support', 'customer-create': 'Report an issue', overview: 'Overview', case: 'Conversation intake', tickets: 'Tickets', 'ticket-detail': 'Ticket details', 'time-machine': 'Incident Time Machine', 'resolution-radar': 'Resolution debt', calls: 'Calls & queue', transcripts: 'Transcripts', analytics: 'Analytics', knowledge: 'Knowledge', qa: 'Quality audit', technicians: 'Users', denied: 'No access', notfound: 'Not found'};
 function homeView(user = state.user) { return !user ? 'signin' : user.role === 'customer' ? 'customer-home' : user.role === 'technician' ? 'calls' : 'overview'; }
 function showView(name) {
+  if (name === 'configuration') name = homeView();
   if (name === 'call-analytics') {name = 'analytics'; reportTabs.analytics = 'calls';}
   if (!state.user) name = 'signin';
   else if (!$(`#view-${name}`)) name = 'notfound';
@@ -98,8 +99,7 @@ function showView(name) {
   if (name === "resolution-radar") window.loadResolutionRadar?.();
   if (name === "overview") loadOverview();
   if (name === "qa") { state.qaDetail = null; selectReportTab("qa", reportTabs.qa); }
-  if (["calls", "technicians", "configuration"].includes(name)) window.loadCalling?.();
-  if (name === "configuration") renderAiConfig();
+  if (["calls", "technicians"].includes(name)) window.loadCalling?.();
 }
 
 const caseUploader = ResolveUploader.create({drop: $('#caseDrop'), list: $('#caseMediaSelection'), errors: $('#caseMediaErrors')});
@@ -148,24 +148,7 @@ async function loadConfig() {
   const connection = $("#connectionBadge");
   connection.className = `badge ${ready ? 'badge--ok' : 'badge--high'}`; connection.textContent = ready ? `✓ ${provider} ready` : '◆ AI provider not configured';
   if (!state.current) setCaseStatus(providerLine(), !ready);
-  renderAiConfig();
 }
-
-function renderAiConfig() {
-  const c = state.config, badge = $('#configurationAiStatus');
-  if (!c) return;
-  const envManaged = !c.runtime_key_supported;
-  if (c.configured) { badge.className = 'badge badge--ok'; badge.textContent = `✓ ${providerName()} configured`; }
-  else if (envManaged) { badge.className = 'badge badge--high'; badge.textContent = '◆ Not configured'; }
-  else { badge.className = 'badge badge--high'; badge.textContent = '◆ Key needed'; }
-  $('#aiConfigDetails').innerHTML = [['Provider', providerName()], ['Analysis model', c.model], ['Transcription model', c.transcription_model], ['Data store', c.data_backend]].map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
-  $('#aiConfigHelp').textContent = c.provider === 'mock' ? 'This server runs the test provider: results are demo output, not real AI analysis.'
-    : envManaged ? 'This deployment manages the AI key through environment configuration (for example a secret manager or service identity). Change it there, not here.'
-      : c.configured ? 'A key is saved. Saving a new one replaces it; the current key is never shown.' : 'Add an API key so ResolveAI can transcribe and analyze.';
-  $('#configurationAiButton').hidden = state.user?.role !== 'admin' || envManaged;
-  $('#configurationAiButton').textContent = c.configured ? 'Replace API key' : 'Set API key';
-}
-
 
 const PRIORITY_RANK = {P1: 0, P2: 1, P3: 2, P4: 3};
 function age(value) {
@@ -275,12 +258,22 @@ function taxonomyField(label, name, current, choices) {
   return `<div class="field"><label for="${id}">${label}</label><select class="input" id="${id}" name="${name}" data-taxonomy-select>${options}<option value="Other" ${matched ? "" : "selected"}>Other (specify)</option></select><input class="input taxonomy-custom" name="${name}_other" aria-label="Custom ${label.toLowerCase()}" placeholder="Enter a ${label.toLowerCase()}" value="${matched ? "" : esc(current)}" ${matched ? "hidden disabled" : "required"}></div>`;
 }
 
+function toggleTimeSort(button, label) {
+  button.dataset.direction = button.dataset.direction === 'oldest' ? 'newest' : 'oldest';
+  const newest = button.dataset.direction === 'newest';
+  button.querySelector('.sort-arrow').textContent = newest ? '↓' : '↑';
+  button.setAttribute('aria-label', `${label}: ${newest ? 'newest' : 'oldest'} first. Sort ${newest ? 'oldest' : 'newest'} first`);
+  button.closest('th')?.setAttribute('aria-sort',newest ? 'descending' : 'ascending');
+}
 function ticketForm(item) {
   const ticket = item.ticket, admin = state.user?.role === 'admin';
   const states = ticket.state === "Resolved" ? ["New","In Progress","On Hold","Resolved"] : ["New","In Progress","On Hold"];
   const priorities = {P1: '▲ Critical · P1', P2: '◆ High · P2', P3: '● Medium · P3', P4: '▽ Low · P4'};
   return `<form class="stack" id="ticketForm" novalidate>
     <div class="fields">
+      <div class="field"><label for="tf-caller">Customer name</label><input class="input" id="tf-caller" value="${esc(item.caller)}" readonly></div>
+      <div class="field"><label for="tf-channel">Channel</label><input class="input" id="tf-channel" value="${esc(item.channel)}" readonly></div>
+      <div class="field"><label for="tf-reported">Reported time</label><input class="input" id="tf-reported" value="${esc(when(item.created_at))}" readonly></div>
       <div class="field field--wide"><label for="tf-short">Short description</label><input class="input" id="tf-short" name="short_description" value="${esc(ticket.short_description)}" required maxlength="200"></div>
       <div class="field field--wide"><label for="tf-desc">Description</label><textarea class="input" id="tf-desc" name="description" rows="4">${esc(ticket.description)}</textarea></div>
       ${taxonomyField("Category", "category", ticket.category, ["Access", "Hardware", "Incident", "Network", "Security", "Software", "Workplace"])}
@@ -341,6 +334,7 @@ async function saveTicket(form) {
     delete values[customField];
   }
   if (!values.short_description?.trim()) { setFormStatus(status, '✕ Short description can’t be empty.', true); form.elements.short_description.setAttribute('aria-invalid', 'true'); form.elements.short_description.focus(); return; }
+  if (!form.reportValidity()) return;
   if (values.state !== "Resolved") values.resolution = "";
   button.disabled = true; button.setAttribute('aria-busy', 'true'); setFormStatus(status, 'Saving…');
   try {
@@ -412,6 +406,7 @@ function qaBadge(item) {
 function renderQA(item) {
   ++ticketQaRequest;
   $("#ticketQaPagination").hidden = true;
+  $("#ticketQaSummary").hidden = true;
   if (state.user?.role !== 'admin' && item.ticket.assigned_user_id !== state.user?.id) {
     showView('qa'); showFeedback('You can review audits only for tickets assigned to you.'); return;
   }
@@ -442,6 +437,31 @@ async function rerunQA() {
   catch (error) { setFormStatus(message, `✕ Audit failed: ${error.message}`, true); button.disabled = false; button.removeAttribute('aria-busy'); }
 }
 
+const TICKET_QA_FIELDS = ['Short description', 'Description', 'Category / Subcategory', 'Service', 'Priority', 'Assignment group', 'Resolution', 'Work notes'];
+const QA_FIELD_POINTS = {PASS:100, WARN:50, FAIL:0};
+function qaMean(values) { const scores = values.filter(value => typeof value === 'number' && Number.isFinite(value)); return scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length*10)/10 : null; }
+function qaMetric(label, value, count, suffix = '%') {
+  return `<div class="qa-metric"><span class="help">${esc(label)}</span><strong>${value === null ? '—' : esc(value)+suffix}</strong><small class="help">${count} scored</small></div>`;
+}
+function prepareQaFilters(prefix, technicians, services) {
+  const admin = state.user?.role === 'admin';
+  $('#'+prefix+'TechnicianWrap').hidden = !admin;
+  analyticsOptions('#'+prefix+'TechnicianFilter', technicians, 'All technicians');
+  analyticsOptions('#'+prefix+'ServiceFilter', services, 'All services');
+  if (!admin) $('#'+prefix+'TechnicianFilter').value = '';
+  return {technician:admin ? $('#'+prefix+'TechnicianFilter').value : '', service:$('#'+prefix+'ServiceFilter').value};
+}
+function ticketQaMetrics(items) {
+  const scored = items.filter(item => typeof item.quality_score === 'number' && !visibleAuditChecks(item.qa_checks).legacy);
+  const fields = Object.fromEntries(TICKET_QA_FIELDS.map(field=>[field,[]]));
+  for (const item of scored) {
+    for (const check of visibleAuditChecks(item.qa_checks).checks) {
+      const field = TICKET_QA_FIELDS.find(field=>field.toLowerCase().replace(/[^a-z]/g,'')===check.field.toLowerCase().replace(/[^a-z]/g,'').replace('resolutionnotes','resolution'));
+      if(field && check.result in QA_FIELD_POINTS) fields[field].push(QA_FIELD_POINTS[check.result]);
+    }
+  }
+  return {count:scored.length, overall:qaMean(scored.map(item=>item.quality_score)), fields};
+}
 let ticketQaCases = [], ticketQaRequest = 0;
 const ticketQaPager = {page:1, key:null};
 async function loadQA() {
@@ -460,11 +480,20 @@ async function loadQA() {
   renderTicketQAList();
 }
 function renderTicketQAList() {
-  const resolved = ticketQaCases, box = $('#qaWorkspace');
-  const page = paginateItems(resolved, ticketQaPager, state.user?.id, '#ticketQaPagination');
+  $('#ticketQaSummary').hidden = false;
+  const {technician, service} = prepareQaFilters('ticketQa', ticketQaCases.map(item=>item.ticket.assigned_to || 'Unassigned'), ticketQaCases.map(item=>item.ticket.service || 'General'));
+  const resolved = ticketQaCases.filter(item=>(!technician || (item.ticket.assigned_to || 'Unassigned')===technician) && (!service || (item.ticket.service || 'General')===service)), box = $('#qaWorkspace');
+  const summary = ticketQaMetrics(resolved);
+  $('#ticketQaMetrics').innerHTML = qaMetric('Overall average', summary.overall, summary.count) + TICKET_QA_FIELDS.map(field=>qaMetric(field,qaMean(summary.fields[field]),summary.fields[field].length)).join('');
+  $('#ticketQaCoverage').textContent = `All filtered results · ${summary.count} audited of ${resolved.length} resolved tickets. Pending / outdated audits excluded. Field averages: Pass 100, Check 50, Fail 0; missing fields excluded.`;
+  $('#ticketQaCount').textContent = `${resolved.length} of ${ticketQaCases.length} tickets`;
+  const page = paginateItems(resolved, ticketQaPager, JSON.stringify([state.user?.id, technician, service]), '#ticketQaPagination');
   box.innerHTML = resolved.length ? `<div class="tbl-wrap" role="region" aria-label="Ticket audits" tabindex="0"><table class="tbl"><caption class="sr">Resolved tickets and their QA status</caption><thead><tr><th scope="col">Ticket</th><th scope="col">Issue</th><th scope="col" class="col-opt">Service</th><th scope="col">QA</th><th scope="col"><span class="sr">Action</span></th></tr></thead><tbody>${page.map(item => `<tr><td><span class="mono">${esc(item.ticket.id)}</span></td><td>${esc(item.ticket.short_description)}${exampleTag(item)}</td><td class="col-opt">${esc(item.ticket.service)}</td><td>${qaBadge(item)}</td><td><button type="button" class="link" data-qa-case-id="${esc(item.id)}"><span>Review<span class="sr"> audit for ${esc(item.ticket.id)}</span></span></button></td></tr>`).join("")}</tbody></table></div>`
-    : '<div class="empty"><h2 class="h3">No resolved tickets yet</h2><p class="sec">Resolved tickets appear here straight away while AI QA runs in the background.</p></div>';
+    : ticketQaCases.length ? '<p class="sec">No resolved tickets match these filters.</p>' : '<div class="empty"><h2 class="h3">No resolved tickets yet</h2><p class="sec">Resolved tickets appear here straight away while AI QA runs in the background.</p></div>';
 }
+
+['ticketQaTechnicianFilter','ticketQaServiceFilter'].forEach(id=>$('#'+id).addEventListener('change',renderTicketQAList));
+$('#ticketQaClear').addEventListener('click',()=>{ $('#ticketQaTechnicianFilter').value=''; $('#ticketQaServiceFilter').value=''; renderTicketQAList(); });
 
 function jobProgress(bar, job) { bar.hidden = job.status !== 'running'; bar.max = Math.max(1, job.total); bar.value = job.completed + job.failed + job.skipped; }
 let bulkQaTimer, lastBulkQaStatus;
@@ -552,9 +581,9 @@ function renderTickets() {
   const cases = state.cases.filter(item => (!term || `${item.ticket.id} ${item.ticket.short_description}`.toLowerCase().includes(term)) &&
     (!status || item.ticket.state === status) && (!priority || item.ticket.priority === priority) &&
     (!assignee || (assignee === '__unassigned__' ? !item.ticket.assigned_to : item.ticket.assigned_to === assignee)));
-  const key = JSON.stringify([state.user?.id, term, assignee, status, priority, $('#ticketSort').value]);
+  const key = JSON.stringify([state.user?.id, term, assignee, status, priority, $('#ticketSort').dataset.direction]);
   if (key !== ticketFilterKey) { ticketPage = 1; ticketFilterKey = key; }
-  const newest = $('#ticketSort').value !== 'oldest';
+  const newest = $('#ticketSort').dataset.direction !== 'oldest';
   cases.sort((a, b) => newest ? new Date(b.created_at) - new Date(a.created_at) : new Date(a.created_at) - new Date(b.created_at));
   const active = TICKET_FILTERS.filter(([id]) => $('#' + id).value);
   $('#ticketChips').innerHTML = active.map(([id, label]) => { const el = $('#' + id), shown = el.tagName === 'SELECT' ? el.selectedOptions[0].textContent : `“${el.value}”`; return `<button type="button" class="chip" data-clear-filter="${id}"><span>${label}: ${esc(shown)} <span aria-hidden="true">✕</span><span class="sr">, remove filter</span></span></button>`; }).join('');
@@ -572,7 +601,8 @@ function renderTickets() {
 }
 $('#ticketPagination').addEventListener('click', event => { const button=event.target.closest('[data-page-step]'); if(button && !button.disabled) { ticketPage+=Number(button.dataset.pageStep); renderTickets(); } });
 $('#ticketSearch').addEventListener('input', renderTickets);
-['#ticketAssignee', '#ticketStateFilter', '#ticketPriorityFilter', '#ticketSort'].forEach(id => $(id).addEventListener('change', renderTickets));
+['#ticketAssignee', '#ticketStateFilter', '#ticketPriorityFilter'].forEach(id => $(id).addEventListener('change', renderTickets));
+$('#ticketSort').addEventListener('click', () => { toggleTimeSort($('#ticketSort'), 'Ticket'); renderTickets(); });
 function clearTicketFilters() { TICKET_FILTERS.forEach(([id]) => { $('#' + id).value = ''; }); renderTickets(); $('#ticketSearch').focus(); }
 $('#clearTicketFilters').addEventListener('click', clearTicketFilters);
 document.addEventListener('click', event => {
@@ -584,19 +614,12 @@ document.addEventListener('click', event => {
 function staffTicketDetails(item) {
   const t = item.ticket, admin = state.user?.role === 'admin', resolved = t.state === 'Resolved';
   const canAudit = admin || t.assigned_user_id === state.user?.id;
-  const matches = item.knowledge_matches.map(match => `<li class="source"><strong><span class="mono">${esc(match.id)}</span> · ${esc(match.title)}</strong> <span class="badge badge--low">${Math.round(match.score * 100)}% match</span><p class="help">${esc(match.excerpt)}</p></li>`).join('');
   return `<div class="page-head"><div><p class="kicker"><span class="mono">${esc(t.id)}</span>${t.call_id ? ` · call <span class="mono">${esc(t.call_id)}</span>` : ''}</p><h1 id="ticketDetailTitle" tabindex="-1">${esc(t.short_description)}</h1></div><div class="row row--sm">${priorityBadge(t.priority)}${stateBadge(t.state)}${exampleTag(item)}<button type="button" class="btn btn-soft btn-sm" data-enter-time-machine="${esc(item.id)}">Enter Time Machine <span aria-hidden="true">→</span></button></div></div>
   <div class="detail-grid">
     <div class="stack stack--lg">
-      <section class="card stack" aria-labelledby="contextTitle"><h2 class="h3" id="contextTitle">Customer context</h2><dl class="kv"><div><dt>Customer</dt><dd>${esc(item.caller)}</dd></div><div><dt>Channel</dt><dd>${esc(item.channel)}</dd></div><div><dt>Reported</dt><dd>${esc(when(item.created_at))}</dd></div><div><dt>Service</dt><dd>${esc(t.service)}</dd></div></dl><p class="pre sec">${esc(t.description)}</p></section>
-      ${renderAttachments(t.attachments, false, t)}${renderVisualAnalysis(t, item.id)}${staffAssist(item)}${transcriptPanel(item)}
-      <section class="card stack" aria-labelledby="suggestTitle"><div class="section-head section-head--tight"><h2 class="h3" id="suggestTitle">AI suggestions</h2><span class="badge badge--high">◆ Suggestion · verify first</span></div>
-        <p class="help">Drafted at intake from the conversation. Check against the evidence before acting.</p>
-        <dl class="kv"><div><dt>Suggested handling</dt><dd>${esc(item.routing.handler)} · ${Math.round(item.routing.confidence * 100)}% confidence</dd></div><div><dt>Risk</dt><dd>${esc(item.routing.risk)}</dd></div><div><dt>Ask next</dt><dd>${esc(item.next_question || '—')}</dd></div></dl>
-        ${item.recommended_action ? `<p class="small"><strong>Suggested action:</strong> ${esc(item.recommended_action)}</p>` : ''}
-        <div data-detail class="stack stack--sm"><p class="sec">${esc(item.routing.rationale)}</p>${matches ? `<h3 class="h4">Knowledge sources</h3><ul class="sources">${matches}</ul>` : ''}</div></section>
       <section class="card stack" aria-labelledby="fieldsTitle"><h2 class="h3" id="fieldsTitle">Ticket fields</h2>${ticketForm(item)}</section>
       ${followupPanels(item)}
+      ${renderAttachments(t.attachments, false, t)}${transcriptPanel(item)}
     </div>
     <aside class="stack detail-aside" aria-label="Ticket summary">
       <section class="card stack stack--sm" aria-labelledby="assignTitle"><h2 class="h4" id="assignTitle">Assignment</h2><p>${esc(t.assigned_to || 'Unassigned')}</p><p class="help">${esc(t.assignment_group)}</p><p class="help">${admin ? 'Change it in Ticket fields.' : 'Only administrators can reassign tickets.'}</p></section>
@@ -867,7 +890,6 @@ document.addEventListener("click", event => {
   const qaRow = event.target.closest("[data-qa-case-id]"); if (qaRow) openCase(qaRow.dataset.qaCaseId, "qa");
   if (event.target.closest("[data-open-qa]") && state.current) renderQA(state.current);
   if (event.target.closest("#rerunQa")) rerunQA();
-  if (event.target.closest("#configurationAiButton")) { $('#keyModalTitle').textContent = `Connect ${providerName()}`; setFormStatus($('#keyMessage'), ''); $("#keyModal").showModal(); }
   const reveal = event.target.closest('[data-reveal]');
   if (reveal) { const input = $('#' + reveal.dataset.reveal), show = input.type === 'password'; input.type = show ? 'text' : 'password'; reveal.setAttribute('aria-pressed', String(show)); }
   if (event.target.closest('#dismissGlobalFeedback')) $('#globalFeedback').hidden = true;
@@ -926,6 +948,9 @@ window.applyAccountRole = user => {
     $('#ticketPagination').hidden = $('#transcriptPagination').hidden = true;
     ['knowledgePagination','ticketQaPagination','callQaPagination','radarPagination'].forEach(id=>$('#'+id).hidden=true);
     ticketQaCases=[]; ++ticketQaRequest;
+    ['ticketQa','callQa'].forEach(prefix=>{ $('#'+prefix+'Metrics').innerHTML=''; $('#'+prefix+'Coverage').textContent=''; $('#'+prefix+'Count').textContent=''; ['Technician','Service'].forEach(field=>$('#'+prefix+field+'Filter').value=''); });
+    $('#callQaSearch').value='';
+    window.resetCallQa?.();
     $('#ticketRows').innerHTML = ''; $('#ticketDetailPage').innerHTML = '';
     $('#ticketDurability').hidden = true; $('#ticketDurability').innerHTML = '';
     $('#ticketSearch').value = ''; $('#ticketAssignee').innerHTML = '<option value="">All assigned names</option>';
@@ -947,8 +972,6 @@ window.applyAccountRole = user => {
     $('#presenceControl').hidden = $('#micSwitch').hidden = true;
     $('#incomingCallBanner').hidden = true;
   }
-  const configAiButton = $('#configurationAiButton'); if (configAiButton) configAiButton.hidden = !admin || state.config?.runtime_key_supported === false;
-  const configAiStatus = $('#configurationAiStatus'); if (configAiStatus) configAiStatus.textContent = state.config?.configured ? 'Configured' : state.config?.runtime_key_supported === false ? 'Managed by deployment environment' : 'Not configured';
   $('#openKnowledgePanel').hidden = $('#openIncidentKnowledgePanel').hidden = !user || customer;
 };
 

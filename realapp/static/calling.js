@@ -27,7 +27,6 @@ window.loadCalling = async () => {
     calling.user = calling.data.user;
     if (calling.user.role === 'admin' && $('#view-technicians').classList.contains('active')) calling.data.users = await api('/api/users');
     $('#callsUnavailable').hidden = true; $('#usersError').hidden = true;
-    renderLiveKitConfig();
     await restorePhone();
     renderCalling();
     if (new URLSearchParams(location.search).get('connect') === 'livekit' && !calling.livekitShown && calling.user.role === 'admin') {
@@ -41,18 +40,6 @@ window.loadCalling = async () => {
   }
   finally { calling.loading = false; }
 };
-
-function renderLiveKitConfig() {
-  const voice = calling.data?.voice; if (!voice) return;
-  const checks = Object.entries(voice.checks || {});
-  const badge = $('#configurationLiveKitStatus');
-  if (voice.configured) { badge.className = 'badge badge--ok'; badge.textContent = '✓ Connected'; }
-  else if (checks.some(([, ok]) => ok)) { badge.className = 'badge badge--err'; badge.textContent = '✕ Incomplete'; }
-  else { badge.className = 'badge badge--high'; badge.textContent = '◆ Not configured'; }
-  $('#liveKitChecks').innerHTML = checks.map(([name, ok]) => `<li>${ok ? '<span class="badge badge--ok">✓ OK</span>' : '<span class="badge badge--err">✕ Missing</span>'} ${esc(name)}</li>`).join('') + (voice.url ? `<li><span class="badge badge--muted">○ Address</span> <span class="mono">${esc(voice.url)}</span></li>` : '');
-  $('#liveKitHelp').textContent = voice.setup_available === false ? 'Credentials can only be edited when ResolveAI runs on this computer (localhost). Cloud deployments set LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET in the environment.' : voice.configured ? 'Saving new details replaces the current ones. The secret is never shown.' : 'Add your LiveKit address and API credentials to turn on browser voice.';
-  $('#configurationLiveKitButton').hidden = voice.setup_available === false;
-}
 
 function renderIndicators() {
   const {voice} = calling.data, user = calling.user;
@@ -84,7 +71,7 @@ function renderIndicators() {
     : ['badge--muted', '○ No active call', user.calls_enabled ? 'New calls appear here and in the banner.' : 'Browser calls are off; desk requests still reach you.'];
   setBadge($('#activeCallIndicator'), call[0], call[1]); $('#phoneConnection').textContent = call[2];
   $('#voiceNotConfigured').hidden = voice.configured;
-  if (!voice.configured) $('#voiceNotConfiguredText').textContent = user.role === 'admin' ? 'Connect LiveKit in Configuration to take browser calls. Desk requests still work.' : 'An administrator needs to connect LiveKit. Desk requests still work.';
+  if (!voice.configured) $('#voiceNotConfiguredText').textContent = user.role === 'admin' ? 'Configure LiveKit on the server to take browser calls. Desk requests still work.' : 'An administrator needs to connect LiveKit. Desk requests still work.';
   return offer;
 }
 
@@ -96,7 +83,7 @@ function renderCalling() {
   const { metrics } = calling.data;
   const query = $('#callSearch').value.trim().toLowerCase();
   const calls = calling.data.calls.filter(call => (calling.priority === 'All' || call.priority === calling.priority) && (!query || [call.id,call.caller,call.technician_name,call.service,call.summary].join(' ').toLowerCase().includes(query)));
-  const newest = $('#callSort').value !== 'oldest';
+  const newest = $('#callSort').dataset.direction !== 'oldest';
   calls.sort((a, b) => newest ? b.created_at - a.created_at : a.created_at - b.created_at);
   $('#signInButton').hidden = true;
   $('#presenceControl').hidden = false;
@@ -109,15 +96,16 @@ function renderCalling() {
   $('#callsAI').textContent = metrics.ai;
   $('#callsConnected').textContent = metrics.connected;
   $('#callsAvailable').textContent = metrics.available;
+  $('#demoQueueAvailability').textContent = metrics.demo_available ? `${metrics.demo_available} demo technicians shown available; real calls require a connected microphone.` : '';
   $('#callPerformance').textContent = `All time: ${metrics.total ?? 0} requests · ${metrics.completed ?? 0} completed · ${metrics.callbacks ?? 0} callbacks to follow up · ${metrics.average_wait_seconds ?? 0} s average wait before a technician connected.`;
   $('#callingSync').textContent = `✓ Updated ${new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}`;
   const callPage = paginateItems(calls, callPager, JSON.stringify([calling.user?.id, query, calling.priority, newest]), '#callPagination');
-  patch($('#callList'), calls.length ? `<ul class="list">${callPage.map(c => { return `<li class="list__row"><span class="list__main"><strong>${esc(c.caller)}</strong><span class="help">${esc(c.service)} · ${(c.origin === 'browser' ? 'Browser call' : c.channel === 'chat' ? 'Chat' : 'Desk request')} · ${esc(c.technician_name || (['AI','Triage'].includes(c.status) ? 'AI assistant' : 'Unassigned'))} · ${elapsed(c.created_at)} ago</span></span>${priorityBadge(c.priority)}${callBadge(c.status)}<a class="link" href="?view=calls&amp;call=${encodeURIComponent(c.id)}" data-call-select="${esc(c.id)}"><span>Open<span class="sr"> call from ${esc(c.caller)}</span></span></a></li>`; }).join('')}</ul>`
+  patch($('#callList'), calls.length ? `<ul class="list">${callPage.map(c => { return `<li class="list__row"><span class="list__main"><strong>${esc(c.caller)}</strong><span class="help">${esc(c.service)} · ${(c.origin === 'browser' ? 'Browser call' : c.channel === 'chat' ? 'Chat' : 'Desk request')} · ${esc(c.technician_name || (['AI','Triage'].includes(c.status) ? 'AI assistant' : 'Unassigned'))} · ${esc(when(new Date(c.created_at * 1000).toISOString()))}</span></span>${priorityBadge(c.priority)}${callBadge(c.status)}<a class="link" href="?view=calls&amp;call=${encodeURIComponent(c.id)}" data-call-select="${esc(c.id)}"><span>Open<span class="sr"> call from ${esc(c.caller)}</span></span></a></li>`; }).join('')}</ul>`
     : calling.data.calls.length ? '<p class="sec">No calls match this search.</p>' : '<div class="empty"><h3 class="h4">The queue is empty</h3><p class="sec">Incoming browser calls and routed support requests appear here.</p></div>');
   const incoming = calling.data.incoming_calls || [];
   $('#sharedQueuePanel').hidden = !incoming.length;
   $('#answerHint').hidden = !incoming.some(call => call.origin === 'browser') || !!calling.user?.voice_ready;
-  patch($('#sharedQueue'), incoming.map(call => `<li class="list__row"><span class="list__main"><strong>${esc(call.origin === 'browser' ? 'Incoming browser call' : call.channel === 'chat' ? 'Incoming chat' : 'Support request')}</strong><span class="help">${esc(call.service)} · waiting ${elapsed(call.created_at)}</span></span>${priorityBadge(call.priority)}<button type="button" class="btn btn-primary btn-sm" data-pickup-call="${esc(call.id)}"><span>Answer<span class="sr"> ${esc(call.service)} call</span></span></button>${handoffCard(call)}</li>`).join(''));
+  patch($('#sharedQueue'), incoming.map(call => `<li class="list__row"><span class="list__main"><strong>${esc(call.origin === 'browser' ? 'Incoming browser call' : call.channel === 'chat' ? 'Incoming chat' : 'Support request')}</strong><span class="help">${esc(call.service)} · Started ${esc(when(new Date(call.created_at * 1000).toISOString()))}</span></span>${priorityBadge(call.priority)}<button type="button" class="btn btn-primary btn-sm" data-pickup-call="${esc(call.id)}"><span>Answer<span class="sr"> ${esc(call.service)} call</span></span></button>${handoffCard(call)}</li>`).join(''));
   if ($('#technicianRows')) renderUsersTable();
   $('#incomingCallBanner').hidden = !offer;
   if (offer) {
@@ -135,7 +123,9 @@ function renderCalling() {
 function renderUsersTable() {
   $('#addTechnicianButton').hidden = calling.user?.role !== 'admin';
   const users = (calling.data.users || calling.data.technicians).filter(t => t.role !== 'customer');
-  $('#technicianRows').innerHTML = paginateItems(users, userPager, calling.user?.id, '#userPagination').map(t => { const customer = t.role === 'customer'; return `<tr><th scope="row"><span class="stack stack--sm"><strong>${esc(t.name)}</strong><span class="mono help">${esc(t.username)}</span></span></th><td>${t.role === 'admin' ? '<span class="badge badge--medium">● Admin</span>' : customer ? '<span class="badge badge--muted">○ Customer</span>' : '<span class="badge badge--ok">✓ Technician</span>'}</td><td class="col-opt">${customer ? '—' : esc(t.skills.join(', '))}</td><td class="col-opt">${esc(t.languages.join(', '))}</td><td>${customer ? '—' : callBadge(t.status)}</td><td class="col-opt">${customer ? '—' : t.voice_ready ? '✓ Ready' : '○ Not ready'}</td><td>${t.current_call_id ? `<span class="mono">${esc(t.current_call_id)}</span>` : '<span class="help">—</span>'}</td></tr>`; }).join('');
+  const demoCount = users.filter(t => t.demo_available).length;
+  $('#demoAvailabilitySummary').textContent = demoCount ? `${demoCount}/${users.length} staff are always available for the demo. Actual call routing requires a connected technician.` : '';
+  $('#technicianRows').innerHTML = paginateItems(users, userPager, calling.user?.id, '#userPagination').map(t => { const customer = t.role === 'customer'; return `<tr><th scope="row"><span class="stack stack--sm"><strong>${esc(t.name)}</strong><span class="mono help">${esc(t.username)}</span></span></th><td>${t.role === 'admin' ? '<span class="badge badge--medium">● Admin</span>' : customer ? '<span class="badge badge--muted">○ Customer</span>' : '<span class="badge badge--ok">✓ Technician</span>'}</td><td class="col-opt">${customer ? '—' : esc(t.skills.join(', '))}</td><td class="col-opt">${esc(t.languages.join(', '))}</td><td>${customer ? '—' : callBadge(t.demo_available ? 'Available' : t.status) + (t.demo_available ? '<span class="help"> · Demo</span>' : '')}</td><td class="col-opt">${customer ? '—' : t.voice_ready ? '✓ Ready' : '○ Not ready'}</td><td>${t.current_call_id ? `<span class="mono">${esc(t.current_call_id)}</span>` : '<span class="help">—</span>'}</td></tr>`; }).join('');
   $('#techniciansEmpty').hidden = users.length > 0;
 }
 
@@ -228,7 +218,7 @@ function renderCallDetail() {
     ${c.origin === 'desk' && c.channel !== 'chat' && c.status === 'AI' ? '<form id="callReplyForm" class="stack stack--sm" novalidate><div class="field field--inline"><label for="callReplyText">Customer reply</label><textarea class="input" id="callReplyText" name="text" rows="2" required maxlength="4000"></textarea></div><div class="row"><button type="submit" class="btn btn-primary btn-sm">Send reply</button><p class="form-status" id="callReplyMessage" role="status"></p></div></form>' : ''}`);
   // Facts sit beside the conversation: details, the handoff brief, suggested knowledge and routing history.
   patch($('#callContext'), `<section class="card stack stack--sm" aria-labelledby="callDetailsTitle"><h2 class="h4" id="callDetailsTitle">Details</h2>
-    <dl class="kv"><div><dt>Service</dt><dd>${esc(c.service)}</dd></div><div><dt>Priority</dt><dd>${priorityBadge(c.priority)}</dd></div><div><dt>Technician</dt><dd>${esc(c.technician_name || 'Not assigned')}</dd></div><div><dt>Started</dt><dd>${elapsed(c.created_at)} ago</dd></div></dl>
+    <dl class="kv"><div><dt>Service</dt><dd>${esc(c.service)}</dd></div><div><dt>Priority</dt><dd>${priorityBadge(c.priority)}</dd></div><div><dt>Technician</dt><dd>${esc(c.technician_name || 'Not assigned')}</dd></div><div><dt>Started</dt><dd>${esc(when(new Date(c.created_at * 1000).toISOString()))}</dd></div></dl>
     ${c.reason ? `<p class="help">Routing: ${esc(c.reason)}</p>` : ''}</section>
     ${briefPanel ? `<section class="card">${briefPanel}</section>` : ''}
     <div class="card stack stack--sm"><section class="stack stack--sm" aria-labelledby="callKnowledgeTitle"><h3 class="h4" id="callKnowledgeTitle">Suggested knowledge</h3><p class="help">${status === 'searching' ? '● Finding guidance for the latest customer problem…' : status === 'error' ? `✕ ${esc(c.knowledge_error)}` : 'AI suggestions, updated as the customer describes the issue. Verify before using.'}</p>
@@ -514,11 +504,6 @@ async function openLiveKitSetup() {
   $('#livekitMessage').textContent='';$('#livekitModal').showModal();
 }
 window.openLiveKitSetup = openLiveKitSetup;
-$('#configurationLiveKitButton')?.addEventListener('click', async () => {
-  const message = $('#configurationLiveKitMessage'); message.textContent = '';
-  try { await openLiveKitSetup(); setFormStatus(message, ''); }
-  catch (error) { setFormStatus(message, error.status === 403 ? `○ ${error.message}` : `✕ ${error.message}`, error.status !== 403); }
-});
 $('#livekitForm').addEventListener('submit', async event=>{
   event.preventDefault();const form=event.target,button=form.querySelector('button[type=submit]'),message=$('#livekitMessage');
   button.disabled=true;button.setAttribute('aria-busy','true');setFormStatus(message,'Checking the LiveKit connection…');
@@ -542,7 +527,7 @@ setInterval(() => {
 }, 1000);
 setInterval(heartbeat, 10000);
 $('#callSearch').addEventListener('input', () => { if (calling.data) renderCalling(); });
-$('#callSort').addEventListener('change', () => { if (calling.data) renderCalling(); });
+$('#callSort').addEventListener('click', () => { toggleTimeSort($('#callSort'), 'Calls'); if (calling.data) renderCalling(); });
 document.addEventListener('click', event => {
   const filter = event.target.closest('[data-call-filter]');
   if (!filter) return;

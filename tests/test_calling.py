@@ -87,7 +87,7 @@ def test_decline_timeout_stale_callback_and_fair_reassignment(service):
     assert second["technician_id"] == b["id"]
     service.decline(call["id"], dispatch_id=first["dispatch_id"])
     assert service.get(call["id"])["dispatch_id"] == second["dispatch_id"]
-    service.clock[0] += 26
+    service.clock[0] += service.settings.call_reservation_seconds + 1
     service.dispatch()
     assert service.get(call["id"])["status"] == "Queued"
     with pytest.raises(HTTPException):

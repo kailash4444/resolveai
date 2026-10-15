@@ -20,7 +20,7 @@
   const NAV = {
     customer: [['customer-home', 'My support'], ['customer-create', 'Report an issue'], ['knowledge', 'Help articles']],
     technician: STAFF,
-    admin: [...STAFF, ['technicians', 'Users'], ['configuration', 'Configuration']],
+    admin: [...STAFF, ['technicians', 'Users']],
   };
   const HOME = {customer: '/portal', technician: '/console', admin: '/admin'};
   // Views without their own nav entry highlight their parent section.

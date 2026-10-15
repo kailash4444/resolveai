@@ -90,6 +90,11 @@ class CounterfactualRequest(BaseModel):
 
 
 @app.get("/", include_in_schema=False)
+@app.get("/admin", include_in_schema=False)
+@app.get("/console", include_in_schema=False)
+@app.get("/portal", include_in_schema=False)
+@app.get("/login", include_in_schema=False)
+@app.get("/signup", include_in_schema=False)
 def index():
     return FileResponse(static_dir / "index.html")
 
