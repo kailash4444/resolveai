@@ -8,10 +8,39 @@ function priorityBadge(value) {
   const [icon,label,tone] = tones[value] || ['○','Unrated','badge--muted'];
   return `<span class="badge ${tone}">${icon} ${label}</span>`;
 }
+// One chat window for customers and technicians. Messages are added at the bottom (only new ones, so screen readers
+// announce just those); the view follows the newest message unless the reader scrolled up. "typing" names whoever is
+// typing on the other side and shows an animated bubble.
+function renderChatWindow(box, turns, {mine, name, typing = ''}) {
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+  box.querySelectorAll('[data-pending], .bubble--typing').forEach(item => item.remove());
+  const shown = Number(box.dataset.count || 0);
+  if (turns.length < shown) { box.innerHTML = ''; box.dataset.count = 0; }
+  turns.slice(Number(box.dataset.count || 0)).forEach(turn => box.append(chatBubble(turn, turn.speaker === mine, name(turn))));
+  box.dataset.count = turns.length;
+  if (typing) {
+    const dots = document.createElement('div');
+    dots.className = 'bubble bubble--typing'; dots.setAttribute('role', 'status');
+    dots.innerHTML = `<span class="bubble__who">${esc(typing)}</span><span class="typing-dots" aria-label="${esc(typing)} is typing"><i></i><i></i><i></i></span>`;
+    box.append(dots);
+  }
+  if (nearBottom || turns.length > shown) box.scrollTop = box.scrollHeight;
+}
+function chatBubble(turn, own, who, pending = false) {
+  const item = document.createElement('div');
+  item.className = `bubble${own ? ' bubble--me' : ''}${turn.speaker === 'AI Agent' ? ' bubble--ai' : ''}`;
+  if (pending) item.dataset.pending = '';
+  const time = turn.timestamp ? `<time>${esc(new Date(turn.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}))}</time>` : '';
+  item.innerHTML = `<span class="bubble__who">${esc(who)}${time}</span><p>${esc(turn.text)}</p>`;
+  return item;
+}
+// A message the sender just wrote shows at once, before the server confirms it.
+function showPendingBubble(box, text, who) { box.append(chatBubble({text}, true, who, true)); box.scrollTop = box.scrollHeight; }
+
 function stateBadge(value) {
-  const states = {Resolved:['✓','badge--ok'],'In Progress':['◆','badge--high'],'On Hold':['○','badge--muted'],New:['●','badge--new'],Closed:['✓','badge--ok']};
+  const states = {Resolved:['✓','badge--ok'],'In Progress':['◐','badge--new'],'On Hold':['○','badge--muted'],New:['●','badge--new'],Closed:['✓','badge--ok']};
   const [icon,tone] = states[value] || ['○','badge--muted'];
-  return `<span class="badge ${tone}">${icon} ${esc(value || 'Unknown')}</span>`;
+  return `<span class="badge badge--state ${tone}">${icon} ${esc(value || 'Unknown')}</span>`;
 }
 
 async function api(path, options = {}) {
@@ -70,7 +99,7 @@ const VIEW_ACCESS = {
   technician: ['overview','case','tickets','ticket-detail','time-machine','calls','transcripts','analytics','resolution-radar','knowledge','qa'],
 };
 VIEW_ACCESS.admin = [...VIEW_ACCESS.technician, 'technicians'];
-const VIEW_TITLES = {signin: 'ResolveAI · Less firefighting. More resolution.', 'customer-home': 'My support', 'customer-create': 'Report an issue', overview: 'Overview', case: 'Conversation intake', tickets: 'Tickets', 'ticket-detail': 'Ticket details', 'time-machine': 'Incident Time Machine', 'resolution-radar': 'Resolution debt', calls: 'Calls & queue', transcripts: 'Transcripts', analytics: 'Analytics', knowledge: 'Knowledge', qa: 'Quality audit', technicians: 'Users', denied: 'No access', notfound: 'Not found'};
+const VIEW_TITLES = {signin: 'ResolveAI · Less firefighting. More resolution.', 'customer-home': 'My support', 'customer-create': 'Report an issue', overview: 'Operations overview', case: 'Conversation intake', tickets: 'Tickets', 'ticket-detail': 'Ticket details', 'time-machine': 'Incident Time Machine', 'resolution-radar': 'Resolution debt', calls: 'Calls & queue', transcripts: 'Transcripts', analytics: 'Analytics', knowledge: 'Knowledge', qa: 'Quality audit', technicians: 'Users', denied: 'No access', notfound: 'Not found'};
 function homeView(user = state.user) { return !user ? 'signin' : user.role === 'customer' ? 'customer-home' : user.role === 'technician' ? 'calls' : 'overview'; }
 function showView(name) {
   $('#appLoading').hidden = true;
@@ -159,21 +188,36 @@ function age(value) {
 function incidentLink(item) { return `<a class="mono" href="${window.Shell.home(state.user.role)}?ticket=${encodeURIComponent(item.id)}" data-ticket-link="${esc(item.id)}">${esc(item.ticket.id)}</a>`; }
 
 // Bar chart with a text alternative and a data table equivalent. Bars are decorative; numbers live in text.
-function barChart(counts, {caption, unit = 'incidents', id}) {
+// Horizontal bars. Each bar's length is its share of the total, so 30% fills 30% of the track. Rows share one grid,
+// so every track starts and ends in the same place. On Analytics one Chart / Table switch above the cards changes
+// every chart at once; the choice is remembered while the page is open.
+let chartView = 'chart';
+// "Incidents by service" → "Service": the table's first column is named after what the chart groups by.
+const columnName = caption => { const name = caption.replace(/^.*\bby\s+/i, '').trim(); return name ? name[0].toUpperCase() + name.slice(1) : 'Category'; };
+function barChart(counts, {caption, unit = 'incidents', switchable = false}) {
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   if (!entries.length) return '<p class="sec">No data for this selection yet.</p>';
-  const total = entries.reduce((sum, [, n]) => sum + n, 0), max = Math.max(...entries.map(([, n]) => n));
-  const share = n => `${Math.round(n / Math.max(1, total) * 100)}%`;
-  return `<figure class="chart" aria-label="${esc(caption)}"><figcaption class="help">${total} ${unit} in total · bars are relative to the largest</figcaption>
-    <div class="bars" aria-hidden="true">${entries.map(([label, n]) => `<div class="bars__row"><span class="bars__label">${esc(label)}</span><span class="bars__track"><span class="bars__fill" style="width:${Math.max(2, Math.round(n / max * 100))}%"></span></span><span class="bars__value">${n} · ${share(n)}</span></div>`).join('')}</div>
-    <p class="sr">${esc(caption)}: ${entries.map(([label, n]) => `${esc(label)} ${n} ${unit} (${share(n)})`).join('; ')}.</p>
-    <details class="chart__table"><summary>Show as table</summary><div class="tbl-wrap"><table class="tbl"><caption class="sr">${esc(caption)}</caption><thead><tr><th scope="col">Category</th><th scope="col">Count (${unit})</th><th scope="col">Share</th></tr></thead><tbody>${entries.map(([label, n]) => `<tr><th scope="row">${esc(label)}</th><td>${n}</td><td>${share(n)}</td></tr>`).join('')}</tbody></table></div></details></figure>`;
+  const total = entries.reduce((sum, [, n]) => sum + n, 0), percent = n => n / Math.max(1, total) * 100;
+  const share = n => `${Math.round(percent(n))}%`, table = switchable && chartView === 'table';
+  return `<figure class="chart"${switchable ? ' data-switchable' : ''} aria-label="${esc(caption)}"><figcaption class="help">${total} ${esc(unit)} in total</figcaption>
+    <div class="chart__body" tabindex="0" aria-label="${esc(caption)}"><ol class="bars" aria-hidden="true"${table ? ' hidden' : ''}>${entries.map(([label, n]) => `<li class="bars__row" title="${esc(label)}: ${n} ${esc(unit)} (${share(n)})"><span class="bars__label">${esc(label)}</span><span class="bars__track"><span class="bars__fill" style="--w:${Math.max(1, percent(n)).toFixed(1)}%"></span></span><span class="bars__count">${n}</span><span class="bars__share">${share(n)}</span></li>`).join('')}</ol>
+    ${switchable ? `<div class="chart__table"${table ? '' : ' hidden'}><table class="tbl tbl--compact"><caption class="sr">${esc(caption)}</caption><thead><tr><th scope="col">${esc(columnName(caption))}</th><th scope="col" class="num">Count</th><th scope="col" class="num">Share</th></tr></thead><tbody>${entries.map(([label, n]) => `<tr><td>${esc(label)}</td><td class="num">${n}</td><td class="num">${share(n)}</td></tr>`).join('')}</tbody></table></div>` : ''}</div>
+    <p class="sr">${esc(caption)}: ${entries.map(([label, n]) => `${esc(label)} ${n} ${esc(unit)} (${share(n)})`).join('; ')}.</p></figure>`;
 }
+document.addEventListener('click', event => {
+  const button = event.target.closest('[data-chart-mode]');
+  if (!button) return;
+  chartView = button.dataset.chartMode;
+  $$('[data-chart-mode]').forEach(item => item.setAttribute('aria-pressed', String(item.dataset.chartMode === chartView)));
+  $$('.chart[data-switchable]').forEach(chart => {
+    chart.querySelector('.bars').hidden = chartView === 'table';
+    chart.querySelector('.chart__table').hidden = chartView !== 'table';
+  });
+});
 
 async function loadOverview() {
   if (state.user?.role === 'customer') return;
   const admin = state.user?.role === 'admin';
-  $('#overviewKicker').textContent = admin ? 'Admin workspace' : 'Technician workspace';
   $('#metricsScope').textContent = admin ? 'Scope: every incident in this workspace' : 'Scope: incidents visible to you';
   $('#overviewLoading').hidden = !$('#overviewContent').hidden; $('#overviewError').hidden = true;
   try {
@@ -253,6 +297,9 @@ function renderCase(item, {attachmentError = ''} = {}) {
   $("#caseResult").scrollIntoView({ block: "start" });
 }
 
+// Services are one fixed list shared with the server (services.py), so reports never split one service in two.
+const SERVICES = ['Accounts & access', 'Email & Outlook', 'Network & VPN', 'Printing', 'Microsoft Teams', 'Windows & devices', 'Software & apps', 'Business applications', 'General'];
+function serviceOptions(current = 'General') { return (state.config?.services || SERVICES).map(value => `<option ${value === current ? 'selected' : ''}>${esc(value)}</option>`).join(''); }
 function taxonomyField(label, name, current, choices) {
   const matched = choices.includes(current), id = `tf-${name}`;
   const options = choices.map(value => `<option value="${esc(value)}" ${matched && value === current ? "selected" : ""}>${esc(value)}</option>`).join("");
@@ -272,16 +319,13 @@ function ticketForm(item) {
   const priorities = {P1: '▲ Critical · P1', P2: '◆ High · P2', P3: '● Medium · P3', P4: '▽ Low · P4'};
   return `<form class="stack" id="ticketForm" novalidate>
     <div class="fields">
-      <div class="field"><label for="tf-caller">Customer name</label><input class="input" id="tf-caller" value="${esc(item.caller)}" readonly></div>
-      <div class="field"><label for="tf-channel">Channel</label><input class="input" id="tf-channel" value="${esc(item.channel)}" readonly></div>
-      <div class="field"><label for="tf-reported">Reported time</label><input class="input" id="tf-reported" value="${esc(when(item.created_at))}" readonly></div>
       <div class="field field--wide"><label for="tf-short">Short description</label><input class="input" id="tf-short" name="short_description" value="${esc(ticket.short_description)}" required maxlength="200"></div>
       <div class="field field--wide"><label for="tf-desc">Description</label><textarea class="input" id="tf-desc" name="description" rows="4">${esc(ticket.description)}</textarea></div>
       ${taxonomyField("Category", "category", ticket.category, ["Access", "Hardware", "Incident", "Network", "Security", "Software", "Workplace"])}
       ${taxonomyField("Subcategory", "subcategory", ticket.subcategory, ["Account", "Account lockout", "Application crash", "Connectivity", "Display", "Investigation", "Password reset", "Permissions", "Triage", "Unclassified"])}
-      ${taxonomyField("Service", "service", ticket.service, ["Business Application", "Corporate VPN", "Enterprise IT", "General", "General IT", "Google Workspace", "Identity", "Identity and Access Management", "Microsoft 365", "Outlook", "Reporting Portal", "Windows", "Workstation Display"])}
+      <div class="field"><label for="tf-service">Service</label><select class="input" id="tf-service" name="service">${serviceOptions(ticket.service)}</select></div>
       ${taxonomyField("Assignment group", "assignment_group", ticket.assignment_group, ["Application Support", "Artificial intelligence", "Endpoint Support", "Identity Service Desk", "Network Operations", "Security Operations", "Service Desk"])}
-      <div class="field"><label for="tf-assigned">Assigned to</label>${admin ? `<select class="input" id="tf-assigned" name="assigned_user_id"><option value="">Unassigned</option>${!ticket.assigned_user_id && ticket.assigned_to === 'AI' ? '<option value="__ai__" selected>AI</option>' : ''}${state.users.filter(user=>user.role!=='customer').map(user=>`<option value="${esc(user.id)}" ${ticket.assigned_user_id===user.id?'selected':''}>${esc(user.name)} (${esc(user.username)})</option>`).join('')}</select>` : `<input class="input" id="tf-assigned" value="${esc(ticket.assigned_to || 'Unassigned')}" readonly aria-describedby="tf-assigned-help"><p class="help" id="tf-assigned-help">Read-only: only administrators can change who a ticket is assigned to.</p>`}</div>
+      <div class="field">${admin ? '<label for="tf-assigned">Assigned to</label>' : '<p class="field__label">Assigned to</p>'}${admin ? `<select class="input" id="tf-assigned" name="assigned_user_id"><option value="">Unassigned</option>${!ticket.assigned_user_id && ticket.assigned_to === 'AI' ? '<option value="__ai__" selected>AI</option>' : ''}${state.users.filter(user=>user.role!=='customer').map(user=>`<option value="${esc(user.id)}" ${ticket.assigned_user_id===user.id?'selected':''}>${esc(user.name)} (${esc(user.username)})</option>`).join('')}</select>` : `<p class="field__value" id="tf-assigned">${esc(ticket.assigned_to || 'Unassigned')}</p><p class="help">Only administrators can reassign tickets.</p>`}</div>
       <div class="field"><label for="tf-priority">Priority</label><select class="input" id="tf-priority" name="priority">${Object.entries(priorities).map(([value, label]) => `<option value="${value}" ${value === ticket.priority ? "selected" : ""}>${label}</option>`).join("")}</select></div>
       <div class="field"><label for="tf-state">State</label><select class="input" id="tf-state" name="state" aria-describedby="tf-state-help">${states.map(value => `<option ${value === ticket.state ? "selected" : ""}>${value}</option>`).join("")}</select><p class="help" id="tf-state-help">To resolve, use the Resolution tab.</p></div>
     </div>
@@ -315,7 +359,7 @@ function transcriptTurns(turns, fallbackName = () => '') {
 }
 function transcriptPanel(item) {
   if (!item.transcript.length) return '';
-  return `<section class="card" aria-label="Source conversation"><details><summary>Source conversation · <span class="mono">${esc(item.ticket.call_id || 'Recorded intake')}</span>&nbsp;· ${item.transcript.length} ${item.transcript.length === 1 ? 'turn' : 'turns'}</summary><p class="help">Technician: ${esc(item.ticket.assigned_to || 'Not assigned')} · Customer: ${esc(item.caller)}</p>${transcriptTurns(item.transcript)}</details></section>`;
+  return `<section class="card" aria-label="Source conversation"><details><summary>Source conversation <span class="help">&nbsp;· ${item.transcript.length} ${item.transcript.length === 1 ? 'message' : 'messages'}</span></summary><p class="help">Technician: ${esc(item.ticket.assigned_to || 'Not assigned')} · Customer: ${esc(item.caller)}</p>${transcriptTurns(item.transcript)}</details></section>`;
 }
 
 function resolutionPanel(item) {
@@ -345,6 +389,8 @@ async function saveTicket(form) {
     state.reviewed.add(state.current.id);
     if (editingTicketDetails) await openTicketDetails(state.current.id, {keepScroll: true}); else renderCase(state.current);
     toast(`${state.current.ticket.id} saved.`);
+    // The form was redrawn; say so next to the button too, where the person is looking.
+    const saved = $('#ticketFormStatus'); if (saved) setFormStatus(saved, `✓ Saved at ${new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}`);
   } catch (error) { setFormStatus(status, `✕ Not saved: ${error.message}`, true); button.disabled = false; button.removeAttribute('aria-busy'); }
 }
 
@@ -490,7 +536,7 @@ function renderTicketQAList() {
   $('#ticketQaCoverage').textContent = `All filtered results · ${summary.count} audited of ${resolved.length} resolved tickets. Pending / outdated audits excluded. Field averages: Pass 100, Check 50, Fail 0; missing fields excluded.`;
   $('#ticketQaCount').textContent = `${resolved.length} of ${ticketQaCases.length} tickets`;
   const page = paginateItems(resolved, ticketQaPager, JSON.stringify([state.user?.id, technician, service]), '#ticketQaPagination');
-  box.innerHTML = resolved.length ? `<div class="tbl-wrap" role="region" aria-label="Ticket audits" tabindex="0"><table class="tbl"><caption class="sr">Resolved tickets and their QA status</caption><thead><tr><th scope="col">Ticket</th><th scope="col">Issue</th><th scope="col" class="col-opt">Service</th><th scope="col">QA</th><th scope="col"><span class="sr">Action</span></th></tr></thead><tbody>${page.map(item => `<tr><td><span class="mono">${esc(item.ticket.id)}</span></td><td>${esc(item.ticket.short_description)}${exampleTag(item)}</td><td class="col-opt">${esc(item.ticket.service)}</td><td>${qaBadge(item)}</td><td><button type="button" class="link" data-qa-case-id="${esc(item.id)}"><span>Review<span class="sr"> audit for ${esc(item.ticket.id)}</span></span></button></td></tr>`).join("")}</tbody></table></div>`
+  box.innerHTML = resolved.length ? `<div class="tbl-wrap" role="region" aria-label="Ticket audits" tabindex="0"><table class="tbl"><caption class="sr">Resolved tickets and their QA status</caption><thead><tr><th scope="col">Ticket</th><th scope="col">Issue</th><th scope="col" class="col-opt">Service</th><th scope="col">QA</th><th scope="col"><span class="sr">Action</span></th></tr></thead><tbody>${page.map(item => `<tr><td>${incidentLink(item)}</td><td>${esc(item.ticket.short_description)}${exampleTag(item)}</td><td class="col-opt">${esc(item.ticket.service)}</td><td>${qaBadge(item)}</td><td><button type="button" class="link" data-qa-case-id="${esc(item.id)}"><span>Open<span class="sr"> audit for ${esc(item.ticket.id)}</span></span></button></td></tr>`).join("")}</tbody></table></div>`
     : ticketQaCases.length ? '<p class="sec">No resolved tickets match these filters.</p>' : '<div class="empty"><h2 class="h3">No resolved tickets yet</h2><p class="sec">Resolved tickets appear here straight away while AI QA runs in the background.</p></div>';
 }
 
@@ -589,7 +635,6 @@ function renderTickets() {
   cases.sort((a, b) => newest ? new Date(b.created_at) - new Date(a.created_at) : new Date(a.created_at) - new Date(b.created_at));
   const active = TICKET_FILTERS.filter(([id]) => $('#' + id).value);
   $('#ticketChips').innerHTML = active.map(([id, label]) => { const el = $('#' + id), shown = el.tagName === 'SELECT' ? el.selectedOptions[0].textContent : `“${el.value}”`; return `<button type="button" class="chip" data-clear-filter="${id}"><span>${label}: ${esc(shown)} <span aria-hidden="true">✕</span><span class="sr">, remove filter</span></span></button>`; }).join('');
-  $('#clearTicketFilters').hidden = !active.length;
   $('#ticketResultCount').textContent = `${cases.length} of ${state.cases.length} tickets`;
   const empty = $('#ticketsEmpty');
   $('#ticketsTable').hidden = !cases.length;
@@ -619,11 +664,13 @@ function staffTicketDetails(item) {
   return `<div class="page-head"><div><p class="kicker"><span class="mono">${esc(t.id)}</span>${t.call_id ? ` · call <span class="mono">${esc(t.call_id)}</span>` : ''}</p><h1 id="ticketDetailTitle" tabindex="-1">${esc(t.short_description)}</h1></div><div class="row row--sm">${priorityBadge(t.priority)}${stateBadge(t.state)}${exampleTag(item)}<button type="button" class="btn btn-soft btn-sm" data-enter-time-machine="${esc(item.id)}">Enter Time Machine <span aria-hidden="true">→</span></button></div></div>
   <div class="detail-grid">
     <div class="stack stack--lg">
+      ${renderVisualAnalysis(t, item.id)}${staffAssist(item)}${renderAttachments(t.attachments, false, t)}
       <section class="card stack" aria-labelledby="fieldsTitle"><h2 class="h3" id="fieldsTitle">Ticket fields</h2>${ticketForm(item)}</section>
       ${followupPanels(item)}
-      ${renderAttachments(t.attachments, false, t)}${renderVisualAnalysis(t, item.id)}${staffAssist(item)}${transcriptPanel(item)}
+      ${transcriptPanel(item)}
     </div>
     <aside class="stack detail-aside" aria-label="Ticket summary">
+      <section class="card stack stack--sm" aria-labelledby="reportedTitle"><h2 class="h4" id="reportedTitle">Reported</h2><dl class="kv"><div><dt>Customer</dt><dd>${esc(item.caller)}</dd></div><div><dt>Channel</dt><dd>${esc(item.channel)}</dd></div><div><dt>When</dt><dd>${esc(when(item.created_at))}</dd></div>${t.call_id ? `<div><dt>Call</dt><dd class="mono">${esc(t.call_id)}</dd></div>` : ''}</dl></section>
       <section class="card stack stack--sm" aria-labelledby="assignTitle"><h2 class="h4" id="assignTitle">Assignment</h2><p>${esc(t.assigned_to || 'Unassigned')}</p><p class="help">${esc(t.assignment_group)}</p><p class="help">${admin ? 'Change it in Ticket fields.' : 'Only administrators can reassign tickets.'}</p></section>
       <section class="card stack stack--sm" aria-labelledby="qaTitle"><h2 class="h4" id="qaTitle">Quality audit</h2>${item.quality_score == null ? `<span class="badge badge--muted">○ ${resolved ? 'Audit running or pending' : 'Not audited yet'}</span>` : `<span class="badge ${item.quality_score >= 80 ? 'badge--ok' : 'badge--high'}">${item.quality_score >= 80 ? '✓' : '◆'} ${item.quality_score}%</span>`}<p class="help">${resolved ? 'AI QA compares the resolved ticket with the source conversation.' : 'AI QA runs after the ticket is resolved.'}</p>${resolved && canAudit ? '<div><button type="button" class="link" data-open-qa>Open audit</button></div>' : ''}</section>
     </aside>
@@ -666,7 +713,7 @@ function groupedCounts(values) {
 
 function renderAnalyticsBars(target, counts, total, unit = 'incidents') {
   const caption = $(target).closest('article')?.querySelector('h2')?.textContent || 'Distribution';
-  $(target).innerHTML = barChart(counts, {caption, unit, id: target.slice(1)});
+  $(target).innerHTML = barChart(counts, {caption, unit, switchable: true});
 }
 
 function analyticsOptions(selector, values, label) {
@@ -741,8 +788,8 @@ function renderKnowledge(query = "") {
   const page = paginateItems(articles, knowledgePager, JSON.stringify([state.user?.id,term]), '#knowledgePagination');
   $('#knowledgeCount').textContent = term ? `${articles.length} of ${state.knowledge.length} articles match` : `${state.knowledge.length} published articles`;
   const staff = state.user?.role !== 'customer';
-  $("#knowledgeList").innerHTML = articles.length ? page.map(article => `<article class="card stack stack--sm" aria-labelledby="kb-${esc(article.id)}"><div class="row row--between"><h2 class="h3" id="kb-${esc(article.id)}">${esc(article.title)}</h2><span class="badge badge--ok">✓ Published</span></div>
-      <p class="help"><span class="mono">${esc(article.id)}</span> · ${esc(article.product)}${article.tags.length ? ` · ${esc(article.tags.join(', '))}` : ''}${staff ? ` · <button type="button" class="link" data-edit-knowledge="${esc(article.id)}">Edit article</button>` : ''}</p><p class="sec">${esc(article.symptoms)}</p>
+  $("#knowledgeList").innerHTML = articles.length ? page.map(article => `<article class="card stack stack--sm" aria-labelledby="kb-${esc(article.id)}"><div class="row row--between"><h2 class="h3" id="kb-${esc(article.id)}">${esc(article.title)}</h2><div class="row row--sm"><span class="badge badge--ok">✓ Published</span>${staff ? `<button type="button" class="btn btn-soft btn-sm" data-edit-knowledge="${esc(article.id)}"><span>Edit<span class="sr"> ${esc(article.title)}</span></span></button>` : ''}</div></div>
+      <p class="help"><span class="mono">${esc(article.id)}</span> · ${esc(article.product)}${article.tags.length ? ` · ${esc(article.tags.join(', '))}` : ''}</p><p class="sec">${esc(article.symptoms)}</p>
       <details><summary>Steps (${article.steps.length})</summary><ol class="plain-steps">${article.steps.map(step => `<li>${esc(step)}</li>`).join("")}</ol><p class="small"><strong>Expected result:</strong> ${esc(article.resolution)}</p>${staff && article.source_ticket_ids?.length ? `<p class="help">Drafted from: ${article.source_ticket_ids.map(number => `<button type="button" class="link" data-source-ticket="${esc(number)}">${esc(number)}</button>`).join(" ")}</p>` : ""}</details></article>`).join("")
     : state.knowledge.length ? `<div class="empty"><h2 class="h3">No articles match “${esc(query)}”</h2><p class="sec">Try other words, or clear the search.</p></div>`
       : `<div class="empty"><h2 class="h3">No articles yet</h2><p class="sec">${staff ? 'Add an article, or draft one from resolved incidents.' : 'Help articles will appear here.'}</p></div>`;
@@ -1004,10 +1051,11 @@ function customerStage(ticket) {
   if (['In Progress','On Hold'].includes(ticket.state)) return 2;
   return ticket.assigned_to ? 1 : 0;
 }
-const STAGE_BADGES = [['badge--new', '● Received'], ['badge--medium', '● Assigned'], ['badge--high', '◆ In progress'], ['badge--ok', '✓ Resolved']];
+// Same marks as staff state badges: ● received, ◐ being worked on, ✓ resolved.
+const STAGE_BADGES = [['badge--new', '● Received'], ['badge--new', '● Assigned'], ['badge--new', '◐ In progress'], ['badge--ok', '✓ Resolved']];
 function customerStageBadge(ticket) {
   const [tone, label] = ticket.state === 'On Hold' ? ['badge--muted', '○ Waiting for you'] : STAGE_BADGES[customerStage(ticket)];
-  return `<span class="badge ${tone}">${esc(label)}</span>`;
+  return `<span class="badge badge--state ${tone}">${esc(label)}</span>`;
 }
 function progressSteps(ticket) {
   const stage = customerStage(ticket);
@@ -1149,6 +1197,8 @@ function staffAssist(item) {
     ${assist.customer_response ? `<p class="small"><strong>Customer said:</strong> ${esc(assist.customer_response)}</p>` : ''}</section>`;
 }
 
+// Customers see what they themselves wrote or said, not the technician-facing rewrite in the ticket description.
+function customerWords(item) { return item.transcript.filter(turn => turn.speaker === 'Customer' && turn.text?.trim()).map(turn => turn.text.trim()).join('\n\n') || item.ticket.description; }
 function customerTicketDetails(item) {
   const t = item.ticket;
   return `<div class="page-head"><div><p class="kicker"><span class="mono">${esc(t.id)}</span></p><h1 id="ticketDetailTitle" tabindex="-1">${esc(t.short_description)}</h1></div>${customerStageBadge(t)}</div>
@@ -1156,7 +1206,7 @@ function customerTicketDetails(item) {
     ${customerAssist(item)}
     <section class="card${item.assist?.status === 'offered' ? '' : ''} stack" aria-labelledby="progressTitle"><h2 class="h3" id="progressTitle">Progress</h2>${progressSteps(t)}<p class="sec">${customerNextStep(t, item.assist)}</p></section>
     ${t.resolution ? `<section class="card stack" aria-labelledby="resolutionTitle"><h2 class="h3" id="resolutionTitle">How it was resolved</h2><p class="pre">${esc(t.resolution)}</p></section>` : ''}
-    <section class="card stack" aria-labelledby="reportedTitle"><h2 class="h3" id="reportedTitle">What you reported</h2><p class="pre sec">${esc(t.description)}</p>
+    <section class="card stack" aria-labelledby="reportedTitle"><h2 class="h3" id="reportedTitle">What you reported</h2><p class="pre sec">${esc(customerWords(item))}</p>
       <dl class="kv"><div><dt>Service</dt><dd>${esc(t.service)}</dd></div><div><dt>Assigned to</dt><dd>${esc(t.assigned_to || 'Awaiting assignment')}</dd></div><div><dt>Reported</dt><dd>${esc(when(item.created_at))}</dd></div></dl></section>
     ${renderAttachments(t.attachments, true, t)}
     ${activityPanel(item)}
@@ -1169,7 +1219,7 @@ window.showCustomerCreateResult = (item, fileCount, {quiet = false} = {}) => {
   const box = $('#customerCreateResult');
   box.innerHTML = `<div class="card stack"><p class="kicker">Incident created</p><h2 id="createResultTitle" tabindex="-1">✓ ${esc(t.id)} ${['offered', 'pending'].includes(item.assist?.status) ? 'created' : t.assigned_to ? `is with ${esc(t.assigned_to)}` : 'is with the service desk'}</h2><p class="sec">${esc(t.short_description)}. ${item.assist?.status === 'offered' ? 'The AI assistant has some steps for you below.' : item.assist?.status === 'pending' ? 'The AI assistant is reviewing it now.' : 'You’ll see updates on My support.'}</p>
     ${fileCount ? `<div class="stack stack--sm"><h3 class="h4">Your images</h3><ul class="files">${files}</ul>${pending || state.kind === 'ai' ? '' : '<p class="help">Your images are attached to the incident. Automatic checking wasn’t available, so your technician will review them.</p>'}</div>` : ''}
-    <div class="row"><a class="btn ${item.assist?.status === 'offered' ? 'btn-soft' : 'btn-primary'}" href="/portal?ticket=${encodeURIComponent(item.id)}" data-ticket-link="${esc(item.id)}">View incident <span aria-hidden="true">→</span></a><button type="button" class="btn btn-soft" id="reportAnother">Report another issue</button></div></div>${customerAssist(item) ? `<div class="section" aria-live="polite">${customerAssist(item)}</div>` : ''}`;
+    <div class="row"><a class="btn ${item.assist?.status === 'offered' ? 'btn-soft' : 'btn-primary'}" href="/portal?ticket=${encodeURIComponent(item.id)}" data-ticket-link="${esc(item.id)}">Open incident <span aria-hidden="true">→</span></a><button type="button" class="btn btn-soft" id="reportAnother">Report another issue</button></div></div>${customerAssist(item) ? `<div class="section" aria-live="polite">${customerAssist(item)}</div>` : ''}`;
   box.hidden = false; $('#customerCreateForm').hidden = true;
   if (!quiet) { $('#createResultTitle').focus(); toast(`Incident ${t.id} created.`); }
   watchAssist(item, fresh => { if (!box.hidden && box.querySelector(`[data-ticket-link="${CSS.escape(fresh.id)}"]`)) window.showCustomerCreateResult(fresh, fileCount, {quiet: true}); });
@@ -1211,7 +1261,8 @@ document.addEventListener('click', event => {
 $('#incidentKnowledgeModal').addEventListener('close', () => knowledgeGeneration?.abort());
 $('#mediaPreviewDialog').addEventListener('click', event => { if (event.target === event.currentTarget) event.currentTarget.close(); });
 
-const CALL_STATUS = {Completed:['badge--ok','✓ Completed'],Failed:['badge--err','✕ Failed'],'Callback requested':['badge--high','◆ Callback requested']};
+// Customer-facing call states, in the same words staff screens use.
+const CALL_STATUS = {Completed:['badge--ok','✓ Completed'],Failed:['badge--err','✕ Failed'],'Callback requested':['badge--high','◆ Callback requested'],AI:['badge--medium','● With AI'],Triage:['badge--medium','● With AI'],Queued:['badge--muted','○ Waiting for a technician'],Ringing:['badge--muted','○ Waiting for a technician'],Connected:['badge--medium','● With a technician'],Declined:['badge--muted','○ Waiting for a technician']};
 function loadError(what, retry) {
   return `<div class="alert" role="alert"><strong>✕ Couldn’t load your ${what}.</strong><span class="sec">Check your connection and try again.</span><button type="button" class="btn btn-soft btn-sm" data-customer-retry="${retry}">Retry</button></div>`;
 }
@@ -1242,7 +1293,7 @@ function renderCustomerCalls() {
   const page = paginateItems(calls, customerCallsPager, state.user?.id, '#customerCallsPagination', 5);
   target.innerHTML = calls.length ? `<ul class="list">${page.map(call => {
       const [tone, label] = CALL_STATUS[call.status] || ['badge--medium', `● ${call.status}`];
-      return `<li class="list__row"><span class="list__main"><strong>${call.channel === 'chat' ? 'Chat' : 'Voice call'}</strong><span class="mono help">${esc(call.id)}</span><span class="help">${esc(new Date(call.created_at * 1000).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'}))}</span></span><span class="badge ${tone}">${esc(label)}</span>${call.case_id ? `<a class="link" href="/portal?ticket=${encodeURIComponent(call.case_id)}" data-ticket-link="${esc(call.case_id)}"><span>View incident<span class="sr"> for ${esc(call.id)}</span></span></a>` : '<span class="help">No incident created</span>'}</li>`;
+      return `<li class="list__row"><span class="list__main"><strong>${call.channel === 'chat' ? 'Chat' : 'Voice call'}</strong><span class="help">${esc(new Date(call.created_at * 1000).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'}))}</span></span><span class="badge ${tone}">${esc(label)}</span>${call.case_id ? `<a class="link" href="/portal?ticket=${encodeURIComponent(call.case_id)}" data-ticket-link="${esc(call.case_id)}"><span>Open incident<span class="sr"> for the ${call.channel === 'chat' ? 'chat' : 'call'} on ${esc(new Date(call.created_at * 1000).toLocaleString())}</span></span></a>` : '<span class="help">No incident created</span>'}</li>`;
   }).join('')}</ul>` : '<p class="sec">No calls or chats yet. Ones you start from Get support appear here.</p>';
 }
 bindPagination('#customerCallsPagination', customerCallsPager, renderCustomerCalls);
@@ -1283,7 +1334,7 @@ function renderCustomerIncidents() {
       <p class="help"><span class="mono">${esc(t.id)}</span> · ${esc(t.service)} · ${esc(when(item.created_at))}</p>
       ${done(item) ? '' : `<p class="sec">${customerNextStep(t, item.assist)}</p>`}${action ? `<div>${action}</div>` : ''}</div>${customerStageBadge(t)}</li>`;
   }).join('');
-  target.innerHTML = `<ul class="card inc-list">${rows}</ul><nav id="customerPagination" class="pagination" aria-label="Incident pages" hidden></nav>`;
+  target.innerHTML = `<div class="inc-scroll" tabindex="0" aria-label="Your incidents"><ul class="inc-list">${rows}</ul></div><nav id="customerPagination" class="pagination" aria-label="Incident pages" hidden></nav>`;
   updatePagination('#customerPagination', customerList.page, list.length, CUSTOMER_PAGE);
 }
 document.addEventListener('click', event => {

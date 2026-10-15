@@ -161,7 +161,7 @@ def test_mock_knowledge_draft_stays_explicit_about_unverified_outcome(time_machi
     assert response.status_code == 200, response.text
     article = response.json()['article']
     assert article['source_ticket_ids'] == [time_machine.case.ticket.id]
-    assert article['product'] == 'Network'
+    assert article['product'] == 'Network & VPN'
     assert 'No confirmed fix' in article['resolution']
 
 

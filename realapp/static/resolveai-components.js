@@ -13,7 +13,8 @@ document.addEventListener('click', e => {
     const list = t.closest('[role="tablist"]');
     list.querySelectorAll('[role="tab"]').forEach(b => {
       const sel = b === t; b.setAttribute('aria-selected', sel); b.tabIndex = sel ? 0 : -1;
-      document.getElementById(b.getAttribute('aria-controls')).hidden = !sel;
+      const panel = document.getElementById(b.getAttribute('aria-controls'));   // some tab sets manage their own panels
+      if (panel) panel.hidden = !sel;
     });
   }
   if (t.dataset.copy) navigator.clipboard.writeText(document.getElementById(t.dataset.copy).textContent);

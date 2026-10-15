@@ -11,6 +11,7 @@ from realapp.call_analytics import CallQuality, filtered_analytics, overall_qual
 
 from realapp.calling import CallingService, TechnicianCreate, Registration, Login, Presence, Heartbeat, CallSettings, SupportRequest, CustomerMessage, TERMINAL
 from realapp.calling_store import create_calling_store
+from realapp.services import normalize_service
 from realapp.models import TicketUpdate
 from realapp.livekit_transport import LiveKitTransport
 from realapp.livekit_setup import LiveKitSetup, LiveKitCredentials, check_connection
@@ -164,13 +165,14 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
             raise HTTPException(403, "Creating an account is turned off. Ask your ResolveAI administrator for an account.")
         if not service.has_users():
             raise HTTPException(409, "ResolveAI isn't set up yet. The administrator account must be created first.")
-        if value.username.lower() in value.password.lower():
-            raise HTTPException(422, "Choose a password that doesn't contain your username.")
+        name = value.username.split('@')[0].lower() if value.email else value.username.lower()
+        if len(name) >= 3 and name in value.password.lower():
+            raise HTTPException(422, f"Choose a password that doesn't contain your {'email' if value.email else 'username'}.")
         peer, now = request.client.host, time.time()
         recent = [at for at in signups.get(peer, []) if now - at < 3600]
         if len(recent) >= settings.signups_per_hour_per_address:
             raise HTTPException(429, "Too many new accounts from this network. Try again in an hour.")
-        service.create_technician(TechnicianCreate(role='customer', name=value.name.strip(), username=value.username, password=value.password))
+        service.create_technician(TechnicianCreate(role='customer', name=value.name.strip(), username=value.username, email=value.email, password=value.password))
         signups[peer] = recent + [now]
         token, account = service.login(Login(username=value.username, password=value.password, expected_role='customer'), peer)
         cookie(response, token, request)
@@ -196,7 +198,8 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
         actor = user(request, staff=True)
         data = service.snapshot(actor)
         data['technicians'] = [t for t in data['technicians'] if t['role'] in {'admin', 'technician'}]
-        data["calls"] = [{k: v for k, v in c.items() if k not in {"customer_token_hash", "draft_case"}} for c in data["calls"]]
+        data["calls"] = [{k: v for k, v in c.items() if k not in {"customer_token_hash", "draft_case", "typing"}} | (
+            {'customer_typing': service.is_typing(c, 'customer')} if c.get('channel') == 'chat' else {}) for c in data["calls"]]
         data.update(user=actor, voice=transport.config())
         return data
 
@@ -216,7 +219,7 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
             case=cases.get(call.get('case_id'))
             result.append(dict(source_id=call['id'],call_id=call['id'],case_id=call.get('case_id'),
                 ticket_number=case.ticket.id if case else '',customer=call['caller'],technician=call.get('technician_name') or 'AI assistant',
-                service=call.get('service','General'),status=call['status'],created_at=call['created_at'],
+                service=normalize_service(call.get('service')),status=call['status'],created_at=call['created_at'],
                 duration_seconds=max(0,round(call['ended_at']-call['created_at'])) if call.get('ended_at') is not None else None,
                 overall_quality=overall_quality(call) if actor['role']!='customer' else None,
                 transcript=call['transcript'],quality_audit=call.get('quality_audit') if actor['role']!='customer' and audit_current(call) else None))
@@ -363,6 +366,7 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
         case = service.case_store.get_case(call['case_id']) if call.get('case_id') else None
         return {key: call.get(key) for key in ('id', 'status', 'technician_name', 'case_id', 'created_at', 'ended_at', 'last_error')} | {
             'ticket_number': case.ticket.id if case else '',
+            'agent_typing': service.is_typing(call, 'agent'),
             'transcript': [{key: turn.get(key) for key in ('speaker', 'text', 'timestamp')} for turn in call.get('transcript', [])[-100:]]}
 
     def own_chat(request, chat_id):
@@ -372,18 +376,34 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
             raise HTTPException(404, 'Chat not found.')
         return call
 
+    def handoff_message(call_id):
+        """Posted when a chat moves to the technician queue, so the customer knows what happens and has their number."""
+        call = service.get(call_id)
+        case = service.case_store.get_case(call['case_id']) if call.get('case_id') else None
+        number = f' Your incident number is {case.ticket.id}.' if case else ''
+        service.add_turn(call_id, 'AI Agent', f'I’m connecting you with a technician now. They’ll join this chat shortly.{number}')
+
     def ai_turn(call_id, background_tasks, resolve_on_confirm):
+        """The assistant's next chat message. Runs after the customer's message has been saved and returned, with a
+        typing indicator shown while it is written."""
         try:
+            service.set_typing(call_id, 'agent', seconds=60)
             reply = service.reply(call_id)
+            if service.get(call_id)['status'] != 'AI':   # a technician took over, or the chat ended, meanwhile
+                return
             service.add_turn(call_id, "AI Agent", reply.reply)
             if reply.escalate:
                 service.enqueue(call_id, "AI requested technician assistance")
+                handoff_message(call_id)
             elif resolve_on_confirm and reply.customer_confirmed_resolved:
                 call = service.get(call_id)
                 update_ticket(call["case_id"], TicketUpdate(state="Resolved", resolution="Customer confirmed the issue was fixed. " + reply.reply), background_tasks)
                 service.finish(call_id)
         except Exception:
             service.enqueue(call_id, "AI assistance is unavailable")
+            handoff_message(call_id)
+        finally:
+            service.repository.mutate(lambda db: db['calls'][call_id].setdefault('typing', {}).update(agent=0), call_ids=(call_id,))
 
     @router.post('/api/support/chats', status_code=201)
     def start_chat(value: ChatStart, request: Request, background_tasks: BackgroundTasks):
@@ -391,11 +411,20 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
         call = service.create_call(actor['name'], language=value.language, customer_id=actor['id'])
         service.repository.mutate(lambda db: db['calls'][call['id']].update(channel='chat'), call_ids=(call['id'],))
         service.add_turn(call['id'], 'Customer', value.description)
-        call = service.triage(call['id'])
-        background_tasks.add_task(service.refresh_knowledge, call['id'])
-        if call['status'] == 'AI':
-            ai_turn(call['id'], background_tasks, resolve_on_confirm=False)
+        # The customer's message shows at once with the assistant "typing"; understanding the request (triage) and the
+        # first reply happen in the background, so starting a chat never waits on the AI.
+        service.set_typing(call['id'], 'agent', seconds=90)
+        background_tasks.add_task(first_reply, call['id'], background_tasks)
         return chat_view(service.get(call['id']))
+
+    def first_reply(call_id, background_tasks):
+        call = service.triage(call_id)
+        service.refresh_knowledge(call_id)
+        if call['status'] == 'AI':
+            ai_turn(call_id, background_tasks, False)
+        else:
+            service.repository.mutate(lambda db: db['calls'][call_id].setdefault('typing', {}).update(agent=0), call_ids=(call_id,))
+            handoff_message(call_id)
 
     @router.get('/api/support/chats/{chat_id}')
     def read_chat(chat_id: str, request: Request):
@@ -409,14 +438,22 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
         service.add_turn(chat_id, 'Customer', value.text)
         background_tasks.add_task(service.refresh_knowledge, chat_id)
         if call['status'] == 'AI':
-            ai_turn(chat_id, background_tasks, resolve_on_confirm=True)
+            service.set_typing(chat_id, 'agent', seconds=60)
+            background_tasks.add_task(ai_turn, chat_id, background_tasks, True)
         return chat_view(service.get(chat_id))
+
+    @router.post('/api/support/chats/{chat_id}/typing')
+    def chat_customer_typing(chat_id: str, request: Request):
+        own_chat(request, chat_id)
+        service.set_typing(chat_id, 'customer')
+        return {'ok': True}
 
     @router.post('/api/support/chats/{chat_id}/technician')
     def chat_technician(chat_id: str, request: Request):
         call = own_chat(request, chat_id)
         if call['status'] in {'Triage', 'AI'}:
             service.enqueue(chat_id, 'Customer asked for a technician')
+            handoff_message(chat_id)
         return chat_view(service.get(chat_id))
 
     @router.post('/api/support/chats/{chat_id}/end')
@@ -459,6 +496,13 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
         except Exception:
             service.enqueue(call_id, "AI assistance is unavailable")
         return service.get(call_id)
+
+    @router.post('/api/calling/{call_id}/typing')
+    def technician_typing(call_id: str, request: Request):
+        _, call = own_call(request, call_id)
+        if call.get('channel') == 'chat' and call['status'] == 'Connected':
+            service.set_typing(call_id, 'agent')
+        return {'ok': True}
 
     @router.post('/api/calling/{call_id}/reply')
     def technician_reply(call_id: str, value: CustomerMessage, request: Request):

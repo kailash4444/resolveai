@@ -1,6 +1,8 @@
 """Source material for AI; automatic activity is never a written comment."""
 import json
 
+from realapp.services import SERVICE_LIST
+
 
 def ticket_for_ai(ticket):
     value = ticket.model_dump(mode='json')
@@ -61,6 +63,8 @@ For unrelated incidents, clearly separate their symptoms and conditional trouble
 pretending they share a cause. Explain conflicting or missing evidence and when to escalate in the article.
 Generalize guidance: omit personal names, contact details, account identifiers, passwords, tokens and secrets.
 Write concise title, product, symptoms, ordered steps, expected resolution and search tags.
+Write the title in sentence case (capitalise only the first word and proper names such as Outlook or VPN).
+Set product to exactly one of: """ + SERVICE_LIST + """.
 The result is a draft for technician review before saving."""
 
 

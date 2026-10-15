@@ -1,7 +1,7 @@
 const calling = { user: null, data: null, noteDrafts: {}, noteDraftTimers: {}, noteDraftSaves: {}, selected: null, room: null, roomCallId: null, ready: false, loading: false, notice: null, priority: 'All', micDenied: false, reconnecting: false, joining: null, answering: null };
 
 function elapsed(at) { return at ? `${Math.max(0, Math.floor((Date.now() / 1000 - at) / 60))} min` : '—'; }
-const CALL_BADGES = {Completed: ['badge--ok', '✓ Completed'], Failed: ['badge--err', '✕ Failed'], Declined: ['badge--err', '✕ Declined'], Connected: ['badge--medium', '● Connected'], 'Callback requested': ['badge--high', '◆ Callback requested'], Ringing: ['badge--high', '◆ Ringing'], Queued: ['badge--muted', '○ Waiting'], AI: ['badge--medium', '● With AI'], Triage: ['badge--medium', '● With AI']};
+const CALL_BADGES = {Completed: ['badge--ok', '✓ Completed'], Failed: ['badge--err', '✕ Failed'], Declined: ['badge--err', '✕ Declined'], Connected: ['badge--medium', '● Connected'], 'Callback requested': ['badge--high', '◆ Callback requested'], Ringing: ['badge--high', '◆ Ringing'], Queued: ['badge--muted', '○ Waiting'], AI: ['badge--medium', '● With AI'], Triage: ['badge--medium', '● With AI'], Available: ['badge--ok', '✓ Available'], Busy: ['badge--medium', '● On a call'], Away: ['badge--muted', '○ Away'], Offline: ['badge--muted', '○ Offline']};
 function callBadge(status) { const [tone, label] = CALL_BADGES[status] || ['badge--muted', `○ ${status}`]; return `<span class="badge ${tone}">${esc(label)}</span>`; }
 window.callBadge = callBadge;
 function setBadge(el, tone, text) { el.className = `badge ${tone}`; el.textContent = text; }
@@ -18,10 +18,13 @@ window.loadCalling = async () => {
   if (calling.loading || calling.answering) return;
   calling.loading = true;
   try {
-    const auth = await api('/api/auth/status');
-    calling.user = auth.user;
-    if (!calling.user) { $('#signInButton').hidden = false; $('#routeRequestButton').disabled = true; return; }
-    if (calling.user.role === 'customer') { calling.data = null; calling.selected = null; return; }
+    // Who is signed in only needs asking once; after that the calling data carries the user.
+    if (!calling.data) {
+      const auth = await api('/api/auth/status');
+      calling.user = auth.user;
+      if (!calling.user) { $('#signInButton').hidden = false; $('#routeRequestButton').disabled = true; return; }
+      if (calling.user.role === 'customer') { calling.data = null; calling.selected = null; return; }
+    }
     calling.data = await api('/api/calling');
     calling.user = calling.data.user;
     if (calling.user.role === 'admin' && $('#view-technicians').classList.contains('active')) calling.data.users = await api('/api/users');
@@ -53,19 +56,22 @@ function renderIndicators() {
     : !user.calls_enabled ? ['badge--muted', '○ Off', 'Turn the microphone on to take browser calls.']
     : calling.ready ? ['badge--ok', '✓ On', 'You can take browser calls. Turn the microphone off to stop.']
     : ['badge--muted', '○ Waiting for permission', 'Turn the microphone on and allow access when the browser asks.'];
-  setBadge($('#microphoneIndicator'), mic[0], mic[1]); $('#callMicState').textContent = mic[2];
-  // One switch: on/off for taking browser calls, or mute/unmute while you are on a call.
+  // One switch: on/off for taking browser calls, or mute/unmute while you are on a call. While a click is still
+  // being applied, polling leaves the switch and its label alone so it doesn't flicker back.
   const micSwitch = $('#micSwitch'), on = inCall ? !muted : !!(user.calls_enabled && calling.ready);
   micSwitch.hidden = false;
-  micSwitch.setAttribute('aria-checked', String(on));
-  micSwitch.title = on ? 'Turn the microphone off' : 'Turn the microphone on';
-  micSwitch.disabled = !voice.configured || !!calling.micBusy || (!!user.current_call_id && !inCall);
+  micSwitch.disabled = !voice.configured || (!!user.current_call_id && !inCall);
+  if (!calling.micBusy) {
+    setBadge($('#microphoneIndicator'), mic[0], mic[1]); $('#callMicState').textContent = mic[2];
+    micSwitch.setAttribute('aria-checked', String(on));
+    micSwitch.title = on ? 'Turn the microphone off' : 'Turn the microphone on';
+  }
   const offer = calling.data.calls.find(c => c.technician_id === user.id && c.status === 'Ringing');
-  const waiting = (calling.data.incoming_calls || []).length;
+  const waiting = (calling.data.incoming_calls || []).filter(call => call.channel !== 'chat' && !dismissedOffers.has(call.id)).length;   // chats have their own card; rejected ones don't count
   const call = calling.reconnecting ? ['badge--high', '◆ Reconnecting', 'Audio dropped. Trying to restore the call…']
     : calling.joining ? ['badge--medium', '● Joining call', 'Connecting your audio…']
     : calling.roomCallId ? ['badge--medium', '● Connected', 'You’re on a call. Your saved availability resumes afterward.']
-    : offer ? ['badge--high', '◆ Ringing', `A call is offered to you. ${Math.max(0, Math.ceil(offer.reserved_until - Date.now() / 1000))} seconds to answer.`]
+    : offer && offer.channel !== 'chat' ? ['badge--high', '◆ Ringing', `A call is offered to you. ${Math.max(0, Math.ceil(offer.reserved_until - Date.now() / 1000))} seconds to answer.`]
     : waiting ? ['badge--muted', `○ ${waiting} waiting`, 'Customers are waiting for a technician.']
     : ['badge--muted', '○ No active call', user.calls_enabled ? 'New calls appear here and in the banner.' : 'Browser calls are off; desk requests still reach you.'];
   setBadge($('#activeCallIndicator'), call[0], call[1]); $('#phoneConnection').textContent = call[2];
@@ -91,6 +97,8 @@ function renderCalling() {
   if (document.activeElement !== $('#presenceSelect')) $('#presenceSelect').value = calling.user.availability;
   $('#presenceSelect').disabled = !!calling.user.current_call_id;
   const offer = renderIndicators();
+  renderCallOffer(offer);
+  renderChatOffer(offer);
   $('#callsQueued').textContent = metrics.queued;
   $('#callsAI').textContent = metrics.ai;
   $('#callsConnected').textContent = metrics.connected;
@@ -115,8 +123,149 @@ function renderCalling() {
   if (pageCall) calling.selected = pageCall;
   const open = !!pageCall && calling.data.calls.some(call => call.id === pageCall);
   $('#callActivity').hidden = open; $('#callPage').hidden = !open;
+  // An open call gets the page to itself: queue numbers and the waiting list return with "All calls".
+  $('#view-calls').classList.toggle('calls--focused', open);
+  if (!open) $('#view-calls').classList.remove('calls--live');
   if (open) renderCallDetail();
+  renderDock(open ? pageCall : null);
 }
+
+// ---- Incoming call in the Call card: Answer or Reject ----
+// A call offered to me comes first, then the oldest call waiting in the shared queue. Reject declines an offer made
+// to me; for a shared-queue call it just hides it here (another technician can still answer it).
+const dismissedOffers = new Set();
+const ICON_PHONE = '<svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h3l2 5-2 2a15 15 0 0 0 5 5l2-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 4 5a2 2 0 0 1 2-2z"/></svg>';
+const ICON_X = '<svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+function renderCallOffer(offer) {
+  const box = $('#callOffer'), user = calling.user;
+  const queued = (calling.data.incoming_calls || []).find(call => call.channel !== 'chat' && !dismissedOffers.has(call.id));
+  const call = calling.roomCallId || myLiveCall() ? null : (offer && offer.channel !== 'chat' && !dismissedOffers.has(offer.id) ? offer : queued);
+  box.hidden = !call;
+  if (!call) { patch(box, ''); return; }
+  const name = call.caller || 'Customer', mine = call.technician_id === user.id && call.status === 'Ringing';
+  setBadge($('#activeCallIndicator'), 'badge--medium', `● Incoming ${call.channel === 'chat' ? 'chat' : 'call'} · ${name}`);
+  $('#phoneConnection').textContent = call.summary && call.summary !== 'Understanding the customer issue' ? call.summary : 'A customer asked for a technician.';
+  patch(box, `<div class="call-controls"><button type="button" class="call-btn call-btn--answer" data-pickup-call="${esc(call.id)}"><span class="call-btn__icon">${ICON_PHONE}</span>Answer ${call.channel === 'chat' ? 'chat' : 'call'}<span class="sr"> from ${esc(name)}</span></button><button type="button" class="call-btn call-btn--danger" data-reject-call="${esc(call.id)}" data-offered="${mine ? 1 : 0}"><span class="call-btn__icon">${ICON_X}</span>Reject ${call.channel === 'chat' ? 'chat' : 'call'}<span class="sr"> from ${esc(name)}</span></button></div>`);
+}
+document.addEventListener('click', async event => {
+  const reject = event.target.closest('[data-reject-call]');
+  if (!reject) return;
+  const id = reject.dataset.rejectCall;
+  dismissedOffers.add(id);
+  if (calling.data) renderCalling();
+  if (reject.dataset.offered === '1') {
+    try { await api(`/api/calling/${id}/decline`, {method: 'POST', body: '{}'}); }
+    catch (error) { showFeedback(error.message, true); }
+    loadCalling();
+  }
+});
+
+// ---- Chat card: incoming chats, with an alert (sound, title and, if allowed, a browser notification) ----
+const notifiedChats = new Set();
+function renderChatOffer(offer) {
+  const live = myLiveCall(), box = $('#chatOffer');
+  const waiting = (calling.data.incoming_calls || []).filter(call => call.channel === 'chat' && !dismissedOffers.has(call.id));
+  const incoming = live ? null : (offer && offer.channel === 'chat' && !dismissedOffers.has(offer.id) ? offer : waiting[0]);
+  box.hidden = !incoming;
+  if (live?.channel === 'chat') {
+    setBadge($('#chatIndicator'), 'badge--ok', `✓ Chatting with ${live.caller}`);
+    $('#chatCardText').innerHTML = `<a class="link" href="?view=calls&amp;call=${encodeURIComponent(live.id)}" data-call-select="${esc(live.id)}">Open the chat</a>`;
+  } else if (incoming) {
+    const name = incoming.caller || 'Customer', mine = incoming.technician_id === calling.user.id && incoming.status === 'Ringing';
+    setBadge($('#chatIndicator'), 'badge--medium', `● Incoming chat · ${name}`);
+    $('#chatCardText').textContent = incoming.summary && incoming.summary !== 'Understanding the customer issue' ? incoming.summary : 'A customer is waiting in chat.';
+    patch(box, `<div class="call-controls"><button type="button" class="call-btn call-btn--answer" data-pickup-call="${esc(incoming.id)}"><span class="call-btn__icon">${ICON_CHAT}</span>Accept chat<span class="sr"> from ${esc(name)}</span></button><button type="button" class="call-btn call-btn--danger" data-reject-call="${esc(incoming.id)}" data-offered="${mine ? 1 : 0}"><span class="call-btn__icon">${ICON_X}</span>Reject chat<span class="sr"> from ${esc(name)}</span></button></div>`);
+  } else {
+    setBadge($('#chatIndicator'), 'badge--muted', waiting.length ? `○ ${waiting.length} waiting` : '○ No chats waiting');
+    $('#chatCardText').textContent = live ? 'You’re on a call. New chats go to other technicians.' : 'New chats from customers appear here.';
+    patch(box, '');
+  }
+  $('#chatAlertsButton').hidden = !('Notification' in window) || Notification.permission !== 'default';
+  document.title = (incoming ? '● New chat · ' : '') + document.title.replace(/^● New chat · /, '');
+  if (incoming && !notifiedChats.has(incoming.id)) {
+    notifiedChats.add(incoming.id);
+    chime();
+    if ('Notification' in window && Notification.permission === 'granted' && (document.hidden || !$('#view-calls').classList.contains('active'))) {
+      const note = new Notification(`New chat · ${incoming.caller || 'Customer'}`, {body: incoming.summary || 'A customer is waiting in chat.', tag: incoming.id});
+      note.onclick = () => { window.focus(); history.pushState({view: 'calls'}, '', `${location.pathname}?view=calls`); showView('calls'); note.close(); };
+    }
+  }
+}
+const ICON_CHAT = '<svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.5 7.2L4 21l1.8-5.5A8 8 0 1 1 21 12z"/></svg>';
+// Two soft notes. Browsers only allow sound after the person has clicked on the page, so this may stay silent.
+function chime() {
+  try {
+    const audio = new (window.AudioContext || window.webkitAudioContext)(), start = audio.currentTime;
+    [[660, 0], [880, .16]].forEach(([frequency, at]) => {
+      const tone = audio.createOscillator(), gain = audio.createGain();
+      tone.frequency.value = frequency; tone.connect(gain); gain.connect(audio.destination);
+      gain.gain.setValueAtTime(0.0001, start + at); gain.gain.exponentialRampToValueAtTime(0.12, start + at + .02); gain.gain.exponentialRampToValueAtTime(0.0001, start + at + .25);
+      tone.start(start + at); tone.stop(start + at + .3);
+    });
+  } catch (_) {}
+}
+$('#chatAlertsButton').addEventListener('click', async () => {
+  try { await Notification.requestPermission(); } catch (_) {}
+  if (calling.data) renderCalling();
+});
+
+// ---- Live call dock: a frosted panel at the top of Calls & queue while I'm connected to a call ----
+// Header (name, LIVE CALL, queue / call ID / ticket), three always-visible sections that each scroll on their own,
+// and Mute / End call. It isn't shown on the full call page for the same call, which has its own controls.
+const ticketNumbers = {};
+function myLiveCall() {
+  const user = calling.user;
+  return calling.data?.calls.find(call => call.id === user?.current_call_id && call.status === 'Connected' && call.technician_id === user.id);
+}
+function ticketNumber(call) {
+  if (call.live_ticket_id) return call.live_ticket_id;
+  if (!call.case_id) return null;
+  if (!(call.case_id in ticketNumbers)) {
+    ticketNumbers[call.case_id] = null;
+    api(`/api/cases/${encodeURIComponent(call.case_id)}`).then(item => { ticketNumbers[call.case_id] = item.ticket.id; if (calling.data) renderCalling(); }).catch(() => {});
+  }
+  return ticketNumbers[call.case_id];
+}
+function renderDock(pageCallId) {
+  const dock = $('#callDock'), call = myLiveCall();
+  if (!call || pageCallId === call.id) { dock.hidden = true; delete dock.dataset.callId; return; }
+  const fresh = dock.hidden || dock.dataset.callId !== call.id;
+  if (dock.dataset.callId !== call.id) {
+    dock.dataset.callId = call.id;
+    dock.innerHTML = `<div class="dock-head" id="dockHead"></div><div class="dock-grid">
+      <section class="dock-pane dock-pane--lead" aria-labelledby="dockSummaryTitle"><h3 class="dock-label" id="dockSummaryTitle">AI summary · next step</h3><div class="dock-scroll" id="dockSummary" tabindex="0"></div></section>
+      <section class="dock-pane" aria-labelledby="dockKnowledgeTitle"><h3 class="dock-label" id="dockKnowledgeTitle">Related knowledge</h3><div class="dock-scroll" id="dockKnowledge" tabindex="0"></div></section>
+      <section class="dock-pane" aria-labelledby="dockConvoTitle"><h3 class="dock-label" id="dockConvoTitle">Latest conversation</h3><div class="dock-scroll" id="dockConvo" tabindex="0" aria-live="polite"></div></section></div>
+      <div class="dock-actions" id="dockActions"></div>`;
+  }
+  dock.hidden = false;
+  const ticket = ticketNumber(call), chat = call.channel === 'chat';
+  patch($('#dockHead'), `<div class="dock-title"><h2 class="dock-name">${esc(call.caller)}</h2><span class="live-chip"><i aria-hidden="true"></i>LIVE ${chat ? 'CHAT' : 'CALL'}</span></div>
+    <a class="btn btn-soft btn-sm" href="?view=calls&amp;call=${encodeURIComponent(call.id)}" data-call-select="${esc(call.id)}">Open full ${chat ? 'chat' : 'call'}</a>
+    <dl class="dock-meta"><div><dt>Queue</dt><dd>${esc(call.service || 'General')}</dd></div><div><dt>Call ID</dt><dd>${esc(call.id)}</dd></div><div><dt>Ticket</dt><dd>${esc(ticket || 'Creating…')}</dd></div></dl>`);
+  const brief = call.handoff_brief || {};
+  const summary = [call.summary, brief.issue].find(text => text && text !== 'Understanding the customer issue') || 'The AI is still working out the customer’s issue.';
+  const question = call.next_question || brief.next_step || call.recommended_action;
+  patch($('#dockSummary'), `<p>${esc(summary)}</p>${question ? `<p class="dock-question">${esc(question)}</p>` : ''}<p class="dock-note">Based on the latest customer update. Updates with the conversation.</p>`);
+  const matches = call.knowledge_matches || [];
+  patch($('#dockKnowledge'), matches.length ? `<ul class="dock-list">${matches.map(k => `<li><strong>${esc(k.title)}</strong><span class="dock-note">${esc(k.id)}</span></li>`).join('')}</ul>`
+    : '<p>Related knowledge will appear as the customer describes the issue.</p>');
+  const convo = $('#dockConvo'), before = convo.dataset.html;
+  patch(convo, call.transcript.length ? call.transcript.map(turn => `<p class="dock-msg"><b>${esc(turn.speaker_name || turn.speaker)}:</b> ${esc(turn.text)}</p>`).join('')
+    : '<p>The conversation appears here as people speak.</p>');
+  if (fresh || convo.dataset.html !== before) convo.scrollTop = convo.scrollHeight;   // always open at the newest message
+  const inRoom = calling.room && calling.roomCallId === call.id, muted = inRoom && !calling.room.localParticipant.isMicrophoneEnabled;
+  patch($('#dockActions'), `${inRoom ? `<button type="button" class="btn btn-soft btn-sm" data-dock-mute aria-pressed="${muted}">${muted ? 'Unmute' : 'Mute'}</button>` : ''}<button type="button" class="btn btn-danger btn-sm" data-call-action="finish" data-call-id="${esc(call.id)}">End ${chat ? 'chat' : 'call'}</button>`);
+}
+document.addEventListener('click', async event => {
+  const mute = event.target.closest('[data-dock-mute]');
+  if (!mute || !calling.room) return;
+  const participant = calling.room.localParticipant, muted = !participant.isMicrophoneEnabled;
+  mute.disabled = true;
+  try { await participant.setMicrophoneEnabled(muted); }
+  catch (error) { showFeedback(error.message, true); }
+  finally { mute.disabled = false; if (calling.data) renderCalling(); }
+});
 
 // Users lists staff only (technicians and administrators). Customers create their own accounts and aren't listed.
 function renderUsersTable() {
@@ -124,7 +273,7 @@ function renderUsersTable() {
   const users = (calling.data.users || calling.data.technicians).filter(t => t.role !== 'customer');
   const demoCount = users.filter(t => t.demo_available).length;
   $('#demoAvailabilitySummary').textContent = demoCount ? `${demoCount}/${users.length} staff are always available for the demo. Actual call routing requires a connected technician.` : '';
-  $('#technicianRows').innerHTML = paginateItems(users, userPager, calling.user?.id, '#userPagination').map(t => { const customer = t.role === 'customer'; return `<tr><th scope="row"><span class="stack stack--sm"><strong>${esc(t.name)}</strong><span class="mono help">${esc(t.username)}</span></span></th><td>${t.role === 'admin' ? '<span class="badge badge--medium">● Admin</span>' : customer ? '<span class="badge badge--muted">○ Customer</span>' : '<span class="badge badge--ok">✓ Technician</span>'}</td><td class="col-opt">${customer ? '—' : esc(t.skills.join(', '))}</td><td class="col-opt">${esc(t.languages.join(', '))}</td><td>${customer ? '—' : callBadge(t.demo_available ? 'Available' : t.status) + (t.demo_available ? '<span class="help"> · Demo</span>' : '')}</td><td class="col-opt">${customer ? '—' : t.voice_ready ? '✓ Ready' : '○ Not ready'}</td><td>${t.current_call_id ? `<span class="mono">${esc(t.current_call_id)}</span>` : '<span class="help">—</span>'}</td></tr>`; }).join('');
+  $('#technicianRows').innerHTML = paginateItems(users, userPager, calling.user?.id, '#userPagination').map(t => { const customer = t.role === 'customer'; return `<tr><th scope="row"><span class="stack stack--sm"><strong>${esc(t.name)}</strong><span class="mono help">${esc(t.username)}</span>${t.email && t.email !== t.username ? `<span class="help">${esc(t.email)}</span>` : ''}</span></th><td>${t.role === 'admin' ? 'Administrator' : customer ? 'Customer' : 'Technician'}</td><td class="col-opt">${customer ? '—' : esc(t.skills.join(', '))}</td><td class="col-opt">${esc(t.languages.join(', '))}</td><td>${customer ? '—' : callBadge(t.demo_available ? 'Available' : t.status) + (t.demo_available ? '<span class="help"> · Demo</span>' : '')}</td><td class="col-opt">${customer ? '—' : t.voice_ready ? '<span class="badge badge--ok">✓ Ready</span>' : '<span class="badge badge--muted">○ Not ready</span>'}</td><td>${t.current_call_id ? `<span class="mono">${esc(t.current_call_id)}</span>` : '<span class="help">—</span>'}</td></tr>`; }).join('');
   $('#techniciansEmpty').hidden = users.length > 0;
 }
 
@@ -136,7 +285,7 @@ async function selectCall(id, push = true) {
   showView('calls');
   if (calling.data) renderCalling();
   window.scrollTo({top: 0});
-  $('#callWorkspace h2')?.focus({preventScroll: true});
+  $('#callWorkspace .call-full__title')?.focus({preventScroll: true});
 }
 function closeCall(push = true) {
   const id = calling.selected;
@@ -167,85 +316,130 @@ function announceNewTurns(call, sameCall) {
   $('#callAnnouncer').textContent = latest.slice(0, 500);
 }
 
+// Full call page: what the technician needs right after answering. Main column: AI summary (with the transfer brief
+// folded away), suggested articles, AI next steps. Side: knowledge search and the scratch pad. Live transcription and
+// routing history stay on the page, collapsed. The frame is built once per call and each part is refreshed on its own,
+// so polling never clears the search box, closes an open article or moves the transcript.
+const BOILERPLATE = ['welcome to resolveai','this call is transcribed','please describe the issue','i am connecting you','i’m connecting you','i will connect you','a technician will help','please stay on the call'];
+function kbItem(article, open) {
+  const steps = article.steps || [];
+  return `<details class="kb-item" data-kb="${esc(article.id)}" ${open ? 'open' : ''}><summary>${esc(article.title)} <span class="help">${esc(article.id)}</span></summary>${article.excerpt || article.symptoms ? `<p class="sec">${esc(article.excerpt || article.symptoms)}</p>` : ''}${steps.length ? `<ol class="plain-steps">${steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol>` : ''}</details>`;
+}
+function renderCallSearch() {
+  const list = $('#cfKbList'); if (!list) return;
+  const open = new Set([...list.querySelectorAll('details[open]')].map(item => item.dataset.kb));
+  const query = ($('#cfKbSearch')?.value || '').trim().toLowerCase();
+  const articles = (state.knowledge || []).filter(article => !query || [article.id, article.title, article.product, article.symptoms, (article.tags || []).join(' '), (article.steps || []).join(' ')].join(' ').toLowerCase().includes(query));
+  patch(list, articles.map(article => kbItem(article, open.has(article.id))).join(''));
+  $('#cfKbEmpty').hidden = articles.length > 0;
+}
+document.addEventListener('input', event => { if (event.target.id === 'cfKbSearch') renderCallSearch(); });
+
 function renderCallDetail() {
-  if ($('#callReplyForm')?.contains(document.activeElement) || $('#techReplyForm')?.contains(document.activeElement) || $('#callNoteText')?.contains(document.activeElement)) return;
   const c = calling.data?.calls.find(c => c.id === calling.selected);
   if (!c) return;
-  const own = c.technician_id === calling.user.id, canManage = own || calling.user.role === 'admin';
-  const controls = [];
-  if (c.status === 'Ringing' && own) {
-    const phoneReady = c.origin !== 'browser' || calling.ready;
-    controls.push(`<button type="button" class="call-btn call-btn--go" data-call-action="accept" ${phoneReady ? '' : 'disabled aria-describedby="acceptHelp"'}><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h3l2 5-2 2a15 15 0 0 0 5 5l2-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 4 5a2 2 0 0 1 2-2z"/></svg></span>Accept</button><button type="button" class="call-btn" data-call-action="decline"><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>Decline</button>${phoneReady ? '' : '<p class="help" id="acceptHelp">Enable your microphone to accept browser calls.</p>'}`);
+  const own = c.technician_id === calling.user.id, canManage = own || calling.user.role === 'admin', chat = c.channel === 'chat';
+  const live = ['Connected', 'AI'].includes(c.status);
+  const workspace = $('#callWorkspace'), sameCall = workspace.dataset.callId === c.id;
+  // The queue's own readiness cards are only needed while this call is still ringing (to switch the microphone on).
+  $('#view-calls').classList.toggle('calls--live', c.status !== 'Ringing');
+  if (!sameCall) {
+    workspace.dataset.callId = c.id;
+    workspace.innerHTML = `<header class="call-full__head" id="cfHead"></header><div class="stack" id="cfAlerts"></div>
+      <div class="call-full__grid"><div class="call-full__col">
+        <section class="card call-full__card call-brief" aria-labelledby="cfSummaryTitle"><h2 class="dock-label" id="cfSummaryTitle">AI summary · conversation so far</h2><div class="cf-scroll" id="cfSummary" tabindex="0"></div><details class="brief-more"><summary>Transfer brief</summary><div id="cfBrief"></div></details></section>
+        <section class="card call-full__card" aria-labelledby="cfArticlesTitle"><div class="row row--between"><h2 class="dock-label" id="cfArticlesTitle">Suggested knowledge articles</h2><span class="help" id="cfArticlesStatus"></span></div><div class="cf-scroll" id="cfArticles" tabindex="0"></div></section>
+        <section class="card call-full__card" aria-labelledby="cfStepsTitle"><h2 class="dock-label" id="cfStepsTitle">AI next steps</h2><div class="cf-scroll" id="cfSteps" tabindex="0"></div></section>
+        <div id="cfReply"></div>
+      </div><aside class="call-full__col" aria-label="Tools">
+        <section class="card call-full__card" aria-labelledby="cfSearchTitle"><h2 class="dock-label" id="cfSearchTitle">Knowledge search</h2><div class="field field--inline"><label for="cfKbSearch">Search knowledge articles</label><input class="input" id="cfKbSearch" type="search" placeholder="For example: VPN, Outlook, printer" autocomplete="off"></div><div class="cf-scroll" id="cfKbList" tabindex="0" aria-label="Knowledge articles"></div><p class="help" id="cfKbEmpty" hidden>No articles match. Try another word.</p></section>
+        <section class="card call-full__card" id="cfPad"></section>
+      </aside></div>
+      ${chat ? `<section class="card call-full__card" aria-labelledby="cfChatTitle"><div class="row row--between"><h2 class="dock-label" id="cfChatTitle">Chat with ${esc(c.caller)}</h2><span class="help" id="cfChatState"></span></div>
+        <div class="chat-window" id="cfChat" tabindex="0" aria-live="polite" aria-relevant="additions" aria-label="Chat messages"></div>
+        <form id="techReplyForm" class="chat-composer" novalidate><label class="sr" for="techReplyText">Reply to ${esc(c.caller)}</label><textarea class="input" id="techReplyText" name="text" rows="1" required maxlength="4000"></textarea><button type="submit" class="btn btn-primary">Send</button></form>
+        <p class="form-status" id="techReplyMessage" role="status"></p></section>`
+      : '<details class="card call-full__card" id="cfTranscript"><summary>Live transcription <span id="cfTxState"></span></summary><div id="cfTxBody"></div></details>'}
+      <details class="card call-full__card"><summary>Routing history</summary><ol class="plain-steps" id="cfHistory"></ol></details>
+      <div class="callbar" id="cfBar"></div>`;
+    renderCallSearch();
   }
-  if ((c.status === 'AI' || c.status === 'Connected') && canManage) controls.push('<button type="button" class="call-btn" data-call-action="transfer"><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h7M17 15l3 3-3 3"/></svg></span>Transfer to queue</button>');
-  if ((c.status === 'Connected' || c.status === 'AI') && canManage) controls.push(`<button type="button" class="call-btn call-btn--danger" data-call-action="finish"><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15c5-5 13-5 18 0l-2 3-4-1v-3a10 10 0 0 0-6 0v3l-4 1z"/></svg></span>${c.channel === 'chat' ? 'End chat' : 'End call'}</button>`);
-  const guidance = c.knowledge_matches || [], status = c.knowledge_status;
-  // Handoff brief written when the AI transfers a call; greetings the AI spoke aren't troubleshooting steps.
-  const brief = c.handoff_brief, customerTurns = c.transcript.filter(turn => turn.speaker === 'Customer' && turn.text?.trim());
-  const boilerplate = ['welcome to resolveai','this call is transcribed','please describe the issue','i am connecting you','i’m connecting you','i will connect you','a technician will help','please stay on the call'];
-  const tried = (brief?.tried || []).filter(item => !boilerplate.some(phrase => item.toLowerCase().includes(phrase)));
-  const briefPanel = brief ? `<section class="handoff stack stack--sm" aria-label="Technician handoff brief"><p class="kicker">Technician handoff brief</p>
-    <p><strong>Issue:</strong> ${esc(customerTurns[0]?.text || (customerTurns.length ? brief.issue : 'No customer issue was captured before the call transferred.'))}</p>${brief.impact ? `<p><strong>Impact:</strong> ${esc(brief.impact)}</p>` : ''}
-    ${tried.length ? `<p><strong>Already tried:</strong></p><ul class="plain-steps">${tried.map(item => `<li>${esc(item)}</li>`).join('')}</ul>` : '<p><strong>Already tried:</strong> No AI troubleshooting steps recorded.</p>'}
-    ${brief.outcome && customerTurns.length ? `<p><strong>Latest customer update:</strong> ${esc(brief.outcome)}</p>` : ''}<p><strong>Why transferred:</strong> ${esc(brief.handoff_reason)}</p><p><strong>Suggested next step:</strong> ${esc(brief.next_step)}</p></section>` : (c.status === 'Ringing' ? handoffCard(c) : '');
-  const joinHint = c.status === 'Queued' ? '<p class="alert alert--info"><strong>◆ Waiting for a technician.</strong><span class="sec">Choose Answer in Waiting for a technician to join. Browser calls need calls switched on and microphone access.</span></p>'
+  const ticket = ticketNumber(c), caseKey = c.case_id || c.live_case_id;
+  patch($('#cfHead'), `<div><p class="kicker"><span class="mono">${esc(c.id)}</span></p><h2 class="call-full__title" tabindex="-1">${esc(c.caller)}</h2>
+    <p class="sec">${esc(c.service || 'General')} · ${esc(c.priority || 'P3')} · ${esc(c.technician_name || 'No technician yet')}${ticket ? ` · Ticket <a class="mono" href="${window.Shell.home(state.user.role)}?ticket=${encodeURIComponent(caseKey)}" data-ticket-link="${esc(caseKey)}">${esc(ticket)}</a>` : ''}</p></div>${callBadge(c.status)}`);
+
+  // Alerts and the Accept / Decline choice for a call that is still ringing.
+  const joinHint = c.status === 'Queued' ? '<p class="alert alert--info"><strong>◆ Waiting for a technician.</strong><span class="sec">Choose Answer in the Call card to join. Browser calls need the microphone switched on.</span></p>'
     : c.status === 'Completed' && c.queued_at && !c.connected_at ? '<p class="alert alert--info"><strong>○ This call ended while waiting.</strong><span class="sec">Its audio room is closed and can’t be joined. Ask the customer to start another support call.</span></p>'
     : ['Completed', 'Failed'].includes(c.status) ? '<p class="help">○ This call has ended, so it can’t be joined.</p>' : '';
-  // Repeated connection errors are shown once with a count, so the history stays readable.
+  let ringing = '';
+  if (c.status === 'Ringing' && own) {
+    const phoneReady = c.origin !== 'browser' || calling.ready;
+    ringing = `<div class="call-controls"><button type="button" class="call-btn call-btn--answer" data-call-action="accept" ${phoneReady ? '' : 'disabled aria-describedby="acceptHelp"'}><span class="call-btn__icon">${ICON_PHONE}</span>Accept</button><button type="button" class="call-btn call-btn--danger" data-call-action="decline"><span class="call-btn__icon">${ICON_X}</span>Decline</button>${phoneReady ? '' : '<p class="help" id="acceptHelp">Turn the microphone on above to accept browser calls.</p>'}</div>`;
+  }
+  patch($('#cfAlerts'), `${c.last_error ? `<div class="alert" role="alert"><strong>✕ Call problem.</strong><span class="sec">${esc(c.last_error)}</span></div>` : ''}${joinHint}${ringing}`);
+
+  // AI summary and the folded transfer brief.
+  const brief = c.handoff_brief, customerTurns = c.transcript.filter(turn => turn.speaker === 'Customer' && turn.text?.trim());
+  const summary = [c.summary, brief?.issue].find(text => text && text !== 'Understanding the customer issue') || 'The AI is still working out the customer’s issue.';
+  patch($('#cfSummary'), `<p class="call-brief__text">${esc(summary)}</p>${brief?.impact ? `<p class="sec"><strong>Impact:</strong> ${esc(brief.impact)}</p>` : ''}`);
+  const tried = (brief?.tried || []).filter(item => !BOILERPLATE.some(phrase => item.toLowerCase().includes(phrase)));
+  patch($('#cfBrief'), brief ? `<dl class="brief-grid"><dt>Issue</dt><dd>${esc(customerTurns[0]?.text || brief.issue || 'Not yet described')}</dd><dt>Already tried</dt><dd>${tried.length ? tried.map(esc).join('<br>') : 'Nothing recorded'}</dd><dt>Why transferred</dt><dd>${esc(brief.handoff_reason || 'Customer asked for a technician')}</dd></dl>`
+    : '<p class="help">No transfer brief: this conversation didn’t come through the AI assistant.</p>');
+
+  // Suggested articles and next steps from the AI.
+  const guidance = c.knowledge_matches || [], status = c.knowledge_status, articles = $('#cfArticles');
+  const openArticles = new Set([...articles.querySelectorAll('details[open]')].map(item => item.dataset.kb));
+  $('#cfArticlesStatus').textContent = status === 'searching' ? '● Searching…' : status === 'error' ? '✕ Search failed' : guidance.length ? 'Verify before using' : '';
+  patch(articles, guidance.map(article => kbItem(article, openArticles.has(article.id))).join('')
+    || `<p class="sec">${status === 'error' ? esc(c.knowledge_error || 'Knowledge search failed.') : status === 'ready' ? 'No relevant articles found. Try Knowledge search.' : 'Suggestions appear after the customer describes the issue.'}</p>`);
+  const steps = [...new Set([brief?.next_step, c.next_question, c.recommended_action, ...(guidance[0]?.steps || [])].filter(Boolean).map(step => step.trim()))].slice(0, 6);
+  patch($('#cfSteps'), steps.length ? `<ol class="steps-list">${steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol>` : '<p class="sec">Next steps appear once the customer describes the issue.</p>');
+
+  // Replies (chat and desk requests keep their existing forms).
+  if (!$('#cfReply').contains(document.activeElement)) patch($('#cfReply'), `${c.origin === 'desk' && !chat && c.status === 'AI' ? '<form id="callReplyForm" class="card call-full__card stack stack--sm" novalidate><div class="field field--inline"><label for="callReplyText">Customer reply</label><textarea class="input" id="callReplyText" name="text" rows="2" required maxlength="4000"></textarea></div><div class="row"><button type="submit" class="btn btn-primary btn-sm">Send reply</button><p class="form-status" id="callReplyMessage" role="status"></p></div></form>' : ''}`);
+
+  // Scratch pad: private notes, saved to the incident when the call ends (existing draft saving).
+  if (!$('#cfPad').contains(document.activeElement)) patch($('#cfPad'), c.status === 'Connected' && canManage
+    ? `<div class="field field--inline"><label for="callNoteText">Scratch pad</label><textarea class="input" id="callNoteText" data-call-id="${esc(c.id)}" rows="6" maxlength="4000" placeholder="Private notes for this call. Saved to the incident when the call ends.">${esc(calling.noteDrafts[c.id] || '')}</textarea></div>`
+    : `<h2 class="dock-label">Scratch pad</h2><p class="help">${['Completed', 'Failed', 'Callback requested'].includes(c.status) ? 'Notes were saved to the incident when the call ended.' : 'Available while you’re connected to the call.'}</p>`);
+
+  // Chats: the conversation is a chat window with a reply box (enabled once you've accepted the chat).
+  if (chat) {
+    const canReply = c.status === 'Connected' && own, box = $('#techReplyText');
+    renderChatWindow($('#cfChat'), c.transcript, {mine: 'Technician', name: turn => turn.speaker === 'Customer' ? c.caller : turn.speaker === 'AI Agent' ? 'ResolveAI assistant' : turn.speaker === 'Technician' ? 'You' : turn.speaker,
+      typing: c.customer_typing && !['Completed', 'Failed'].includes(c.status) ? c.caller : ''});
+    box.disabled = !canReply; $('#techReplyForm button').disabled = !canReply;
+    box.placeholder = canReply ? 'Write a reply. Enter sends, Shift+Enter adds a line.' : c.status === 'Ringing' ? 'Accept the chat to reply.' : 'This chat isn’t open for replies.';
+    $('#cfChatState').textContent = c.status === 'Connected' ? '● Live' : ['Completed', 'Failed'].includes(c.status) ? 'Ended' : '';
+    announceNewTurns(c, sameCall);
+  }
+  // Live transcription (collapsed), newest first, keeping the reader's place.
+  const body = $('#cfTxBody'), oldTurns = body?.querySelector('.turns');
+  if (body) {
+  const atTop = !sameCall || !oldTurns || oldTurns.scrollTop < 40, fromBottom = oldTurns ? oldTurns.scrollHeight - oldTurns.scrollTop : 0;
+  patch($('#cfTxState'), c.transcript.length ? (live ? '<span class="badge badge--ok">● Live</span>' : '<span class="badge badge--muted">○ Recorded</span>') : '<span class="badge badge--muted">○ Waiting for speech</span>');
+  patch(body, c.transcript.length ? transcriptTurns(c.transcript.slice().reverse()) : '<p class="help">The transcript appears as people speak.</p>');
+  const turnsBox = body.querySelector('.turns');
+  if (turnsBox) turnsBox.scrollTop = atTop ? 0 : Math.max(0, turnsBox.scrollHeight - fromBottom);
+  announceNewTurns(c, sameCall);
+  }
+
+  // Routing history: repeated connection errors are shown once with a count.
   const errorCounts = new Map(), shownErrors = new Set();
   c.events.forEach(e => { if (/failed|unavailable|interrupted/i.test(e.text)) errorCounts.set(e.text, (errorCounts.get(e.text) || 0) + 1); });
-  const history = c.events.slice().reverse().map(e => {
+  patch($('#cfHistory'), c.events.slice().reverse().map(e => {
     const noisy = /failed|unavailable|interrupted/i.test(e.text);
     if (noisy && shownErrors.has(e.text)) return '';
     if (noisy) shownErrors.add(e.text);
     const count = noisy ? errorCounts.get(e.text) : 1;
     return `<li><time class="help">${new Date(e.at).toLocaleTimeString()}</time> ${esc(e.text)}${count > 1 ? ` <span class="help">(repeated ${count} times)</span>` : ''}</li>`;
-  }).join('');
-  const openKnowledge = new Set([...document.querySelectorAll('#callContext details[data-kb][open]')].map(item => item.dataset.kb));
-  // Live transcript, newest line first: stay at the top unless the technician scrolled down to read earlier turns,
-  // in which case keep the same lines in view as new ones arrive above.
-  const workspace = $('#callWorkspace'), oldTurns = workspace.querySelector('.turns'), sameCall = workspace.dataset.callId === c.id;
-  const atTop = !sameCall || !oldTurns || oldTurns.scrollTop < 40, fromBottom = oldTurns ? oldTurns.scrollHeight - oldTurns.scrollTop : 0;
-  patch($('#callWorkspace'), `<div class="section-head section-head--tight"><div><p class="kicker"><span class="mono">${esc(c.id)}</span></p><h2 class="h3" tabindex="-1">${esc(c.caller)}</h2></div>${callBadge(c.status)}</div>
-    ${c.summary ? `<p class="sec">${esc(c.summary)}</p>` : ''}
-    ${c.status === 'Connected' && canManage ? `<section class="card stack stack--sm"><label for="callNoteText">Technician scratchpad</label><textarea class="input" id="callNoteText" data-call-id="${esc(c.id)}" rows="3" maxlength="4000" placeholder="Jot down a note; it will be attached to the incident when the call ends…">${esc(calling.noteDrafts[c.id] || '')}</textarea><p class="help">Your note will be added to the incident when you end the call.</p></section>` : ''}
-    ${c.last_error ? `<div class="alert" role="alert"><strong>✕ Call problem.</strong><span class="sec">${esc(c.last_error)}</span></div>` : ''}
-    ${joinHint}
-    ${controls.length ? `<div class="call-controls">${controls.join('')}</div>` : ''}
-    <div class="section-head section-head--tight"><h3 class="h4">Conversation</h3><span class="help">Newest first</span></div>${c.transcript.length ? transcriptTurns(c.transcript.slice().reverse()) : '<p class="help">The transcript appears as people speak.</p>'}
-    ${c.channel === 'chat' && c.status === 'Connected' && own ? '<form id="techReplyForm" class="stack stack--sm" novalidate><div class="field field--inline"><label for="techReplyText">Reply to customer</label><textarea class="input" id="techReplyText" name="text" rows="2" required maxlength="4000"></textarea></div><div class="row"><button type="submit" class="btn btn-primary btn-sm">Send</button><p class="form-status" id="techReplyMessage" role="status"></p></div></form>' : ''}
-    ${c.origin === 'desk' && c.channel !== 'chat' && c.status === 'AI' ? '<form id="callReplyForm" class="stack stack--sm" novalidate><div class="field field--inline"><label for="callReplyText">Customer reply</label><textarea class="input" id="callReplyText" name="text" rows="2" required maxlength="4000"></textarea></div><div class="row"><button type="submit" class="btn btn-primary btn-sm">Send reply</button><p class="form-status" id="callReplyMessage" role="status"></p></div></form>' : ''}`);
-  // Facts sit beside the conversation: details, the handoff brief, suggested knowledge and routing history.
-  patch($('#callContext'), `<section class="card stack stack--sm" aria-labelledby="callDetailsTitle"><h2 class="h4" id="callDetailsTitle">Details</h2>
-    <dl class="kv"><div><dt>Service</dt><dd>${esc(c.service)}</dd></div><div><dt>Priority</dt><dd>${priorityBadge(c.priority)}</dd></div><div><dt>Technician</dt><dd>${esc(c.technician_name || 'Not assigned')}</dd></div><div><dt>Started</dt><dd>${esc(when(new Date(c.created_at * 1000).toISOString()))}</dd></div></dl>
-    ${c.reason ? `<p class="help">Routing: ${esc(c.reason)}</p>` : ''}</section>
-    ${briefPanel ? `<section class="card">${briefPanel}</section>` : ''}
-    <div class="card stack stack--sm"><section class="stack stack--sm" aria-labelledby="callKnowledgeTitle"><h3 class="h4" id="callKnowledgeTitle">Suggested knowledge</h3><p class="help">${status === 'searching' ? '● Finding guidance for the latest customer problem…' : status === 'error' ? `✕ ${esc(c.knowledge_error)}` : 'AI suggestions, updated as the customer describes the issue. Verify before using.'}</p>
-    ${guidance.map(k => `<details data-kb="${esc(k.id)}" ${openKnowledge.has(k.id) ? 'open' : ''}><summary><span class="mono">${esc(k.id)}</span>&nbsp;· ${esc(k.title)}</summary><p class="sec">${esc(k.excerpt)}</p><ol class="plain-steps">${k.steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol></details>`).join('') || `<p class="sec">${status === 'ready' ? 'No relevant articles found.' : 'Suggestions appear after the customer speaks.'}</p>`}</section></div>
-    <section class="card"><details data-detail><summary>Routing history</summary><ol class="plain-steps">${history || '<li class="help">No routing events recorded.</li>'}</ol></details></section>`);
-  const turnsBox = workspace.querySelector('.turns');
-  if (turnsBox) turnsBox.scrollTop = atTop ? 0 : Math.max(0, turnsBox.scrollHeight - fromBottom);
-  announceNewTurns(c, sameCall);
-  workspace.dataset.callId = c.id;
-  renderCallTicket(c);
-}
+  }).join('') || '<li class="help">No routing events recorded.</li>');
 
-async function renderCallTicket(call) {
-  // The linked incident sits with the call's facts; before the call ends it says when the incident will be created.
-  const panel = $('#callTicketPanel');
-  panel.hidden = false;
-  if (!call.case_id) {
-    patch(panel, `<h2 class="h3">Incident</h2><p class="sec">${['Completed','Failed','Callback requested'].includes(call.status) ? (call.transcript.some(t=>t.speaker==='Customer') ? '● Creating the incident from the conversation…' : 'No incident: the customer didn’t describe an issue.') : 'An incident is created from the conversation when the call ends.'}</p>`);
-    return;
-  }
-  try {
-    const item = await api(`/api/cases/${call.case_id}`);
-    if (calling.selected !== call.id) return;
-    const t = item.ticket;
-    patch(panel, `<div class="section-head section-head--tight"><div><p class="kicker">Linked incident</p><h2 class="h3"><span class="mono">${esc(t.id)}</span></h2></div>${stateBadge(t.state)}</div><p><strong>${esc(t.short_description)}</strong></p><dl class="kv"><div><dt>Priority</dt><dd>${priorityBadge(t.priority)}</dd></div><div><dt>Service</dt><dd>${esc(t.service)}</dd></div><div><dt>Assigned to</dt><dd>${esc(t.assigned_to || 'Unassigned')}</dd></div><div><dt>Category</dt><dd>${esc(t.category)} · ${esc(t.subcategory)}</dd></div></dl><p class="sec pre" data-detail>${esc(t.description)}</p><div><a class="link" href="${window.Shell.home(state.user.role)}?ticket=${encodeURIComponent(item.id)}" data-ticket-link="${esc(item.id)}"><span>Open<span class="sr"> ${esc(t.id)}</span> to edit</span></a></div>`);
-  } catch(error) {
-    if (calling.selected === call.id) patch(panel, `<h2 class="h3">Incident</h2><div class="alert" role="alert"><strong>✕ Couldn’t load the incident.</strong><span class="sec">${esc(error.message)}</span></div>`);
-  }
+  // Bottom bar: Mute (voice), Transfer to queue, End call.
+  const inRoom = calling.room && calling.roomCallId === c.id, muted = inRoom && !calling.room.localParticipant.isMicrophoneEnabled;
+  patch($('#cfBar'), live && canManage ? `${inRoom ? `<button type="button" class="btn btn-soft btn-sm" data-dock-mute aria-pressed="${muted}">${muted ? 'Unmute' : 'Mute'}</button>` : ''}<button type="button" class="btn btn-soft btn-sm" data-call-action="transfer" data-call-id="${esc(c.id)}">Transfer to queue</button><button type="button" class="btn btn-danger btn-sm" data-call-action="finish" data-call-id="${esc(c.id)}">End ${chat ? 'chat' : 'call'}</button>` : '');
+  $('#cfBar').hidden = !(live && canManage);
 }
 
 async function restorePhone() {
@@ -323,8 +517,8 @@ async function answerCall(id) {
   try {
     const result = await api(`/api/calling/${id}/accept`, {method: 'POST', body: '{}'});
     if (result.token) await acceptBrowserCall(id, result, microphone);
-    $('#callAnswerStatus').textContent = '✓ Call connected.';
-    if (new URLSearchParams(location.search).get('call') !== id) history.pushState({view: 'calls', call: id}, '', `${location.pathname}?view=calls&call=${encodeURIComponent(id)}`);
+    $('#callAnswerStatus').textContent = call?.channel === 'chat' ? '' : '✓ Call connected.';
+    if (call?.channel === 'chat') history.pushState({view: 'calls', call: id}, '', `${location.pathname}?view=calls&call=${encodeURIComponent(id)}`);
     console.info('Call pickup duration (ms)', Math.round(performance.now() - started));
     showView('calls');
   } catch (failure) {
@@ -352,7 +546,7 @@ document.addEventListener('click', async event => {
     if (pickup) await answerCall(pickup.dataset.pickupCall);
     const action = event.target.closest('[data-call-action]');
     if (action) {
-      const id = calling.selected, kind = action.dataset.callAction;
+      const id = action.dataset.callId || calling.selected, kind = action.dataset.callAction;
       if (kind === 'accept') { await answerCall(id); return; }
       if (['transfer', 'finish'].includes(kind)) {
         const dialog = $('#callActionDialog'); dialog.dataset.callId = id; dialog.dataset.action = kind;
@@ -384,6 +578,7 @@ document.addEventListener('click', async event => {
       if (kind === 'finish') delete calling.noteDrafts[id];
       if (['finish','transfer'].includes(kind) && calling.roomCallId === id) { const room=calling.room; calling.room=null; calling.roomCallId=null; await room?.disconnect(); }
       await loadCalling();
+      if (kind === 'finish' && new URLSearchParams(location.search).get('call') === id) closeCall();   // back to Calls & queue
     }
     if (event.target.closest('#accountSignOut, [data-sign-out]')) {
       const blockSignOut = () => { window.Shell?.closeDrawer(false); const notice = $('#signOutCallNotice'); notice.hidden = false; notice.focus(); };
@@ -412,22 +607,58 @@ $('#presenceSelect').addEventListener('change', async event => {
   catch(error) { showFeedback(error.message, true); }
 });
 
+// The switch flips the moment it's clicked and shows a spinner while the browser and server catch up; if that fails
+// it flips back and says why. Permission, the saved setting and the LiveKit check run at the same time.
 $('#micSwitch').addEventListener('click', async () => {
   const button = $('#micSwitch');
   if (calling.micBusy || button.disabled) return;
-  calling.micBusy = true; button.disabled = true; button.setAttribute('aria-busy', 'true');
+  const turnOn = button.getAttribute('aria-checked') !== 'true';
+  calling.micBusy = true; button.setAttribute('aria-checked', String(turnOn)); button.setAttribute('aria-busy', 'true');
+  setBadge($('#microphoneIndicator'), 'badge--muted', turnOn ? '● Turning on…' : '● Turning off…');
   try {
     if (calling.room && calling.roomCallId) {
-      await calling.room.localParticipant.setMicrophoneEnabled(!calling.room.localParticipant.isMicrophoneEnabled);
-    } else if (button.getAttribute('aria-checked') === 'true') {
+      await calling.room.localParticipant.setMicrophoneEnabled(turnOn);
+    } else if (!turnOn) {
+      calling.ready = false;
       calling.user = await api('/api/technicians/me/call-settings', {method:'PATCH', body:JSON.stringify({enabled:false})});
-      calling.ready = false; await heartbeat();
+      heartbeat();
     } else {
-      if (!calling.user.calls_enabled) calling.user = await api('/api/technicians/me/call-settings', {method:'PATCH', body:JSON.stringify({enabled:true})});
-      calling.ready = false; await enablePhone();
+      const permission = ResolveAIVoice.microphonePermission().then(() => { calling.micDenied = false; });
+      const setting = calling.user.calls_enabled ? null : api('/api/technicians/me/call-settings', {method:'PATCH', body:JSON.stringify({enabled:true})});
+      const [, user] = await Promise.all([permission, setting, api('/api/calling/check')]);
+      if (user) calling.user = user;
+      calling.ready = true; calling.retryPhoneAt = 0;
+      heartbeat();
     }
-  } catch (error) { showFeedback(error.message, true); }
-  finally { calling.micBusy = false; button.removeAttribute('aria-busy'); await loadCalling(); button.focus(); }
+  } catch (error) {
+    calling.ready = false;
+    if (['NotAllowedError', 'SecurityError'].includes(error.name)) calling.micDenied = true;
+    else showFeedback(turnOn ? `Couldn’t turn the microphone on: ${error.message}` : error.message, true);
+  } finally {
+    calling.micBusy = false; button.removeAttribute('aria-busy');
+    if (calling.data) renderIndicators();
+    button.focus(); loadCalling();
+  }
+});
+
+// Technician chat replies: shown at once, sent in the background; the box stays focused for the next message.
+async function sendTechnicianReply(event) {
+  event.preventDefault();
+  const field = $('#techReplyText'), text = field.value.trim(), id = calling.selected, status = $('#techReplyMessage');
+  if (!text || field.disabled) return;
+  showPendingBubble($('#cfChat'), text, 'You'); field.value = ''; techTypingAt = 0; status.textContent = '';
+  try { await api(`/api/calling/${id}/reply`, {method: 'POST', body: JSON.stringify({text})}); loadCalling(); }
+  catch (error) { $('#cfChat').querySelectorAll('[data-pending]').forEach(item => item.remove()); field.value = text; status.className = 'form-status err'; status.textContent = `✕ Not sent: ${error.message}`; }
+  field.focus();
+}
+let techTypingAt = 0;
+document.addEventListener('keydown', event => {
+  if (event.target.id === 'techReplyText' && event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('#techReplyForm').requestSubmit(); }
+});
+document.addEventListener('input', event => {
+  if (event.target.id !== 'techReplyText' || !event.target.value.trim() || Date.now() - techTypingAt < 2500) return;
+  techTypingAt = Date.now();
+  api(`/api/calling/${calling.selected}/typing`, {method: 'POST', body: '{}'}).catch(() => {});
 });
 
 async function submitCallingForm(event, path, messageId, transform, after) {
@@ -435,7 +666,7 @@ async function submitCallingForm(event, path, messageId, transform, after) {
   const form = event.target, button = form.querySelector('button[type=submit]');
   const message = $(messageId);
   if (!form.checkValidity()) { const bad = [...form.elements].find(el => el.willValidate && !el.validity.valid); bad.setAttribute('aria-invalid', 'true'); message.className = 'form-status err'; const label = form.querySelector(`label[for="${bad.id}"]`)?.textContent || 'This field';
-    const why = bad.validity.valueMissing ? 'is required.' : bad.validity.tooShort ? `needs at least ${bad.minLength} characters.` : bad.validity.patternMismatch ? `can only use ${bad.id === 'userUsername' ? 'letters, numbers and . _ @ -' : 'the allowed characters'}.` : bad.validationMessage;
+    const why = bad.validity.valueMissing ? 'is required.' : bad.validity.typeMismatch ? 'must be an email address, like name@company.com.' : bad.validity.tooShort ? `needs at least ${bad.minLength} characters.` : bad.validity.patternMismatch ? `can only use ${bad.id === 'userUsername' ? 'letters, numbers and . _ @ -' : 'the allowed characters'}.` : bad.validationMessage;
     message.textContent = `✕ ${label} ${why}`; bad.focus(); return; }
   form.querySelectorAll('[aria-invalid]').forEach(el => el.removeAttribute('aria-invalid'));
   message.className = 'form-status'; message.textContent = 'Saving…'; button.disabled = true; button.setAttribute('aria-busy', 'true');
@@ -449,7 +680,7 @@ async function submitCallingForm(event, path, messageId, transform, after) {
 
 document.addEventListener('submit', event => {
   if (event.target.id === 'callReplyForm') submitCallingForm(event, `/api/calling/${calling.selected}/message`, '#callReplyMessage', null, async () => document.activeElement?.blur());
-  if (event.target.id === 'techReplyForm') submitCallingForm(event, `/api/calling/${calling.selected}/reply`, '#techReplyMessage', null, async () => { document.activeElement?.blur(); });
+  if (event.target.id === 'techReplyForm') sendTechnicianReply(event);
 });
 $('#technicianForm').addEventListener('submit', event => submitCallingForm(event, '/api/users', '#technicianMessage', values => ({...values, skills: (values.skills || 'general').split(',').map(x => x.trim()).filter(Boolean), languages: (values.languages || 'en').split(',').map(x => x.trim()).filter(Boolean)}), async user => {
   $('#technicianModal').close(); state.users = await api('/api/users');

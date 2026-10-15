@@ -15,6 +15,7 @@
   --hl: #FFFFFFCC;      /* top highlight on soft surfaces */
   --shade: #10182026;   /* soft drop shadow colour */
   --glow: 16%;          /* landing-page background glow strength only */
+  --hero-a: #073F2F;  --hero-b: #0C7254;  --on-hero: #FFFFFF;  --on-hero-2: #DCEDE5;   /* Overview banner */
 
   /* Main buttons use "ink": the text colour as fill */
   --btn-bg: var(--text);
@@ -37,6 +38,7 @@
   --ok: #86C3A2;      --critical: #E39A91; --high: #DCA87E;     --medium: #D0BC80;  --low: #A2BAD2;
   --danger-bg: #B9443F; --danger-fg: #FFFFFF;
   --hl: #FFFFFF12;  --shade: #000000A6;  --glow: 30%;
+  --hero-a: #0B2A20;  --hero-b: #14573F;  --on-hero: #F2F2F2;  --on-hero-2: #C9DED4;
   color-scheme: dark;
 }
 *{box-sizing:border-box}
@@ -124,11 +126,16 @@ h1,h2,h3,p{margin:0}a{color:inherit}
 .badge i{font-style:normal;font-size:11px;color:var(--c,var(--text-3))}
 .badge--critical,.badge--err{--c:var(--critical)}.badge--high{--c:var(--high)}.badge--medium{--c:var(--medium)}.badge--low{--c:var(--low)}
 .badge--ok{--c:var(--ok)}.badge--new{--c:var(--link)}.badge--muted{--c:var(--text-3)}
+/* Incident states are squarer than priority and status pills, so "In Progress" never reads as "High". */
+.badge--state{border-radius:6px}
 
 /* FORM FIELDS */
 .field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
 .field label{font:700 14px var(--font)}
-.input,.legacy-ui :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),select,textarea){min-height:46px;padding:10px 14px;background:var(--input);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--r-sm);font:400 15px var(--font);
+/* Read-only values are plain text, not greyed-out inputs. */
+.field__label{margin:0;font:700 14px var(--font)}
+.field__value{margin:0;min-height:46px;display:flex;align-items:center;font-size:15px}
+.input,.legacy-ui :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),select,textarea){min-height:46px;padding:10px 14px;background:var(--input);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--r-sm);font:400 15px var(--font);
   transition:border-color var(--t) var(--ease),background-color var(--t) var(--ease)}
 textarea.input{min-height:120px;resize:vertical}
 .input:focus-visible,.legacy-ui :is(input,select,textarea):focus-visible{outline-offset:1px;border-color:var(--text)}
@@ -169,8 +176,10 @@ body[data-mode="focus"] [data-detail]{display:none}
 .tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r)}
 .tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:560px}
 .tbl th,.legacy-ui th{text-align:left;padding:13px 16px;background:var(--surface-2);color:var(--text-2);font:700 13px var(--font);border-bottom:1px solid var(--border)}
+/* Row headers (the first cell of a row) read like any other cell, not like the column header. */
+.tbl tbody th{background:transparent;color:var(--text);font:inherit;padding:13px 16px}
 .tbl td,.legacy-ui td{padding:13px 16px;border-bottom:1px solid var(--border)}
-.legacy-ui td{vertical-align:top}.tbl tr:last-child td{border-bottom:0}
+.legacy-ui td{vertical-align:top}.tbl tr:last-child :is(td,th){border-bottom:0}
 .tbl tbody tr{transition:background-color var(--t) var(--ease)}.tbl tbody tr:hover,.legacy-ui tbody tr:hover{background:color-mix(in srgb,var(--surface-2) 55%,transparent)}
 .tbl td a.mono{color:var(--text);text-decoration:underline;text-underline-offset:3px}
 .inds{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
@@ -218,6 +227,8 @@ select.input{appearance:none;padding-right:40px;background-image:linear-gradient
 .input:disabled{opacity:.6;cursor:not-allowed}
 .input::placeholder{color:var(--text-3)}
 .field > span:first-child,.field legend{font:700 14px var(--font)}
+/* A legend isn't a flex item, so the field's gap doesn't reach it: give it the same space as a label. */
+fieldset.field > legend{padding:0;margin-bottom:6px}
 .field--inline{margin-bottom:0}
 .fields{display:grid;gap:0 20px;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
 .fields .field--wide{grid-column:1/-1}
@@ -389,9 +400,8 @@ body[data-shell="public"] .shell__main{max-width:none;padding:0}
 .note p{font-size:15px;color:var(--text-2)}
 /* Transcripts and chats read like a document viewer: a framed box of fixed height that scrolls inside, with a
    scrollbar that is always visible (macOS otherwise hides it until you scroll). New lines never stretch the page. */
-.turns{display:flex;flex-direction:column;gap:12px;height:min(420px,55vh);overflow-y:auto;overscroll-behavior:contain;padding:14px 16px;
+.turns{display:flex;flex-direction:column;gap:12px;max-height:min(420px,55vh);overflow-y:auto;overscroll-behavior:contain;padding:14px 16px;
   border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-2);scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
-.turns:has(> .turn:only-child),.turns:not(:has(> .turn:nth-child(4))){height:auto;max-height:min(420px,55vh)}
 .turns::-webkit-scrollbar{width:10px}
 .turns::-webkit-scrollbar-track{background:transparent}
 .turns::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:999px;border:2px solid var(--surface-2)}
@@ -401,7 +411,11 @@ body[data-shell="public"] .shell__main{max-width:none;padding:0}
 .turn__who{font:700 13px var(--font);color:var(--text-3)}
 .turn__who time{font-weight:400;margin-left:8px}
 .turn p{font-size:15px}
-details > summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}
+details > summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px;font-weight:700;list-style:none}
+details > summary::-webkit-details-marker{display:none}
+/* Every expandable section shows the same arrow, turned down when open. */
+details > summary::before{content:"›";flex:none;display:inline-block;width:12px;font-size:18px;line-height:1;color:var(--text-3);transition:transform var(--t) var(--ease)}
+details[open] > summary::before{transform:rotate(90deg)}
 /* Image analysis: findings laid out so the technician needn't open the image. */
 .va-problem{margin:0;font-size:18px;font-weight:700;line-height:1.4;color:var(--text);text-wrap:pretty}
 .va-error{display:flex;flex-direction:column;gap:8px;padding:14px 16px;border-radius:var(--r-sm);background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--critical)}
@@ -441,15 +455,41 @@ details > summary{cursor:pointer;min-height:44px;display:flex;align-items:center
 .inds li .field{margin:4px 0 0}
 .inds li > .badge{align-self:flex-start}
 .view > .alert{margin-bottom:20px}
-.filters .field{margin-bottom:8px}
-.chart{margin:0;display:flex;flex-direction:column;gap:12px}
-.bars{display:flex;flex-direction:column;gap:10px}
-.bars__row{display:grid;grid-template-columns:minmax(80px,1fr) minmax(80px,2fr) auto;gap:12px;align-items:center;font-size:14px}
-.bars__label{overflow-wrap:anywhere}
-.bars__track{height:10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);overflow:hidden}
-.bars__fill{display:block;height:100%;background:var(--edge)}
-.bars__value{color:var(--text-2);font-variant-numeric:tabular-nums;white-space:nowrap}
-.chart__table summary{font-size:14px}
+/* Filter cards: fields and the result line sit close together, and the card never touches what follows. */
+.filters{gap:14px}
+.filters .field{margin-bottom:0}
+.filters .fields{row-gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))}
+.view > .filters{margin-bottom:24px}
+.chart{margin:0;display:flex;flex-direction:column;gap:14px}
+/* One Chart / Table switch for a whole grid of charts, at the top right above the cards. */
+.chart-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.chart-toolbar + .chart-grid{margin-top:-8px}
+/* Cards in a chart grid are all the same size; a longer list scrolls inside its card. */
+.chart-grid .chart__body{height:252px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent;padding-right:4px}
+.chart__body:focus-visible{outline:2px solid var(--focus);outline-offset:4px;border-radius:6px}
+.chart-grid .chart__table thead th{position:sticky;top:0;z-index:1}
+/* Small two-way switch (Chart | Table): the pressed option is a raised tile on a sunken track. */
+.segmented{display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border)}
+.segmented button{min-height:30px;padding:0 12px;border:0;border-radius:7px;background:transparent;color:var(--text-2);font:600 13px var(--font);cursor:pointer;transition:background-color var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
+.segmented button:hover{color:var(--text)}
+.segmented button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:0 1px 2px var(--shade),inset 0 0 0 1px var(--border)}
+.segmented button:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+/* One grid for every row (label · track · count · share), so all tracks line up. */
+.bars{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:fit-content(40%) minmax(80px,1fr) auto auto;column-gap:14px}
+.bars__row{grid-column:1/-1;display:grid;grid-template-columns:subgrid;align-items:center;min-height:36px;margin-inline:-8px;padding-inline:8px;border-radius:8px;transition:background-color var(--t-fast) var(--ease)}
+.bars__row:hover{background:var(--surface-2)}
+.bars__label{font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bars__track{position:relative;height:8px;border-radius:999px;background:color-mix(in srgb,var(--text) 8%,transparent);overflow:hidden}
+.bars__fill{position:absolute;inset:0 auto 0 0;width:var(--w);border-radius:inherit;background:var(--edge);transform-origin:left;animation:bar-grow var(--t-slow) var(--ease) both}
+@keyframes bar-grow{from{transform:scaleX(0)}}
+.bars__count{font:700 14px var(--font);font-variant-numeric:tabular-nums;text-align:right;color:var(--text)}
+.bars__share{min-width:4ch;font-size:13px;font-variant-numeric:tabular-nums;text-align:right;color:var(--text-3)}
+.bars[hidden],.chart__table[hidden]{display:none}
+/* Table view: compact, numbers right-aligned, sits in the same place as the bars. */
+.chart__table{border:1px solid var(--border);border-radius:var(--r-sm);overflow:clip}
+.tbl--compact{min-width:0}
+.tbl--compact :is(th,td){padding:9px 14px}
+.tbl .num{text-align:right;font-variant-numeric:tabular-nums}
 .tbl td,.tbl th{vertical-align:middle}
 .tbl td a{font-weight:700}
 
@@ -473,9 +513,21 @@ details > summary{cursor:pointer;min-height:44px;display:flex;align-items:center
 .customer-hero{padding:24px 0 32px}
 .customer-hero .lede{margin:12px 0 28px}
 .customer-hero__actions{gap:20px}
-.customer-grid{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
-.customer-grid__main{flex:2 1 560px;min-width:0}
-.voice-card{flex:1 1 300px;display:flex;flex-direction:column;gap:12px}
+/* My support: "Your incidents" and "Get support" are two cards of the same height. Get support sets the height
+   (height 0 + min-height 100% keeps the incidents card from growing the row); longer incident lists scroll inside. */
+.customer-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(300px,1fr);gap:24px;align-items:stretch}
+.customer-grid__main{height:0;min-height:100%;min-width:0;display:flex;flex-direction:column;gap:14px}
+#customerIncidents{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
+.inc-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;margin-inline:-22px;border-top:1px solid var(--border);scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+.inc-scroll:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.customer-grid__main .inc-list{overflow:visible}
+.customer-grid__main .pagination{margin:0}
+.voice-card{display:flex;flex-direction:column;gap:12px;min-width:0}
+@media (max-width:900px){
+  .customer-grid{grid-template-columns:1fr}
+  .customer-grid__main{height:auto;min-height:0}
+  .inc-scroll{max-height:70vh}
+}
 .chat-log{height:min(380px,50vh)}
 .turn--you{padding-left:12px}
 #voiceTitle{margin-bottom:4px}
@@ -528,7 +580,9 @@ details > summary{cursor:pointer;min-height:44px;display:flex;align-items:center
 }
 @media (max-width:768px){
   .col-opt{display:none}
-  .bars__row{grid-template-columns:1fr auto}
+  /* Phones: label and numbers on one line, the track full width beneath. */
+  .bars{display:flex;flex-direction:column;gap:6px}
+  .bars__row{display:grid;grid-template-columns:1fr auto auto;column-gap:10px;row-gap:6px;padding-block:6px}
   .bars__track{grid-column:1/-1;grid-row:2}
   .support .support__bar{padding:16px}
   .support__main{padding:8px 16px 48px}
@@ -586,7 +640,7 @@ details > summary{cursor:pointer;min-height:44px;display:flex;align-items:center
 .legacy-ui .form-message{min-height:20px;font-size:14px;color:var(--text-2)}
 .legacy-ui .error,.legacy-ui .form-message.error{color:var(--critical);font-weight:600}
 .legacy-ui label{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;font:700 14px var(--font);color:var(--text)}
-.legacy-ui select{appearance:auto}
+.legacy-ui select:not(.input){appearance:auto}
 .legacy-ui textarea{min-height:96px;resize:vertical}
 .legacy-ui .table-wrap{overflow-x:auto}
 .legacy-ui table{width:100%;border-collapse:collapse;font-size:14px}
@@ -937,11 +991,12 @@ button[aria-busy="true"]{cursor:wait}
 :is(.mic-btn[aria-checked="true"] .mic-btn__on,.call-btn--mic[aria-checked="true"] .mic-on){display:block}
 :is(.mic-btn[aria-checked="true"] .mic-btn__off,.call-btn--mic[aria-checked="true"] .mic-off){display:none}
 .mic-btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.mic-btn{position:relative}
 .mic-btn[aria-busy="true"]{cursor:wait}
+.mic-btn[aria-busy="true"]::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--edge);border-right-color:transparent;animation:spin .8s linear infinite}
 .mic-toggle .badge{align-self:flex-start}
 
 /* Calls & queue: a call opens in place of the list, as one full-width column: conversation first, then its facts. */
-.call-page__grid{display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
 #callContext .handoff{padding:0;border:0;background:none}
 
 /* Time Machine → Handoff intelligence: evidence graph, source inspector and the cited next-steps plan.
@@ -1040,3 +1095,165 @@ th:hover .sort-arrow, .column-sort:hover .sort-arrow, .column-sort:focus-visible
 .app-loading{display:flex;align-items:center;justify-content:center;gap:12px;min-height:50vh;color:var(--text-2);font-size:15px;font-weight:600}
 .app-loading[hidden]{display:none}
 .app-loading__spin{width:20px;height:20px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--text);animation:spin .8s linear infinite}
+
+/* An open call gets the page to itself; the queue numbers and waiting list come back on "All calls". */
+.calls--focused :is(#callNumbers,#sharedQueuePanel,#technicianIdentity){display:none}
+/* Phones: queue numbers as a compact two-by-two block so calls show on the first screen. */
+@media (max-width:640px){
+  .call-metrics{grid-template-columns:1fr 1fr;gap:10px}
+  .call-metrics .metric{padding:12px 14px;gap:2px}
+  .call-metrics .metric__value{font-size:26px}
+  .call-metrics .metric .help:not(:empty){display:none}
+}
+
+/* A caption under a table never touches its edge. */
+.tbl-wrap + .help{margin-top:12px}
+/* Two inputs that make one range ("From – To") share one label. */
+.range-field{border:0;padding:0;min-width:0}
+.range-field__inputs{display:flex;align-items:center;gap:8px}
+.range-field__inputs .input{flex:1;min-width:0}
+/* Chart cards keep their own height instead of stretching to a taller neighbour. */
+/* Time Machine speaks the same visual language as the rest of the app: body font, standard kicker labels. */
+.tm-brief small,.tm-axis-labels{font:700 12px var(--font);letter-spacing:.12em;text-transform:uppercase}
+.tm-lane-label,.tm-axis-caption,.tm-cursor-label{font:600 12px var(--font)}
+.tm-point-label{fill:var(--text);font:700 12px var(--font)}
+.tm-point-plate{fill:var(--surface);stroke:var(--border-strong);stroke-width:1}
+.tm-tool-group select.input{width:auto;min-width:76px;min-height:40px;padding-block:6px;appearance:auto}
+.tm-filter.active::before{content:"✓";content:"✓" / ""}
+/* The evidence graph fits the card; only small screens scroll it sideways. */
+.handoff-network-scroll svg{min-width:640px;min-height:0}
+#callNumbers ~ .inds{margin-top:20px}
+.detail-aside .badge{align-self:flex-start}
+#supportChooser legend{margin-bottom:10px}
+#customerCallsTitle{margin-bottom:12px}
+/* Resolution debt filters: six fields as two even rows of three, clear of the numbers above. */
+.radar-filters{margin-block:20px}
+.radar-filters .fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:640px){.radar-filters .fields{grid-template-columns:1fr}}
+
+/* ---- Incoming call in the Call card: Answer (solid green) and Reject (red) ---- */
+.call-offer{margin-top:4px}
+.call-offer .call-controls{gap:12px 24px}
+.call-btn--answer .call-btn__icon{background:var(--ok);color:var(--canvas);border-color:transparent}
+.call-btn--answer:hover .call-btn__icon{background:color-mix(in srgb,var(--ok) 88%,var(--text))}
+
+/* ---- Live call dock: frosted glass, sticky below the top bar; a bottom sheet on phones ---- */
+.call-dock{position:sticky;top:calc(72px + 12px);z-index:15;display:flex;flex-direction:column;gap:14px;margin-bottom:20px;padding:16px 18px;border-radius:var(--r);color:var(--text);
+  background:linear-gradient(135deg,color-mix(in srgb,var(--surface) 38%,transparent),color-mix(in srgb,var(--surface) 18%,transparent));
+  -webkit-backdrop-filter:blur(9px) saturate(1.7);backdrop-filter:blur(9px) saturate(1.7);
+  border:1px solid color-mix(in srgb,var(--surface) 55%,transparent);border-top:4px solid color-mix(in srgb,var(--edge) 80%,transparent);
+  box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 45%,transparent),0 24px 60px -24px var(--shade);animation:dock-in .45s var(--ease) both}
+.call-dock[hidden]{display:none}
+@keyframes dock-in{from{opacity:0;transform:translateY(-10px) scale(.985)}}
+.dock-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px 12px}
+.dock-title{display:flex;align-items:center;flex-wrap:wrap;gap:10px;min-width:0}
+.dock-name{margin:0;font:800 20px/1.2 var(--font);color:var(--text);overflow-wrap:anywhere}
+.live-chip{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;font:800 12px var(--font);letter-spacing:.06em;color:var(--ok);background:color-mix(in srgb,var(--ok) 16%,transparent)}
+.live-chip i{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:dock-blink 1.4s ease-in-out infinite}
+@keyframes dock-blink{50%{opacity:.25}}
+.dock-meta{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 22px;margin:0}
+.dock-meta div{display:inline-flex;align-items:baseline;gap:7px;white-space:nowrap}
+.dock-meta dt{font:700 11px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--text-2)}
+.dock-meta dd{margin:0;font:600 13px var(--font);color:var(--text);font-variant-numeric:tabular-nums}
+.dock-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start}
+.dock-pane{display:flex;flex-direction:column;gap:8px;min-width:0;padding:14px 16px;border-radius:12px;
+  background:color-mix(in srgb,var(--surface) 22%,transparent);border:1px solid color-mix(in srgb,var(--surface) 45%,transparent);
+  box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 25%,transparent)}
+.dock-pane--lead{box-shadow:inset 3px 0 0 var(--edge),inset 0 1px 0 color-mix(in srgb,#fff 25%,transparent)}
+.dock-label{margin:0;font:700 12px var(--font);letter-spacing:.12em;text-transform:uppercase;color:var(--text)}
+.dock-scroll{display:flex;flex-direction:column;gap:8px;max-height:150px;overflow-y:auto;overscroll-behavior:contain;padding-right:6px;scrollbar-width:thin;font-size:14px;color:var(--text)}
+.dock-scroll p{margin:0}
+.dock-scroll:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
+.dock-question{font-weight:700;font-size:16px;line-height:1.35}
+.dock-note{font-size:13px;color:var(--text)}
+.dock-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.dock-list li{display:flex;flex-direction:column;gap:2px}
+.dock-msg{padding-bottom:8px;border-bottom:1px solid color-mix(in srgb,var(--text) 12%,transparent);font-size:13px}
+.dock-msg:last-child{border:0;padding:0}
+.dock-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px}
+.dock-actions .btn-soft{background:color-mix(in srgb,var(--surface) 55%,transparent);border-color:color-mix(in srgb,var(--surface) 70%,var(--border))}
+@media (max-width:860px){
+  .call-dock{position:fixed;top:auto;bottom:calc(12px + env(safe-area-inset-bottom,0px));left:16px;right:16px;z-index:30;max-height:min(72vh,calc(100vh - 24px));overflow-y:auto;margin:0;padding:12px 14px;gap:10px;animation-name:dock-up}
+  @keyframes dock-up{from{opacity:0;transform:translateY(24px)}}
+  .dock-meta{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 12px}
+  .dock-meta div{display:contents}
+  .dock-grid{grid-template-columns:minmax(0,1fr);gap:8px}
+  .dock-pane{padding:10px 12px;gap:6px}
+  .dock-scroll{max-height:120px}
+  .dock-actions{position:sticky;bottom:-12px;margin:0 -14px -12px;padding:10px 14px;background:color-mix(in srgb,var(--surface) 35%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+  /* keep the last content clear of the sheet */
+  #view-calls:has(.call-dock:not([hidden])){padding-bottom:45vh}
+}
+/* Customers keep their three links (My support, Report an issue, Help articles) on narrow screens too:
+   a second row under the top bar that scrolls sideways if needed. */
+@media (max-width:768px){
+  body[data-shell="customer"] .topbar{flex-wrap:wrap;row-gap:0}
+  body[data-shell="customer"] .topnav{display:flex;order:10;flex:1 0 100%;flex-wrap:nowrap;gap:20px;margin:0;overflow-x:auto;scrollbar-width:none}
+  body[data-shell="customer"] .topnav a{flex:none;white-space:nowrap}
+}
+/* Overview banner (from the Theme Lab): deep green, white text, one call to action. */
+.hero-banner{position:relative;overflow:hidden;overflow:clip;display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:24px;padding:34px 38px;border-radius:20px;
+  color:var(--on-hero);background:linear-gradient(120deg,var(--hero-a),var(--hero-b));box-shadow:0 14px 40px -18px var(--shade)}
+.hero-banner::after{content:"";position:absolute;width:420px;height:420px;right:-140px;top:-200px;border-radius:50%;background:radial-gradient(circle,#ffffff1f,transparent 65%);pointer-events:none;animation:hero-drift 18s ease-in-out infinite alternate}
+@keyframes hero-drift{to{transform:translate(-60px,40px) scale(1.1)}}
+.hero-banner__text{position:relative;z-index:1;max-width:620px;display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.hero-banner__pill{display:inline-flex;padding:5px 12px;border-radius:999px;font:700 12px var(--font);color:var(--on-hero);border:1px solid color-mix(in srgb,var(--on-hero) 55%,transparent);background:color-mix(in srgb,var(--on-hero) 14%,transparent)}
+.hero-banner h2{margin-top:4px;font:800 clamp(26px,3vw,34px)/1.12 var(--font);letter-spacing:-.025em;text-wrap:balance;color:var(--on-hero)}
+.hero-banner p{color:var(--on-hero-2);font-size:15px}
+.hero-banner__cta{position:relative;z-index:1;background:var(--on-hero);color:var(--hero-a);border-color:transparent;box-shadow:0 10px 24px -12px #0008}
+.hero-banner__cta:hover{background:color-mix(in srgb,var(--on-hero) 90%,var(--hero-b))}
+@media (max-width:640px){.hero-banner{padding:24px 20px}}
+
+/* ---- Full call page ---- */
+/* The call takes the page: the queue's header, numbers and (unless it's still ringing) readiness cards step aside. */
+.calls--focused > :is(.page-head,#callAnswerStatus),.calls--focused.calls--live > .inds{display:none}
+.call-full{display:flex;flex-direction:column;gap:18px;min-width:0}
+.call-full__head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px 16px;flex-wrap:wrap}
+.call-full__head > div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.call-full__title{margin:0;font:800 clamp(26px,3vw,32px)/1.1 var(--font);letter-spacing:-.025em}
+.call-full__head .sec a.mono{color:var(--text);text-decoration:underline;text-underline-offset:3px}
+.call-full__grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px;align-items:start}
+.call-full__col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.call-full__card{display:flex;flex-direction:column;gap:12px;min-width:0}
+.call-brief{border-left:4px solid var(--edge);background:color-mix(in srgb,var(--edge) 7%,var(--surface))}
+.call-brief__text{font-size:18px;line-height:1.45}
+.cf-scroll{display:flex;flex-direction:column;gap:8px;max-height:240px;overflow-y:auto;overscroll-behavior:contain;padding-right:6px;scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+.cf-scroll:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
+.brief-more{border-top:1px solid var(--border);padding-top:6px}
+.brief-more > summary{min-height:36px;font-size:14px;color:var(--text-2)}
+.brief-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:6px 0 0;font-size:14px}
+.brief-grid dt{font-weight:700}
+.brief-grid dd{margin:0;color:var(--text-2)}
+.kb-item{border-top:1px solid var(--border);padding-block:4px}
+.kb-item:first-child{border-top:0}
+.kb-item > summary{font-size:15px}
+.kb-item > p,.kb-item > ol{margin:4px 0 8px}
+.steps-list{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;color:var(--text)}
+#cfTranscript > summary,.call-full > details > summary{flex-wrap:wrap}
+.callbar{position:sticky;bottom:0;z-index:5;display:flex;gap:10px;flex-wrap:wrap;padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));background:var(--canvas);border-top:1px solid var(--border)}
+.callbar[hidden]{display:none}
+@media (max-width:900px){.call-full__grid{grid-template-columns:minmax(0,1fr)}}
+/* A caption line above a transcript box never touches it. */
+p + .turns{margin-top:10px}
+
+/* ---- Chat window (customer and technician) ---- */
+.chat-window{display:flex;flex-direction:column;gap:10px;height:min(420px,55vh);overflow-y:auto;overscroll-behavior:contain;padding:14px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-2);scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+.chat-window:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.bubble{align-self:flex-start;display:flex;flex-direction:column;gap:3px;max-width:min(78%,560px);padding:10px 14px;border-radius:16px 16px 16px 6px;background:var(--surface);border:1px solid var(--border);animation:bubble-in .25s var(--ease) both}
+.bubble p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px}
+.bubble__who{display:flex;gap:8px;align-items:baseline;font:700 12px var(--font);color:var(--text-2)}
+.bubble__who time{font-weight:500;color:var(--text-3)}
+.bubble--ai{border-color:color-mix(in srgb,var(--edge) 30%,var(--border))}
+.bubble--ai .bubble__who{color:var(--link)}
+.bubble--me{align-self:flex-end;border-radius:16px 16px 6px 16px;background:var(--btn-bg);color:var(--btn-fg);border-color:transparent}
+.bubble--me .bubble__who,.bubble--me .bubble__who time{color:color-mix(in srgb,var(--btn-fg) 75%,transparent)}
+.bubble[data-pending]{opacity:.7}
+@keyframes bubble-in{from{opacity:0;transform:translateY(6px)}}
+.typing-dots{display:inline-flex;gap:4px;padding:4px 0}
+.typing-dots i{width:7px;height:7px;border-radius:50%;background:var(--text-3);animation:typing-dot 1s infinite ease-in-out}
+.typing-dots i:nth-child(2){animation-delay:.15s}.typing-dots i:nth-child(3){animation-delay:.3s}
+@keyframes typing-dot{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+.chat-composer{display:flex;gap:10px;align-items:flex-end}
+.chat-composer textarea{flex:1;min-height:46px;max-height:160px;resize:vertical}
+/* Back arrow at the top-left of the workspace bar. */
+.topbar__back{flex:none;width:40px;height:40px}

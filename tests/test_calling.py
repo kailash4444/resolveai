@@ -54,7 +54,7 @@ def test_initial_incident_and_activity_are_retained(service):
 
 def test_specialist_then_longest_idle_without_double_booking(service):
     general = technician(service, "General")
-    specialist = technician(service, "Specialist", ["enterprise it"])
+    specialist = technician(service, "Specialist", ["payroll"])  # matches the Business applications service
     first, second, third = request(service), request(service), request(service)
     offers = service.dispatch()
     assert len(offers) == 2

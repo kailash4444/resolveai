@@ -8,6 +8,8 @@ from threading import Lock
 
 from pydantic import BaseModel, Field
 
+from realapp.services import normalize_service
+
 METRICS = [
     ('greeting','Greeting','Introduces the service desk and invites the customer to explain the issue.'),
     ('problem_solving','Problem-solving ability','Clarifies symptoms, diagnoses logically and applies appropriate supported steps or escalation.'),
@@ -67,11 +69,11 @@ def filtered_analytics(calls, call_id='', technician='', service=''):
     selected = [call for call in calls if
                 (not call_id.strip() or call_id.strip().casefold() in call['id'].casefold()) and
                 (not technician or (call.get('technician_name') or 'AI / Unassigned') == technician) and
-                (not service or (call.get('service') or 'General') == service)]
+                (not service or normalize_service(call.get('service')) == normalize_service(service))]
     result = analytics(selected)
     result.update(available_total=len(calls), filters=dict(
         technicians=sorted({call.get('technician_name') or 'AI / Unassigned' for call in calls}),
-        services=sorted({call.get('service') or 'General' for call in calls})))
+        services=sorted({normalize_service(call.get('service')) for call in calls})))
     return result
 
 
@@ -168,8 +170,8 @@ def analytics(calls):
     return dict(total=len(calls),completed=len(completed),completion_rate=round(len(completed)*100/len(calls)) if calls else 0,
         average_duration_seconds=round(sum(durations)/len(durations)) if durations else 0,
         average_wait_seconds=round(sum(waits)/len(waits)) if waits else 0,audited=len(assessed),metrics=metrics,
-        services=dict(Counter(c.get('service') or 'General' for c in calls)),states=dict(Counter(c['status'] for c in calls)),
+        services=dict(Counter(normalize_service(c.get('service')) for c in calls)),states=dict(Counter(c['status'] for c in calls)),
         daily=dict(sorted(Counter(datetime.fromtimestamp(c['created_at'],timezone.utc).strftime('%Y-%m-%d') for c in calls).items())),
         technicians=sorted(technician_summary,key=lambda t:(-t['total'],t['name'])),overall=quality_average(calls),
-        calls=[dict(id=c['id'],technician=c.get('technician_name') or 'AI / Unassigned',service=c.get('service') or 'General',
+        calls=[dict(id=c['id'],technician=c.get('technician_name') or 'AI / Unassigned',service=normalize_service(c.get('service')),
                     status=c['status'],overall=overall_quality(c)) for c in sorted(calls,key=lambda c:c['created_at'],reverse=True)])

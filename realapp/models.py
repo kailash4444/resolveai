@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from realapp.services import normalize_service
 
 
 class TranscriptTurn(BaseModel):
@@ -79,6 +81,9 @@ class TicketDraft(BaseModel):
     assignment_group: str
     state: Literal["New", "In Progress", "On Hold", "Resolved"] = "New"
 
+    # Services come from one fixed list (see services.py); older records are mapped when they are read.
+    _service = field_validator('service')(normalize_service)
+
 
 class WorkNote(BaseModel):
     id: str
@@ -120,6 +125,7 @@ class VisualAnalysisPayload(BaseModel):
     suggested_category: str = "Incident"
     suggested_subcategory: str = "Investigation"
     suggested_service: str = "General"
+    _service = field_validator('suggested_service')(normalize_service)
     suggested_priority: Literal["P1", "P2", "P3", "P4"] = "P3"
     recommended_action: str
     # Structured extraction (empty for rule-based estimates and results stored before these fields existed).
@@ -372,6 +378,7 @@ class TicketUpdate(BaseModel):
     subcategory: str | None = None
     service: str | None = None
     priority: Literal["P1", "P2", "P3", "P4"] | None = None
+    _service = field_validator('service')(lambda value: None if value is None else normalize_service(value))
     assignment_group: str | None = None
     resolution: str | None = None
     state: Literal["New", "In Progress", "On Hold", "Resolved"] | None = None
@@ -381,3 +388,4 @@ class CustomerIncidentCreate(BaseModel):
     short_description: str = Field(min_length=3, max_length=200)
     description: str = Field(min_length=10, max_length=8000)
     service: str = Field(default='General', min_length=2, max_length=100)
+    _service = field_validator('service')(normalize_service)

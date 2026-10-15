@@ -44,7 +44,7 @@ def test_browser_incident_created_once_from_completed_conversation(service, monk
     call = request(service, phone=True)
     assert service.case_store.list_cases() == []
     service.dispatch()
-    service.accept(call['id'], tech['id'])
+    number = service.accept(call['id'], tech['id'])['live_ticket_id']   # given to the customer during the call
     service.add_turn(call['id'], 'Technician', 'The crash is caused by a damaged report template.')
     service.add_turn(call['id'], 'Customer', 'The report still fails after restarting.')
     analyzed = []
@@ -62,7 +62,8 @@ def test_browser_incident_created_once_from_completed_conversation(service, monk
     case = service.case_store.get_case(results[0]['case_id'])
     assert len(case.transcript) == 3
     assert case.ticket.assigned_user_id == tech['id']
-    assert case.ticket.state == 'New' and case.ticket.resolution == ''
+    assert case.ticket.id == number                                     # the same incident, filled in after the call
+    assert case.ticket.state == 'In Progress' and case.ticket.resolution == ''
     assert case.qa_checks == [] and case.quality_score is None
     case.ticket.short_description = 'Technician edited this incident'
     service.case_store.save_case(case)
@@ -104,3 +105,30 @@ def test_audio_disconnects_before_ticket_generation(voice_app, monkeypatch):
     monkeypatch.setattr(f.service, 'finish', finish)
     assert f.client.post('/api/calling/' + call['id'] + '/finish').status_code == 200
 
+
+
+def test_live_incident_moves_with_a_transfer_and_survives_a_silent_call(service):
+    first, second = technician(service, 'First'), technician(service, 'Second')
+    for tech in (first, second):
+        service.heartbeat(tech['id'], True)
+    call = request(service, phone=True)
+    service.dispatch()
+    answered = service.accept(call['id'], service.get(call['id'])['technician_id'])
+    number = answered['live_ticket_id']
+    owner = service.get(call['id'])['technician_id']
+    service.repository.mutate(lambda db: service._release(db, db['calls'][call['id']], 'Transferred', away=True))   # what the transfer endpoint does
+    service.clock[0] += 5
+    other = second if owner == first['id'] else first
+    service.dispatch()
+    assert service.get(call['id'])['technician_id'] == other['id']
+    again = service.accept(call['id'], other['id'])
+    assert again['live_ticket_id'] == number and len(service.case_store.list_cases()) == 1
+    case = service.case_store.get_case(again['live_case_id'])
+    assert case.ticket.assigned_user_id == other['id'] and case.ticket.id == number
+
+    silent = service.create_call('Customer', origin='browser', provider_sid='CA' + '2' * 32)
+    service.repository.mutate(lambda db: db['calls'][silent['id']].update(status='Ringing', technician_id=first['id'], technician_name='First',
+                                                                          reserved_until=service.now() + 30), call_ids=(silent['id'],))
+    kept = service.accept(silent['id'], first['id'])['live_ticket_id']
+    done = service.finish(silent['id'])
+    assert done['case_id'] and service.case_store.get_case(done['case_id']).ticket.id == kept

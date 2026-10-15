@@ -72,6 +72,8 @@
   const graphKindLabel = {ticket:'Incident',customer:'Customer',technician:'Technician',transcript:'Transcript',action:'Reported action',work_note:'Work note',failed_action:'Failed step',knowledge:'Knowledge',similar_case:'Similar ticket'};
   const graphKindIcon = {ticket:'T',customer:'C',technician:'S',transcript:'V',action:'A',work_note:'N',failed_action:'!',knowledge:'K',similar_case:'↗'};
   function showGraphWarnings(items = []) {
+    // Warnings already listed above the tabs aren't repeated here.
+    items = items.filter(item => !state.data?.warnings?.includes(item));
     const box = byId('tmHandoffWarnings'); box.hidden = !items.length;
     box.innerHTML = items.map(item => `<p>${esc(item)}</p>`).join('');
   }
@@ -100,8 +102,8 @@
     if (!svg || !graph) return;
     const layout = graphPositions(graph), {positions,height,width} = layout;
     const selectedNode = graph.nodes.find(item => item.id === state.selectedGraphNode);
-    svg.setAttribute('viewBox',`0 0 ${width} ${height}`); svg.style.height = `${height}px`;
-    const titles = {people:'PEOPLE & OWNERSHIP',evidence:'WHAT WAS SAID / TRIED',ticket:'ACTIVE INCIDENT',knowledge:'RETRIEVED KNOWLEDGE',history:'SIMILAR INCIDENTS'};
+    svg.setAttribute('viewBox',`0 0 ${width} ${height}`);
+    const titles = {people:'People and ownership',evidence:'What was said or tried',ticket:'This incident',knowledge:'Suggested knowledge',history:'Similar incidents'};
     const headers = Object.entries(titles).map(([key,title])=>{
       const x = ({people:24,evidence:285,ticket:568,knowledge:855,history:1124})[key];
       return `<text class="hg-column-label" x="${x}" y="28">${title}</text>`;
@@ -146,8 +148,8 @@
   function renderGuidance() {
     const host=byId('tmGuideContent'), guide=state.guidance;
     if(!guide){host.innerHTML='<p class="helper">Generate a cited plan from this ticket, its conversation, current knowledge, and similar incidents. This makes one live AI request.</p>';byId('tmGuideBadge').textContent=state.provider==='mock'?'DEMO MODE':'EVIDENCE-LED';return;}
-    const providerLabel={vertex:'VERTEX AI',google_ai:'GEMINI API',openai:'OPENAI',mock:'DEMO MODE'}[state.provider]||String(state.provider||'AI').toUpperCase();
-    byId('tmGuideBadge').textContent=state.provider==='mock'?'DEMO MODE':`${providerLabel} · SOURCED`;
+    const providerLabel={vertex:'Vertex AI',google_ai:'Gemini API',openai:'OpenAI',mock:'Demo mode'}[state.provider]||String(state.provider||'AI');
+    byId('tmGuideBadge').textContent=state.provider==='mock'?'Demo mode':`${providerLabel} · sourced`;
     const actions=guide.next_actions.map((item,index)=>`<li class="handoff-action-card"><div><span class="handoff-step-number">${index+1}</span><b>${esc(item.action)}</b></div><p>${esc(item.rationale)}</p><small><b>Verify:</b> ${esc(item.verify)}</small><div class="handoff-citations">${item.evidence_ids.map(id=>{const source=state.graph.nodes.find(node=>node.id===id);return source?`<button class="handoff-citation" data-hg-citation="${esc(id)}">↗ ${esc(source.label)}</button>`:''}).join('')}</div></li>`).join('');
     host.innerHTML=`<p class="handoff-guide-summary">${esc(guide.summary)}</p><ol class="handoff-action-list">${actions}</ol>${guide.questions_for_customer?.length?`<div class="handoff-subsection"><h4>Ask the customer</h4><ul>${guide.questions_for_customer.map(item=>`<li>${esc(item)}</li>`).join('')}</ul></div>`:''}${guide.avoid_repeating?.length?`<div class="handoff-subsection"><h4>Avoid repeating</h4><ul>${guide.avoid_repeating.map(item=>`<li>${esc(item)}</li>`).join('')}</ul></div>`:''}${guide.unknowns?.length?`<div class="handoff-subsection"><h4>Still unknown</h4><ul>${guide.unknowns.map(item=>`<li>${esc(item)}</li>`).join('')}</ul></div>`:''}`;
   }
@@ -185,6 +187,13 @@
     byId('tmFilters').innerHTML = allCategories.map(name => `<button type="button" class="tm-filter ${state.categories.has(name) ? 'active' : ''}" data-tm-filter="${esc(name)}" aria-pressed="${state.categories.has(name)}"><i style="--tm-color:${palette[Object.keys(groups).find(key => groups[key] === name)] || 'var(--text-3)'}"></i>${esc(name)}</button>`).join('');
   }
 
+  // Only the selected or current moment is labelled (others show their title on hover), so labels never pile up.
+  // The label sits on a backing plate and is kept inside the drawing near either edge.
+  function pointLabel(title, x, y, left, right) {
+    const text = title.length > 40 ? `${title.slice(0, 39)}…` : title, w = text.length * 7 + 16;
+    const lx = Math.min(Math.max(x - w / 2, left), right - w);
+    return `<rect class="tm-point-plate" x="${lx}" y="${y - 34}" width="${w}" height="22" rx="6"/><text class="tm-point-label" x="${lx + w / 2}" y="${y - 19}" text-anchor="middle">${esc(text)}</text>`;
+  }
   function renderTimeline() {
     const svg = byId('tmTimeline');
     const dated = state.dated;
@@ -192,23 +201,24 @@
     const cursor = dated[index] || null;
     const retro = byId('tmRetrospective').checked;
     const width = Math.max(1100, Math.ceil(Math.max(1, dated.length) * 82 * state.zoom));
-    const height = 430, left = 78, right = width - 42, yBase = 398;
+    const height = 430, left = 128, right = width - 42, yBase = 398;   // left leaves room for the longest lane name
     const lanes = ['Customer','Conversation','AI records','Technician','Failed steps','State changes','Incident','Attachments','QA','Durability','Reported steps','System','Other'];
-    const yFor = event => 72 + Math.max(0, lanes.indexOf(category(event))) * 25;
+    const yFor = event => 78 + Math.max(0, lanes.indexOf(category(event))) * 25;   // on its lane line
     const firstTime = dated.length ? Date.parse(dated[0].occurred_at) : 0;
     const lastTime = dated.length ? Date.parse(dated[dated.length - 1].occurred_at) : firstTime;
     const xFor = event => lastTime <= firstTime ? (left + right) / 2 : left + ((Date.parse(event.occurred_at) - firstTime) / (lastTime - firstTime)) * (right - left);
     const display = dated.filter(item => (retro || (cursor && item.occurred_at <= cursor.occurred_at)) && isVisible(item));
     const parts = [`<defs><marker id="tm-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" style="fill:var(--border-strong)"/></marker></defs>`,
       `<line class="tm-axis" x1="${left}" y1="${yBase}" x2="${right}" y2="${yBase}"/>`,
-      `<text class="tm-axis-caption" x="${left}" y="${height - 22}">RECORDED TIME →</text>`];
+      `<text class="tm-axis-caption" x="${left}" y="${height - 22}">Recorded time →</text>`];
     for (const lane of lanes) {
       const y = 70 + lanes.indexOf(lane) * 25;
       parts.push(`<line class="tm-lane" x1="${left}" y1="${y + 8}" x2="${right}" y2="${y + 8}"/><text class="tm-lane-label" x="8" y="${y + 12}">${esc(lane)}</text>`);
     }
     if (cursor) {
       const x = xFor(cursor);
-      parts.push(`<line class="tm-cursor" x1="${x}" y1="48" x2="${x}" y2="${height - 42}"/><text class="tm-cursor-label" x="${x + 7}" y="${height - 47}">AS OF</text>`);
+      const nearEnd = x > right - 60;
+      parts.push(`<line class="tm-cursor" x1="${x}" y1="48" x2="${x}" y2="${height - 42}"/><text class="tm-cursor-label" x="${nearEnd ? x - 7 : x + 7}" y="${height - 47}" text-anchor="${nearEnd ? 'end' : 'start'}">As of</text>`);
     }
     for (const event of display) {
       const x = xFor(event), y = yFor(event), color = palette[event.type] || 'var(--text-3)';
@@ -217,7 +227,7 @@
       const shape = event.type === 'status_change' || event.type === 'failed_attempt'
         ? `<path d="M ${x} ${y-8} L ${x+8} ${y} L ${x} ${y+8} L ${x-8} ${y} Z" style="fill:${color}"/>`
         : `<circle cx="${x}" cy="${y}" r="7" style="fill:${color}"/>`;
-      parts.push(`<g class="tm-event${chosen}${isCurrent ? ' current' : ''}" data-tm-event="${esc(event.id)}" tabindex="0" role="button" aria-label="${esc(event.title)} · ${esc(when(event.occurred_at))}"><line class="tm-stem" x1="${x}" y1="${y+10}" x2="${x}" y2="${yBase-10}"/><circle class="tm-hit" cx="${x}" cy="${y}" r="14"/>${shape}<text class="tm-point-label" x="${x}" y="${y-12}" text-anchor="middle">${esc(event.title.slice(0, 24))}</text></g>`);
+      parts.push(`<g class="tm-event${chosen}${isCurrent ? ' current' : ''}" data-tm-event="${esc(event.id)}" tabindex="0" role="button" aria-label="${esc(event.title)} · ${esc(when(event.occurred_at))}"><line class="tm-stem" x1="${x}" y1="${y+10}" x2="${x}" y2="${yBase-10}"/><title>${esc(event.title)} · ${esc(when(event.occurred_at))}</title><circle class="tm-hit" cx="${x}" cy="${y}" r="14"/>${shape}${chosen || isCurrent ? pointLabel(event.title, x, y, left, right) : ''}</g>`);
     }
     if (!display.length) parts.push(`<text class="tm-empty" x="${width/2}" y="${height/2}" text-anchor="middle">No visible dated evidence. Adjust filters or rewind.</text>`);
     if (!retro && cursor && dated.some(item => item.occurred_at > cursor.occurred_at)) parts.push(`<text class="tm-future-note" x="${Math.min(right - 12, xFor(cursor) + 14)}" y="${height - 22}">Later records hidden at this historical moment</text>`);

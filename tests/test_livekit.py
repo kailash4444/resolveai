@@ -117,8 +117,10 @@ def test_technician_join_is_authoritative_and_rejects_other_technicians(voice_ap
     assert f.client.post('/api/calling/'+call['id']+'/connected').status_code==200
     current=f.service.get(call['id'])
     assert current['status']=='Connected'
-    assert current['case_id'] is None
-    assert f.service.case_store.list_cases() == []
+    # The incident opens when the technician connects, so its number can be given to the customer during the call.
+    assert current['case_id'] is None and current['live_ticket_id'].startswith('INC')
+    [live] = f.service.case_store.list_cases()
+    assert live.ticket.id == current['live_ticket_id'] and live.ticket.assigned_user_id == actor['id'] and live.ticket.state == 'In Progress'
     assert f.client.post('/api/calling/'+call['id']+'/transfer').status_code==200
     assert f.service.get(call['id'])['status']=='Queued'
     assert f.client.post('/api/calling/'+call['id']+'/connected').status_code==403

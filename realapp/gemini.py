@@ -12,6 +12,7 @@ from pathlib import Path
 from collections.abc import Callable
 from uuid import uuid4
 
+from realapp.services import SERVICE_LIST, normalize_service
 from realapp.config import Settings
 from realapp.knowledge import article_document
 from realapp.incident_context import audit_ticket_json, resolution_evidence, KNOWLEDGE_PROMPT, AUDIT_PROMPT
@@ -95,7 +96,7 @@ def vision_prompt(description: str, attachments) -> str:
         "- visual_observations: a readable paragraph combining the above.\n"
         "- technical_diagnosis: the likely cause, based on what is visible, in one or two sentences (put the certainty in confidence).\n"
         "- suggested_category (Software, Hardware, Network, Access, Workstation, Database...), suggested_subcategory "
-        "(Application Crash, Connectivity, Error Message, Timeout...), suggested_service (Outlook, VPN, Windows, Printing...).\n"
+        "(Application Crash, Connectivity, Error Message, Timeout...), suggested_service (exactly one of: " + SERVICE_LIST + ").\n"
         "- suggested_priority: P1 to P4 based on the impact shown.\n"
         "- recommended_action: the first concrete thing the technician should do (the same as the first next step).\n"
         "- unclear: anything that is cut off, blurred, too small or ambiguous, so the technician knows when to open the image. "
@@ -396,7 +397,7 @@ class GeminiEngine:
                 if completed_call else 'The initial incident state must be New. Do not generate resolution information when creating the incident. ')
             payload = self._generate(
                 "You are the decision engine for an enterprise IT service desk. Analyze the transcript, decide whether a safe routine request can be handled by AI or requires a human, and draft a ServiceNow-style incident. AI routing is allowed only for low-risk, high-confidence routine actions. "
-                + outcome_instruction + "Never claim an action was completed unless the transcript proves it. Extract customer-attempted troubleshooting steps into attempted_steps, including the outcome when stated. Include only steps explicitly tried by the customer; do not include suggested actions or infer missing details. Return an empty list if none were reported. Use concise operational language.\n\n"
+                + outcome_instruction + "Never claim an action was completed unless the transcript proves it. Set the ticket service to exactly one of: " + SERVICE_LIST + ". Extract customer-attempted troubleshooting steps into attempted_steps, including the outcome when stated. Include only steps explicitly tried by the customer; do not include suggested actions or infer missing details. Return an empty list if none were reported. Use concise operational language.\n\n"
                 f"TRANSCRIPT:\n{request.transcript}\n\nRETRIEVED KNOWLEDGE:\n{kb_context}",
                 CompletedCallAnalysisPayload if completed_call else AnalysisPayload,
             )
@@ -544,7 +545,7 @@ class GeminiEngine:
             routing=RoutingDecision(handler="AI" if routine else "Human", confidence=0.91 if routine else 0.72, risk="Low" if routine else "Medium", rationale="Routine access request with a defined verification workflow." if routine else "The issue requires diagnosis and human judgment."),
             next_question="Can you confirm your identity using the approved verification method?" if routine else "What exact error and business impact are you seeing?",
             recommended_action="Follow the retrieved knowledge steps and verify the outcome.",
-            ticket=TicketDraft(short_description=title, description=transcript[:500], category="Access" if routine else "Incident", subcategory="Account" if routine else "Investigation", service="Identity" if routine else "Enterprise IT", priority="P3", assignment_group="Service Desk", state="New"),
+            ticket=TicketDraft(short_description=title, description=transcript[:500], category="Access" if routine else "Incident", subcategory="Account" if routine else "Investigation", service="Accounts & access" if routine else normalize_service(transcript), priority="P3", assignment_group="Service Desk", state="New"),
         )
 
     def _extract_local_visual_analysis(self, description: str, attachments: list[tuple[Attachment, bytes]]) -> VisualAnalysisPayload:

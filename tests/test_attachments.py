@@ -127,7 +127,7 @@ def test_image_information_extraction_engine():
     res = engine.analyze_visual('Database connection timed out with 502 Bad Gateway', [(att, png_bytes)])
     assert 'Local Extraction' in res.analysis_source
     assert 'database_crash_502.png' in res.visual_observations
-    assert 'Database' in res.suggested_service or 'Gateway' in res.suggested_service
+    assert res.suggested_service == 'Business applications'  # "Database" mapped onto the fixed service list
     assert res.technical_diagnosis != ''
     assert res.recommended_action != ''
 
@@ -269,7 +269,7 @@ def test_staff_can_rerun_image_analysis_and_get_structured_findings(accounts, mo
     assert seen['files'] == ['crash.png']                                    # the saved image was re-read
     va = ticket['visual_analysis']
     assert va['error_codes'] == ['0x800CCC0E'] and va['images'][0]['on_screen_text'] == ['Microsoft Outlook has stopped working']
-    assert ticket['service'] == 'Outlook' and ticket['category'] == 'Software'  # real AI fills in default fields
+    assert ticket['service'] == 'Email & Outlook' and ticket['category'] == 'Software'  # real AI fills in default fields
     assert ticket['work_notes'][-1]['text'].startswith('Re-ran image analysis.\nImage analysed by Gemini')
 
 

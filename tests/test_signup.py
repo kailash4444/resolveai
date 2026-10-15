@@ -48,14 +48,45 @@ def test_customer_and_staff_sign_in_are_separate(accounts):
         return client, client.post('/api/auth/login', json={**value, 'expected_role': side} if side else value)
 
     client, refused = sign_in(customer, 'technician')                      # customer on the staff page
-    assert refused.status_code == 403 and 'This is a customer account' in refused.json()['detail']
+    assert refused.status_code == 401 and refused.json()['detail'] == 'Incorrect email or password.'
     assert client.get('/api/auth/status').json()['user'] is None             # and no session was created
     _, refused = sign_in(staff, 'customer')                                  # technician on the customer page
-    assert refused.status_code == 403 and 'This is a technician or admin account' in refused.json()['detail']
-    assert sign_in(admin, 'customer')[1].status_code == 403                  # admins use the staff page too
+    assert refused.status_code == 401 and refused.json()['detail'] == 'Incorrect email or password.'
+    assert sign_in(admin, 'customer')[1].status_code == 401                  # admins use the staff page too
     assert sign_in(customer, None)[1].status_code == 422                     # the side is required
     assert sign_in(customer, 'customer')[1].json()['role'] == 'customer'
     assert sign_in(staff, 'technician')[1].json()['role'] == 'technician'
     assert sign_in(admin, 'technician')[1].json()['role'] == 'admin'
     old = TestClient(main.app).get('/staff/login', follow_redirects=False)                   # old address forwards
     assert old.status_code == 307 and old.headers['location'] == '/login?as=staff'
+
+
+def test_sign_up_with_email_and_log_in_with_email_or_username(accounts):
+    visitor = TestClient(main.app)
+    created = visitor.post('/api/auth/register', json={'name': 'Ana Ruiz', 'email': 'Ana.Ruiz@Gmail.com', 'password': 'blue kettle on the stove'})
+    assert created.status_code == 201, created.text
+    assert created.json()['email'] == 'ana.ruiz@gmail.com' and created.json()['username'] == 'ana.ruiz@gmail.com'
+    for ident in ('ANA.RUIZ@gmail.com', 'ana.ruiz@gmail.com'):
+        assert TestClient(main.app).post('/api/auth/login', json={'username': ident, 'password': 'blue kettle on the stove', 'expected_role': 'customer'}).status_code == 200
+    wrong = TestClient(main.app).post('/api/auth/login', json={'username': 'ana.ruiz@gmail.com', 'password': 'not the password', 'expected_role': 'customer'})
+    assert wrong.status_code == 401 and wrong.json()['detail'] == 'Incorrect email or password.'
+    assert visitor.post('/api/auth/register', json={'name': 'Ana Two', 'email': 'ana.ruiz@gmail.com', 'password': 'another long password'}).status_code == 409
+    bad = visitor.post('/api/auth/register', json={'name': 'No Email', 'email': 'not-an-email', 'password': 'another long password'})
+    assert bad.status_code == 422
+    assert visitor.post('/api/auth/register', json={'name': 'No Email', 'password': 'another long password'}).status_code == 422
+    weak = visitor.post('/api/auth/register', json={'name': 'Kim Lee', 'email': 'kimlee@company.com', 'password': 'kimlee-password-2026'})
+    assert weak.status_code == 422 and 'email' in weak.json()['detail']
+
+
+def test_staff_with_a_work_email_log_in_with_it(accounts):
+    value = {'name': 'Ravi Kumar', 'username': 'ravi.k', 'email': 'Ravi.Kumar@Contoso.com', 'password': 'isolated-user-password', 'role': 'technician'}
+    created = accounts.admin.post('/api/users', json=value)
+    assert created.status_code == 201, created.text and created.json()['email'] == 'ravi.kumar@contoso.com'
+    for ident in ('ravi.kumar@contoso.com', 'ravi.k'):
+        signed_in = TestClient(main.app).post('/api/auth/login', json={'username': ident, 'password': value['password'], 'expected_role': 'technician'})
+        assert signed_in.status_code == 200 and signed_in.json()['role'] == 'technician'
+    # Emails and usernames share one namespace, so a login always finds exactly one account.
+    assert accounts.admin.post('/api/users', json={**value, 'username': 'ravi.two'}).status_code == 409
+    assert accounts.admin.post('/api/users', json={**value, 'username': 'ravi.three', 'email': 'tech_1@x.io'}).status_code == 201
+    assert accounts.admin.post('/api/users', json={**value, 'username': 'ravi.kumar@contoso.com', 'email': ''}).status_code == 409
+    assert accounts.admin.post('/api/users', json={**value, 'username': 'ravi.four', 'email': 'nope'}).status_code == 422

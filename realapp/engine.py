@@ -5,6 +5,7 @@ import re
 from collections.abc import Callable
 from uuid import uuid4
 
+from realapp.services import SERVICE_LIST, normalize_service
 from realapp.config import Settings
 from realapp.gemini import GeminiEngine, vision_prompt
 from realapp.knowledge import article_document
@@ -149,7 +150,7 @@ class OpenAIEngine:
                 for match in matches
             )
             payload = self._generate(
-                "You are the decision engine for an enterprise IT service desk. Analyze the transcript, decide whether a safe routine request can be handled by AI or requires a human, and draft a ServiceNow-style incident. AI routing is allowed only for low-risk, high-confidence routine actions. The initial incident state must be New. Do not generate resolution information when creating the incident. Never claim an action was completed unless the transcript proves it. Extract customer-attempted troubleshooting steps into attempted_steps, including the outcome when stated. Include only steps explicitly tried by the customer; do not include suggested actions or infer missing details. Return an empty list if none were reported. Use concise operational language.",
+                "You are the decision engine for an enterprise IT service desk. Analyze the transcript, decide whether a safe routine request can be handled by AI or requires a human, and draft a ServiceNow-style incident. AI routing is allowed only for low-risk, high-confidence routine actions. The initial incident state must be New. Do not generate resolution information when creating the incident. Never claim an action was completed unless the transcript proves it. Set the ticket service to exactly one of: " + SERVICE_LIST + ". Extract customer-attempted troubleshooting steps into attempted_steps, including the outcome when stated. Include only steps explicitly tried by the customer; do not include suggested actions or infer missing details. Return an empty list if none were reported. Use concise operational language.",
                 f"TRANSCRIPT:\n{request.transcript}\n\nRETRIEVED KNOWLEDGE:\n{knowledge}",
                 AnalysisPayload,
             )
@@ -310,7 +311,7 @@ class OpenAIEngine:
             routing=RoutingDecision(handler="AI" if routine else "Human", confidence=0.91 if routine else 0.72, risk="Low" if routine else "Medium", rationale="Routine access request with a defined verification workflow." if routine else "The issue requires diagnosis and human judgment."),
             next_question="Can you confirm your identity using the approved verification method?" if routine else "What exact error and business impact are you seeing?",
             recommended_action="Follow the retrieved knowledge steps and verify the outcome.",
-            ticket=TicketDraft(short_description=title, description=transcript[:500], category="Access" if routine else "Incident", subcategory="Account" if routine else "Investigation", service="Identity" if routine else "Enterprise IT", priority="P3", assignment_group="Service Desk", state="New"),
+            ticket=TicketDraft(short_description=title, description=transcript[:500], category="Access" if routine else "Incident", subcategory="Account" if routine else "Investigation", service="Accounts & access" if routine else normalize_service(transcript), priority="P3", assignment_group="Service Desk", state="New"),
         )
 
     def analyze_visual(self, description: str, attachments: list[tuple[Attachment, bytes]]) -> VisualAnalysisPayload:

@@ -18,6 +18,7 @@ from realapp.local_secrets import load_local_gemini_key, save_local_gemini_key
 from realapp.models import (AnalysisRequest, CaseRecord, EngineeringBrief, EngineeringFollowup,
     KnowledgeArticle, KnowledgeArticleInput, TicketStateTransition, TicketUpdate, WorkNote, WorkNoteCreate)
 from realapp.store import create_store
+from realapp.services import SERVICES
 from realapp.livekit_setup import restore_livekit_settings
 from realapp.incident_context import knowledge_context
 from realapp.models import KnowledgeFromIncidentsRequest, CustomerIncidentCreate, Ticket, TranscriptTurn, Understanding, RoutingDecision, Attachment, VisualAnalysisPayload, AssistFeedback, AIAssist
@@ -119,7 +120,7 @@ def app_page(name: str) -> FileResponse:
 
 @app.get("/staff/login", include_in_schema=False)
 def staff_login():
-    """Old staff log-in address: the one log-in page, with the Technician / Admin side selected."""
+    """Old staff log-in address: the one log-in page, with the Technician side selected."""
     return RedirectResponse("/login?as=staff", status_code=307)
 
 
@@ -155,6 +156,7 @@ def config(http: Request):
         "embedding_model": settings.openai_embedding_model if settings.llm_provider == "openai" else settings.embedding_model,
         "data_backend": settings.data_backend,
         "configured": configured,
+        "services": list(SERVICES),
         "runtime_key_supported": actor(http)["role"] == "admin" and settings.llm_provider in {'openai', 'google_ai'} and settings.environment == "local",
     }
 

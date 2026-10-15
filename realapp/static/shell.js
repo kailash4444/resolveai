@@ -1,6 +1,18 @@
 /* ResolveAI app shell: role navigation, mobile drawer, Focus/Detail preference, shared connection states. */
 (() => {
   const byId = id => document.getElementById(id);
+
+  // Back arrow (top-left): goes back one step inside the app. It only shows when there is a page in this tab's
+  // ResolveAI history to return to; the depth survives a refresh of the same tab.
+  let depth = 0;
+  try { depth = Number(sessionStorage.getItem('resolveai-nav-depth') || 0); } catch (_) {}
+  const saveDepth = () => { try { sessionStorage.setItem('resolveai-nav-depth', String(depth)); } catch (_) {} const back = byId('navBack'); if (back) back.hidden = depth < 1; };
+  const push = history.pushState.bind(history);
+  history.pushState = (...args) => { depth += 1; saveDepth(); return push(...args); };
+  window.addEventListener('popstate', () => { depth = Math.max(0, depth - 1); saveDepth(); });
+  document.addEventListener('click', event => { if (event.target.closest('#navBack')) history.back(); });
+  document.addEventListener('DOMContentLoaded', saveDepth);
+  saveDepth();
   const svg = path => `<svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
   const ICONS = {
     'customer-home': '<path d="M3 11l9-8 9 8v10H3z"/>',

@@ -2,25 +2,43 @@ import logging
 from datetime import datetime, timezone
 import hashlib
 import hmac
+import re
 import secrets
 import time
 from threading import RLock
 from uuid import uuid4
 
 from fastapi import HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Literal
 
 from realapp.models import AnalysisRequest, CaseRecord, RoutingDecision, Ticket, TranscriptTurn, Understanding, WorkNote
+from realapp.services import normalize_service, skill_matches
 
 
 TERMINAL = {"Completed", "Callback requested", "Failed"}
 
 
+USERNAME = r"^[a-zA-Z0-9_.@+-]+$"
+EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def clean_email(value):
+    """Gmail or work email, compared case-insensitively. Empty means the account has no email."""
+    value = (value or '').strip().lower()
+    if value and not EMAIL.match(value):
+        raise ValueError('Enter a valid email address, like name@company.com.')
+    return value
+
+
 class TechnicianCreate(BaseModel):
     role: Literal['technician', 'customer'] = 'technician'
     name: str = Field(min_length=2, max_length=80)
-    username: str = Field(min_length=3, max_length=80, pattern=r"^[a-zA-Z0-9_.@-]+$")
+    username: str = Field(min_length=3, max_length=254, pattern=USERNAME)
+    # Optional for staff (an admin adds the person's work email so they can log in with it); set for customers who sign
+    # up with an email. Google / Microsoft sign-in will match on this email once those keys are added.
+    email: str = Field(default='', max_length=254)
+    _email = field_validator('email')(clean_email)
     password: str = Field(min_length=12, max_length=128)
     skills: list[str] = Field(default_factory=lambda: ["general"], max_length=20)
     languages: list[str] = Field(default_factory=lambda: ["en"], min_length=1, max_length=10)
@@ -28,14 +46,28 @@ class TechnicianCreate(BaseModel):
 
 
 class Registration(BaseModel):
-    """Public self-service sign-up. Always creates a customer; staff accounts are created by an administrator."""
+    """Public self-service sign-up. Always creates a customer; staff accounts are created by an administrator.
+    The sign-up form sends an email (Gmail or work address), which also becomes the username; older clients may still
+    send a username instead."""
     name: str = Field(min_length=2, max_length=80)
-    username: str = Field(min_length=3, max_length=80, pattern=r"^[a-zA-Z0-9_.@-]+$")
+    email: str = Field(default='', max_length=254)
+    username: str = Field(default='', max_length=254)
     password: str = Field(min_length=12, max_length=128)
+    _email = field_validator('email')(clean_email)
+
+    @model_validator(mode='after')
+    def username_from_email(self):
+        if not self.username:
+            if not self.email:
+                raise ValueError('Enter your email address.')
+            self.username = self.email
+        if len(self.username) < 3 or not re.match(USERNAME, self.username):
+            raise ValueError('Use at least 3 letters, numbers or . _ @ + - for the username.')
+        return self
 
 
 class Login(BaseModel):
-    username: str = Field(max_length=80)
+    username: str = Field(max_length=254)   # the email address or the username
     password: str = Field(max_length=128)
     # Which sign-in page was used: 'customer' (/login) or 'technician' (/staff/login, also for administrators). Required,
     # so a customer account can never sign in through the staff page and a staff account never through the customer page.
@@ -72,6 +104,7 @@ class VoiceDecision(VoiceReply):
     confidence: float = Field(ge=0, le=1)
     service: str = Field(max_length=100)
     summary: str = Field(max_length=400)
+    _service = field_validator('service')(normalize_service)
     needs_new_knowledge: bool = False
 
 
@@ -120,9 +153,14 @@ class CallingService:
         def create(db):
             if first and db["technicians"]:
                 raise HTTPException(409, "The administrator is already configured. Log in.")
-            if any(t["username"] == value.username.lower() for t in db["technicians"].values()):
+            username, email = value.username.lower(), value.email
+            # Usernames and emails share one namespace, so whatever someone types at log in finds exactly one account.
+            taken = {t["username"] for t in db["technicians"].values()} | {t["email"] for t in db["technicians"].values() if t.get("email")}
+            if email and email in taken:
+                raise HTTPException(409, "An account with that email already exists. Log in instead.")
+            if username in taken:
                 raise HTTPException(409, "That username already exists.")
-            tech = {"id": f"tech_{uuid4().hex[:16]}", "name": value.name, "username": value.username.lower(),
+            tech = {"id": f"tech_{uuid4().hex[:16]}", "name": value.name, "username": username, "email": email or None,
                     "salt": salt, "password_hash": password_hash, "role": "admin" if first else value.role,
                     "skills": [s.strip().lower()[:80] for s in value.skills if s.strip()] or ["general"],
                     "languages": [s.strip().lower()[:10] for s in value.languages], "status": "Offline",
@@ -142,19 +180,19 @@ class CallingService:
             if record["count"] >= 10:
                 return None, True
             record["count"] += 1
-            return next((t for t in db["technicians"].values() if t["username"] == value.username.lower()), None), False
+            ident = value.username.strip().lower()
+            return next((t for t in db["technicians"].values() if ident in {t["username"], t.get("email")}), None), False
 
         tech, blocked = self.repository.mutate(attempt, call_ids=())
         if blocked:
             raise HTTPException(429, "Too many attempts. Try again in five minutes.")
         salt = tech["salt"] if tech else "00" * 16
         result = hashlib.scrypt(value.password.encode(), salt=bytes.fromhex(salt), n=16384, r=8, p=1).hex()
-        if not tech or not hmac.compare_digest(result, tech["password_hash"]):
-            raise HTTPException(401, "Incorrect username or password.")
-        if value.expected_role == 'customer' and tech['role'] != 'customer':
-            raise HTTPException(403, "This is a technician or admin account. Choose Technician / Admin to log in.")
-        if value.expected_role == 'technician' and tech['role'] == 'customer':
-            raise HTTPException(403, "This is a customer account. Choose Customer to log in.")
+        # An account used on the wrong side (customer vs technician) gets the same answer as a wrong password, so the log-in
+        # page never reveals which kind of account an email or username belongs to.
+        wrong_side = tech and (tech['role'] == 'customer') != (value.expected_role == 'customer')
+        if not tech or wrong_side or not hmac.compare_digest(result, tech["password_hash"]):
+            raise HTTPException(401, "Incorrect email or password.")
         token = secrets.token_urlsafe(32)
         hashed = hashlib.sha256(token.encode()).hexdigest()
 
@@ -241,11 +279,12 @@ class CallingService:
 
     def snapshot(self, actor=None):
         def read(db):
-            calls = sorted(db["calls"].values(), key=lambda c: c["created_at"], reverse=True)
+            # Calls saved before the fixed service list show the service they map to.
+            calls = sorted(({**c, "service": normalize_service(c.get("service"))} for c in db["calls"].values()), key=lambda c: c["created_at"], reverse=True)
             techs = [public_technician(t) for t in db["technicians"].values()]
             incoming = []
             if actor and actor['role'] in {'admin', 'technician'}:
-                incoming = [{k:c.get(k) for k in ('id','origin','channel','status','created_at','service','priority',
+                incoming = [{k:c.get(k) for k in ('id','caller','origin','channel','status','created_at','service','priority',
                             'summary','attempted_steps','recommended_action','next_question','reserved_until')}
                             for c in calls if c['status'] in {'Queued','Ringing'} and not c.get('pickup_claimed')
                             and c.get('ready_at') is not None and c['ready_at'] <= self.now()
@@ -299,6 +338,8 @@ class CallingService:
         def append(db):
             call = db["calls"][call_id]
             call["transcript"].append({"speaker": speaker, "text": text[:8000], "timestamp": stamp()})
+            # Whoever just sent a message has stopped typing.
+            call.setdefault('typing', {})['customer' if speaker == 'Customer' else 'agent'] = 0
             call["transcript"] = call["transcript"][-150:]
             if speaker == 'Customer' and call['status'] not in TERMINAL:
                 call.pop('ai_resolution', None)
@@ -413,6 +454,10 @@ class CallingService:
         risky = any(word in lower for word in ("password", "unlock", "locked", "admin", "security", "breach", "outage", "payment", "privilege", "human", "technician", "person", "frustrat"))
         guidance = any(word in lower for word in ("how to", "printer", "browser", "cache", "wi-fi", "wifi", "restart", "settings", "setup", "connect"))
         ai = case.routing.handler == "AI" and case.routing.risk == "Low" and case.routing.confidence >= self.settings.ai_routing_confidence and not risky and guidance and bool(case.knowledge_matches)
+        if call.get('channel') == 'chat':
+            # Chat works like a support chat: the assistant answers first and hands off when it can't help, when the
+            # request is risky, or when the customer asks for a person.
+            ai = not risky and case.routing.risk != "High"
         if not ai:
             case.routing.handler = "Human"
             if risky:
@@ -446,6 +491,17 @@ class CallingService:
                 history(current, f"Routed to {'AI' if ai else 'technician queue'}: {case.routing.rationale}")
             return current
         return self.repository.mutate(save, call_ids=(call_id,))
+
+    def set_typing(self, call_id, who, seconds=5):
+        """Chat typing signals: who is 'customer' or 'agent' (technician or AI). They expire unless renewed."""
+        def mark(db):
+            call = db['calls'].get(call_id)
+            if call and call['status'] not in TERMINAL:
+                call.setdefault('typing', {})[who] = self.now() + seconds
+        self.repository.mutate(mark, call_ids=(call_id,))
+
+    def is_typing(self, call, who):
+        return call.get('status') not in TERMINAL and (call.get('typing') or {}).get(who, 0) > self.now()
 
     def enqueue(self, call_id, reason):
         def update(db):
@@ -487,7 +543,7 @@ class CallingService:
                     and not t["current_call_id"] and now - t["last_seen"] <= self.settings.technician_heartbeat_seconds
                     and call["language"] in t["languages"] and (call["origin"] == "desk" or t["voice_ready"])
                     and call["declined"].get(t["id"], 0) < now]
-                specialists = [t for t in eligible if call["service"].lower() in t["skills"]]
+                specialists = [t for t in eligible if call["service"].lower() in t["skills"] or skill_matches(call["service"], t["skills"])]
                 candidates = specialists or [t for t in eligible if "general" in t["skills"]]
                 if not candidates:
                     continue
@@ -552,7 +608,10 @@ class CallingService:
         call, changed = self.repository.mutate(update, call_ids=(call_id,))
         if not changed:
             return call
-        case = self.case_store.get_case(call["case_id"]) if call["case_id"] else None
+        if not call["case_id"] and not call.get("live_case_id"):
+            return self.open_live_incident(call_id)
+        # Desk requests, and calls transferred back to the queue, already have an incident: it moves to whoever answered.
+        case = self.case_store.get_case(call["case_id"] or call["live_case_id"])
         if case:
             old = case.ticket.assigned_to or "Empty"
             case.ticket.assigned_to = call["technician_name"]
@@ -608,6 +667,50 @@ class CallingService:
             return call
         return self.repository.mutate(update, call_ids=(call_id,))
 
+    @staticmethod
+    def _fallback_case(call, transcript, summary=None):
+        """An incident built from the call alone, for when the AI can't (or hasn't yet) analysed the conversation."""
+        title = summary or call.get('summary') or 'Support call'
+        return CaseRecord(id='pending', caller=call['caller'], channel='Voice',
+            transcript=[TranscriptTurn(**t) for t in call['transcript']], issue_title=title,
+            handler_label='Human handling', understanding=Understanding(summary=transcript[:500] or title,
+                intent='Support request', product=call.get('service') or 'General', urgency='Medium', sentiment='Unknown'),
+            routing=RoutingDecision(handler='Human', confidence=0, risk='Low', rationale='Incident retained from call transcript.'),
+            knowledge_matches=[], next_question='', recommended_action='',
+            ticket=Ticket(id='pending', short_description=title, description=transcript or title,
+                category='Incident', subcategory='Triage', service=call.get('service') or 'General', priority=call.get('priority') or 'P3',
+                assignment_group='Service Desk'), qa_checks=[])
+
+    def open_live_incident(self, call_id):
+        """Browser calls get their incident number the moment a technician connects, so it can be given to the customer
+        during the call. The same incident (same number) is filled in from the full conversation when the call ends."""
+        call = self.get(call_id)
+        if call['case_id'] or call.get('live_case_id'):
+            return call
+        suffix = call_id.removeprefix('CALL-')
+        case = self.case_store.get_case('CASE-' + suffix)
+        if not case:
+            transcript = '\n'.join(f"{t['speaker']}: {t['text']}" for t in call['transcript'])
+            case = (CaseRecord.model_validate(call['draft_case']) if call.get('draft_case')
+                    else self._fallback_case(call, transcript, call.get('summary') or 'Support call in progress'))
+            case.id, case.ticket.id = 'CASE-' + suffix, 'INC-' + suffix
+            case.customer_id = case.created_by = call.get('customer_id', '')
+            case.transcript = [TranscriptTurn(**turn) for turn in call['transcript']]
+            case.ticket.call_id = call_id
+            case.ticket.assigned_user_id, case.ticket.assigned_to = call['technician_id'] or '', call['technician_name'] or ''
+            case.ticket.state, case.ticket.resolution, case.status = 'In Progress', '', 'Open'
+            case.routing.handler, case.handler_label = 'Human', 'Human handling'
+            case.qa_checks, case.quality_score = [], None
+            case.ticket.work_notes = [WorkNote(id=f'NOTE-{uuid4().hex[:8]}', author='Ticket created', author_type='System',
+                text=f"Opened when {call['technician_name'] or 'a technician'} answered the call.\nState : In Progress\nAssigned to : {case.ticket.assigned_to}")]
+            self.case_store.save_case(case)
+        def link(db):
+            current = db['calls'][call_id]
+            current.update(live_case_id=case.id, live_ticket_id=case.ticket.id)
+            history(current, f'Incident {case.ticket.id} opened for this call')
+            return current
+        return self.repository.mutate(link, call_ids=(call_id,))
+
     def finish(self, call_id, status="Completed"):
         pending = self.get(call_id)
         if pending.get('status') == 'Connected' and pending.get('technician_note_draft', '').strip():
@@ -653,7 +756,11 @@ class CallingService:
             if call['case_id'] or call['status'] not in TERMINAL:
                 return
             turns = call['transcript']
+            live = self.case_store.get_case(call['live_case_id']) if call.get('live_case_id') else None
             if not any(t['speaker'] == 'Customer' and t['text'].strip() for t in turns):
+                if live:   # its number may already have been given to the customer, so it stays
+                    self._link_incident(call_id, live, 'Incident kept from the call')
+                    return
                 self.repository.mutate(lambda db: db['calls'][call_id].update(ticket_status='not_needed'), call_ids=(call_id,))
                 return
             transcript = '\n'.join(f"{t['speaker']}: {t['text']}" for t in turns)
@@ -661,20 +768,15 @@ class CallingService:
                 analyze = getattr(self.engine, 'analyze_completed_call', self.engine.analyze)
                 case = analyze(AnalysisRequest(transcript=transcript, caller=call['caller'], channel='Voice'))
             except Exception:
-                case = CaseRecord(id='pending', caller=call['caller'], channel='Voice',
-                    transcript=[TranscriptTurn(**t) for t in turns], issue_title=call.get('summary') or 'Support call',
-                    handler_label='Human handling', understanding=Understanding(summary=transcript[:500],
-                        intent='Support request', product=call.get('service') or 'General', urgency='Medium', sentiment='Unknown'),
-                    routing=RoutingDecision(handler='Human', confidence=0, risk='Low', rationale='Incident retained from call transcript.'),
-                    knowledge_matches=[], next_question='', recommended_action='',
-                    ticket=Ticket(id='pending', short_description=call.get('summary') or 'Support call', description=transcript,
-                        category='Incident', subcategory='Triage', service=call.get('service') or 'General', priority='P3',
-                        assignment_group='Service Desk'), qa_checks=[])
+                if live:   # keep the incident opened during the call rather than replacing it with a thinner one
+                    self._link_incident(call_id, live, 'Incident kept from the call')
+                    return
+                case = self._fallback_case(call, transcript)
             # Deterministic IDs make retrying publication safe after a restart.
             suffix = call_id.removeprefix('CALL-')
             case.id, case.ticket.id = 'CASE-' + suffix, 'INC-' + suffix
             existing = self.case_store.get_case(case.id)
-            if not existing:
+            if not existing or (live and existing.id == live.id):
                 case.customer_id = call.get('customer_id', '')
                 case.created_by = case.customer_id
                 case.transcript = [TranscriptTurn(**turn) for turn in turns]
@@ -683,7 +785,8 @@ class CallingService:
                 case.ticket.assigned_to = call['technician_name'] or ''
                 resolved = case.ticket.state == 'Resolved' and bool(case.ticket.resolution.strip()) and call['status'] == 'Completed'
                 if not resolved:
-                    case.ticket.state, case.ticket.resolution, case.status = 'New', '', 'Open'
+                    # A technician already worked an incident opened during the call, so it stays In Progress.
+                    case.ticket.state, case.ticket.resolution, case.status = 'In Progress' if live else 'New', '', 'Open'
                 if call.get('ai_resolution') and not call['technician_id'] and call['status'] == 'Completed':
                     case.ticket.state = 'Resolved'
                     case.ticket.resolution = case.ticket.resolution or call['ai_resolution']
@@ -697,18 +800,24 @@ class CallingService:
                     case.routing.handler, case.handler_label = 'Human', 'Human handling'
                 case.qa_checks, case.quality_score = [], None
                 fields = ('short_description', 'description', 'category', 'subcategory', 'service', 'priority', 'assignment_group', 'assigned_to', 'state')
-                case.ticket.work_notes = [WorkNote(id=f'NOTE-{uuid4().hex[:8]}', author='Ticket created', author_type='System',
-                    text='\n'.join(f"{key.replace('_', ' ').capitalize()} : {getattr(case.ticket, key)}" for key in fields))]
+                summary_note = WorkNote(id=f'NOTE-{uuid4().hex[:8]}', author='Ticket updated from the call' if live else 'Ticket created', author_type='System',
+                    text='\n'.join(f"{key.replace('_', ' ').capitalize()} : {getattr(case.ticket, key)}" for key in fields))
+                if live:
+                    case.created_at = existing.created_at
+                case.ticket.work_notes = ([*existing.ticket.work_notes] if live else []) + [summary_note]
                 case.ticket.work_notes.extend(WorkNote(id=f"NOTE-{uuid4().hex[:8]}", author=note['author'],
                     author_type="Technician", text=note['text']) for note in call.get('technician_notes', []))
                 self.case_store.save_case(case)
-            def link(db):
-                current = db['calls'][call_id]
-                current['case_id'] = case.id
-                current['ticket_status'] = 'created'
-                current.pop('draft_case', None)
-                history(current, 'Incident created from the completed conversation')
-            self.repository.mutate(link, call_ids=(call_id,))
+            self._link_incident(call_id, case, 'Incident updated from the completed conversation' if live else 'Incident created from the completed conversation')
+
+    def _link_incident(self, call_id, case, note):
+        def link(db):
+            current = db['calls'][call_id]
+            current['case_id'] = case.id
+            current['ticket_status'] = 'created'
+            current.pop('draft_case', None)
+            history(current, note)
+        self.repository.mutate(link, call_ids=(call_id,))
 
     def confirm_ai_resolution(self, call_id, expected_customer_turn=None):
         """Persist the conversation evidence before post-call incident generation."""

@@ -12,6 +12,7 @@ async function loadResolutionRadarData() {
   const data = await api(`/api/resolution-radar?${params}`);
   if(request!==radarRequest || state.user?.id!==userId)return;
   radarClusters=data.clusters;
+  $('#radarFilterCount').textContent = `${radarClusters.length} issue ${radarClusters.length === 1 ? 'cluster' : 'clusters'}`;
   radarListKey=JSON.stringify([userId,params.toString()]);
   $('#radarOpen').textContent = data.summary.open_systemic_issues;
   $('#radarHigh').textContent = data.summary.high_debt_issues;
@@ -87,12 +88,18 @@ window.loadResolutionRadar = () => loadResolutionRadarData().catch(error => toas
 window.loadCaseResolutionRadar = async caseId => {
   const panel = $('#ticketDurability');
   if (!panel || state.user?.role === 'customer') return;
-  panel.hidden = false; panel.innerHTML = '<p class="helper">Loading resolution durability and related incidents…</p>';
+  panel.hidden = false; panel.innerHTML = '<h2 class="h3">Resolution durability</h2><p class="help">● Loading…</p>';
   try {
     const result = await api(`/api/cases/${encodeURIComponent(caseId)}/resolution-radar`);
     const assessment = result.assessment;
-    panel.innerHTML = `<p class="eyebrow">RESOLUTION DURABILITY AND RELATED INCIDENTS</p><h3>${assessment ? esc(assessment.classification.replaceAll('_', ' ')) : 'Assessment pending'}</h3>${assessment ? `<p><b>Model confidence:</b> ${Math.round(assessment.confidence * 100)}% · <b>Analysis:</b> ${radarDate(assessment.analyzed_at)}</p><p>${esc(assessment.rationale)}</p><p class="helper">Confidence is an AI assessment, not proof of customer outcome.${assessment.verification_evidence ? ` Verification evidence: ${esc(assessment.verification_evidence)}` : ' No verification signal is recorded.'}</p>${assessment.evidence_ids?.length ? `<p class="helper"><b>Evidence references:</b> ${assessment.evidence_ids.map(esc).join(', ')}</p>` : ''}${assessment.missing_information?.length ? `<p class="helper"><b>Missing information:</b> ${assessment.missing_information.map(esc).join('; ')}</p>` : ''}${assessment.approaches?.length ? `<ul>${assessment.approaches.map(item => `<li>${esc(item.approach)} — ${esc(item.outcome)}</li>`).join('')}</ul>` : ''}` : `<p class="helper">Durability assessment is unavailable. Resolve the ticket and allow its background analysis to finish, or use Resolution Debt Radar to analyze resolved history.</p>`}${result.related_ticket_ids?.length ? `<p><b>Related incidents:</b> ${result.related_ticket_ids.map(esc).join(', ')}</p>` : '<p class="helper">No recurring issue cluster is linked to this incident yet.</p>'}${result.recurrence_ticket_ids?.length ? `<p><b>Similar incidents reported after a related ticket closed:</b> ${result.recurrence_ticket_ids.map(esc).join(', ')}</p>` : ''}${result.cluster_id ? `<button class="text-button" data-open-radar-cluster="${esc(result.cluster_id)}">Open issue in Resolution Debt Radar →</button>` : ''}${assessment && state.current.ticket.state === 'Resolved' ? `<button class="secondary" data-radar-rerun="${esc(caseId)}">Re-run durability assessment</button>` : ''}`;
-  } catch (error) { panel.innerHTML = `<p class="form-message error">Could not load resolution durability: ${esc(error.message)}</p>`; }
+    const kinds = {durable_fix: ['badge--ok', '✓ Durable fix'], temporary_workaround: ['badge--high', '◆ Temporary workaround'], unresolved: ['badge--err', '✕ Unresolved'], unknown: ['badge--muted', '○ Unknown']};
+    const [tone, label] = assessment ? (kinds[assessment.classification] || ['badge--muted', `○ ${assessment.classification.replaceAll('_', ' ')}`]) : ['badge--muted', '○ Assessment pending'];
+    const facts = assessment ? [['Confidence', `${Math.round(assessment.confidence * 100)}% · AI assessment, not proof of the customer outcome`], ['Analysed', radarDate(assessment.analyzed_at)], ['Verification', assessment.verification_evidence || 'No verification signal recorded'], assessment.evidence_ids?.length && ['Evidence', assessment.evidence_ids.join(', ')], assessment.missing_information?.length && ['Missing', assessment.missing_information.join('; ')]].filter(Boolean) : [];
+    panel.innerHTML = `<div class="section-head section-head--tight"><h2 class="h3">Resolution durability</h2><span class="badge ${tone}">${esc(label)}</span></div>
+      ${assessment ? `<p class="sec">${esc(assessment.rationale)}</p><dl class="kv">${facts.map(([name, value]) => `<div><dt>${name}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>${assessment.approaches?.length ? `<ul class="plain-steps">${assessment.approaches.map(item => `<li>${esc(item.approach)} · ${esc(item.outcome)}</li>`).join('')}</ul>` : ''}` : '<p class="help">Shown once the ticket is resolved and its background analysis finishes. Resolution debt can also analyse resolved history.</p>'}
+      <p class="help">${result.related_ticket_ids?.length ? `Related incidents: ${result.related_ticket_ids.map(esc).join(', ')}` : 'No recurring issue is linked to this incident yet.'}${result.recurrence_ticket_ids?.length ? ` · Reported again after a related ticket closed: ${result.recurrence_ticket_ids.map(esc).join(', ')}` : ''}</p>
+      ${result.cluster_id || (assessment && state.current.ticket.state === 'Resolved') ? `<div class="row row--sm">${result.cluster_id ? `<button type="button" class="btn btn-soft btn-sm" data-open-radar-cluster="${esc(result.cluster_id)}">Open in Resolution debt</button>` : ''}${assessment && state.current.ticket.state === 'Resolved' ? `<button type="button" class="btn btn-soft btn-sm" data-radar-rerun="${esc(caseId)}">Re-run assessment</button>` : ''}</div>` : ''}`;
+  } catch (error) { panel.innerHTML = `<h2 class="h3">Resolution durability</h2><div class="alert" role="alert"><strong>✕ Couldn’t load the durability assessment.</strong><span class="sec">${esc(error.message)}</span></div>`; }
 };
 
 for (const id of ['radarWindow', 'radarService', 'radarPriority', 'radarStatus', 'radarSort']) {
@@ -101,6 +108,14 @@ for (const id of ['radarWindow', 'radarService', 'radarPriority', 'radarStatus',
     await loadResolutionRadarData().catch(error => toast(error.message));
   });
 }
+// Clear filters puts every filter back to its default (last 30 days, everything, sorted by debt score).
+const RADAR_DEFAULTS = {radarWindow: '30d', radarService: '', radarPriority: '', radarStatus: '', radarSearch: '', radarSort: 'debt'};
+$('#radarClearFilters').addEventListener('click', () => {
+  Object.entries(RADAR_DEFAULTS).forEach(([id, value]) => { $(`#${id}`).value = value; });
+  Object.assign(radarState, {window: '30d', service: '', priority: '', status: '', search: '', sort: 'debt'});
+  loadResolutionRadarData().catch(error => toast(error.message));
+  $('#radarSearch').focus();
+});
 let radarSearchTimer;
 $('#radarSearch').addEventListener('input', event => {
   radarState.search = event.target.value;

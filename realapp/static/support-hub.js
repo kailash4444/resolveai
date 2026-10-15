@@ -68,9 +68,27 @@
     show('voice');
     frame.focus();
   }
+  // After a call or chat ends, its incident is written in the background (a few seconds). My support refreshes itself
+  // until the new incident shows, so the customer never has to reload the page. It gives up quietly after a minute
+  // (a conversation where no issue was described doesn't create an incident).
+  let afterSupportTimer = null;
+  function refreshAfterSupport() {
+    clearInterval(afterSupportTimer);
+    const before = typeof customerList !== 'undefined' ? customerList.items.length : 0;
+    let tries = 0;
+    const tick = async () => {
+      tries += 1;
+      await Promise.all([window.loadCustomerCalls?.(), window.loadCustomerIncidents?.()]);
+      const now = typeof customerList !== 'undefined' ? customerList.items.length : 0;
+      if (now > before || tries >= 20) { clearInterval(afterSupportTimer); afterSupportTimer = null; }
+    };
+    tick();
+    afterSupportTimer = setInterval(tick, 3000);
+  }
   window.addEventListener('message', event => {
     if (event.origin !== location.origin || event.data?.type !== 'resolveai-support-state') return;
     if (event.source !== $('#voiceFrame').contentWindow) return;
+    if (voiceActive && ['ended', 'error'].includes(event.data.state)) refreshAfterSupport();
     voiceActive = ['requesting', 'connecting', 'active', 'muted', 'requested', 'connected', 'reconnecting'].includes(event.data.state);
     if (!$('#voicePanel').hidden) show('voice');
   });
@@ -78,7 +96,7 @@
   // ---- Chat ----
   const who = turn => turn.speaker === 'Customer' ? 'You' : turn.speaker === 'AI Agent' ? 'ResolveAI assistant' : (chat?.technician_name || 'Technician');
   function resetChatPanel() {
-    chat = null; renderedTurns = 0;
+    chat = null; renderedTurns = 0; delete $('#chatLog').dataset.count;
     $('#chatStartForm').hidden = false; $('#chatLog').hidden = true; $('#chatReplyForm').hidden = true;
     $('#chatLog').innerHTML = ''; $('#chatMeta').hidden = true;
     $('#chatBadge').className = 'badge badge--low'; $('#chatBadge').textContent = '○ Not started';
@@ -92,21 +110,15 @@
     $('#chatMeta').hidden = !chat.ticket_number;
     $('#chatMeta').textContent = chat.ticket_number ? `Incident ${chat.ticket_number} · follow it on My support` : '';
     $('#chatStartForm').hidden = true; $('#chatLog').hidden = false;
-    // Newest message on top. Add only new turns so screen readers announce just the new message.
-    const log = $('#chatLog'), atTop = log.scrollTop < 40;
-    log.querySelectorAll('[data-pending]').forEach(item => item.remove());
-    chat.transcript.slice(renderedTurns).forEach(turn => {
-      const item = document.createElement('div');
-      item.className = `turn${turn.speaker === 'Customer' ? ' turn--you' : ''}`;
-      item.innerHTML = `<span class="turn__who">${esc(who(turn))}${turn.timestamp ? `<time>${esc(new Date(turn.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}))}</time>` : ''}</span><p>${esc(turn.text)}</p>`;
-      log.prepend(item);
-    });
+    // Newest message at the bottom, like any chat; "…" while the assistant or the technician is typing.
+    const typing = chat.agent_typing && !ENDED.has(chat.status) ? (chat.status === 'Connected' ? (chat.technician_name || 'Technician') : 'ResolveAI assistant') : '';
+    renderChatWindow($('#chatLog'), chat.transcript, {mine: 'Customer', name: who, typing});
     renderedTurns = chat.transcript.length;
-    if (atTop) log.scrollTop = 0;
     const ended = ENDED.has(chat.status);
     $('#chatReplyForm').hidden = ended;
     $('#chatAskTechnician').hidden = !['Triage', 'AI'].includes(chat.status);
     if (ended) {
+      if (poll) refreshAfterSupport();   // the chat was live in this tab and has just ended
       stopPolling();
       try { sessionStorage.removeItem(KEY); } catch (_) {}
       setFormStatus($('#chatStatus'), chat.status === 'Callback requested' ? 'Nobody could join in time. Your incident is open and the team will follow up there.' : chat.status === 'Failed' ? 'The chat was interrupted. Your incident is still open.' : 'Chat ended. Your incident stays on My support.');
@@ -120,19 +132,17 @@
       if (!chat || sending || $('#chatPanel').hidden) return;
       try { chat = await api(`/api/support/chats/${encodeURIComponent(chat.id)}`); renderChat(); }
       catch (error) { if (error.status === 404) { stopPolling(); resetChatPanel(); } }
-    }, 1500);
+    }, 1000);
   }
-  // Show the customer's message and a typing line at once, while the reply is prepared.
-  function showPending(text) {
-    const log = $('#chatLog');
-    const typing = document.createElement('div'); typing.className = 'turn turn--typing'; typing.dataset.pending = '';
-    typing.innerHTML = `<span class="turn__who">${chat?.status === 'Connected' ? esc(chat.technician_name || 'Technician') : 'ResolveAI assistant'}</span><p class="help">● typing…</p>`;
-    const mine = document.createElement('div'); mine.className = 'turn turn--you'; mine.dataset.pending = '';
-    mine.innerHTML = `<span class="turn__who">You</span><p>${esc(text)}</p>`;
-    if (chat?.status === 'AI') log.prepend(typing);
-    log.insertBefore(mine, chat?.status === 'AI' ? typing.nextSibling : log.firstChild);
-    log.scrollTop = 0;
-  }
+  // The customer's message shows at once; the assistant's typing bubble follows from the server.
+  function showPending(text) { showPendingBubble($('#chatLog'), text, 'You'); }
+  // Tell the other side the customer is typing (at most every 2.5 seconds).
+  let typingSentAt = 0;
+  $('#chatMessage').addEventListener('input', () => {
+    if (!chat || ENDED.has(chat.status) || Date.now() - typingSentAt < 2500 || !$('#chatMessage').value.trim()) return;
+    typingSentAt = Date.now();
+    api(`/api/support/chats/${encodeURIComponent(chat.id)}/typing`, {method: 'POST', body: '{}'}).catch(() => {});
+  });
 
   $('#chatStartForm').addEventListener('submit', async event => {
     event.preventDefault();
@@ -157,6 +167,7 @@
     if (!text || !chat) return;
     sending = true; $('#chatSend').disabled = true; $('#chatSend').setAttribute('aria-busy', 'true');
     showPending(text); field.value = '';
+    typingSentAt = 0;
     try { chat = await api(`/api/support/chats/${encodeURIComponent(chat.id)}/messages`, {method: 'POST', body: JSON.stringify({text})}); field.value = ''; setFormStatus($('#chatStatus'), ''); renderChat(); }
     catch (error) { $('#chatLog').querySelectorAll('[data-pending]').forEach(item => item.remove()); field.value = text; setFormStatus($('#chatStatus'), `✕ Not sent: ${error.message}`, true); }
     finally { sending = false; $('#chatSend').disabled = false; $('#chatSend').removeAttribute('aria-busy'); field.focus(); }
@@ -173,7 +184,7 @@
   $('#confirmEndChat').addEventListener('click', async () => {
     $('#endChatDialog').close();
     if (!chat) return;   // nothing to end (no chat started in this tab)
-    try { chat = await api(`/api/support/chats/${encodeURIComponent(chat.id)}/end`, {method: 'POST', body: '{}'}); renderChat(); window.loadCustomerCalls?.(); }
+    try { chat = await api(`/api/support/chats/${encodeURIComponent(chat.id)}/end`, {method: 'POST', body: '{}'}); renderChat(); refreshAfterSupport(); }
     catch (error) { setFormStatus($('#chatStatus'), `✕ ${error.message}`, true); }
   });
 
@@ -183,7 +194,7 @@
       await checkVoice();
       let id = null; try { id = sessionStorage.getItem(KEY); } catch (_) {}
       if (id && !chat) {
-        try { chat = await api(`/api/support/chats/${encodeURIComponent(id)}`); renderedTurns = 0; $('#chatLog').innerHTML = ''; renderChat(); if (!ENDED.has(chat.status)) startPolling(); return; }
+        try { chat = await api(`/api/support/chats/${encodeURIComponent(id)}`); renderedTurns = 0; $('#chatLog').innerHTML = ''; delete $('#chatLog').dataset.count; renderChat(); if (!ENDED.has(chat.status)) startPolling(); return; }
         catch (_) { try { sessionStorage.removeItem(KEY); } catch (__) {} }
       }
       // A finished chat or call isn't shown again: My support opens on the options, ready for a new request.

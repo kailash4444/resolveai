@@ -1,5 +1,5 @@
 /* Public entry: landing, log in, create account (/signup, customers only) and first-administrator setup.
-   Log in is one page (/login) with a Customer | Technician / Admin switch; /login?as=staff opens the staff side.
+   Log in is one page (/login) with a Customer | Technician switch; /login?as=staff opens the staff side.
    The chosen side is sent to the server, which refuses accounts from the other side: a customer can never log in as a
    technician or administrator, and staff can't log in on the customer side.
    Sign-up always creates a customer account; technician and admin accounts are created by an administrator.
@@ -13,7 +13,7 @@
   const nextParam = () => (NEXT[params().get('next')] ? params().get('next') : null);
 
   const COPY = {
-    signin: {kicker: 'Customer log in', title: 'Welcome back', desc: 'Report issues, talk or chat with support, and follow your requests.',
+    signin: {kicker: 'Customer log in', title: 'Welcome back', desc: 'Log in with your email to report issues, talk or chat with support, and follow your requests.',
              button: 'Log in <span aria-hidden="true">→</span>', busy: 'Logging in…', page: 'Log in · ResolveAI'},
     staff:  {kicker: 'Technician and admin log in', title: 'Welcome back', desc: 'Work your support queue. Administrators also manage people and settings here.',
              button: 'Log in <span aria-hidden="true">→</span>', busy: 'Logging in…', page: 'Staff log in · ResolveAI'},
@@ -50,14 +50,20 @@
     form.elements.password.minLength = setup || signup ? 12 : 1;
     form.elements.password.autocomplete = setup || signup ? 'new-password' : 'current-password';
     $('#passwordHelp').hidden = !(setup || signup);
+    // Customers sign up with their Gmail or work email (it becomes their username); log in accepts either.
+    const id = form.elements.username;
+    $('label[for="authUsername"]').textContent = signup ? 'Email address' : setup ? 'Username' : 'Email or username';
+    id.type = signup ? 'email' : 'text';
+    id.autocomplete = signup ? 'email' : 'username';
+    id.placeholder = signup ? 'you@gmail.com or you@company.com' : '';
+    $('#emailHelp').hidden = !signup;
     $('#authHelp').hidden = mode !== 'signin' && mode !== 'staff';
     if (copy.button) submit.innerHTML = copy.button;
     // Footer: customer sign in <-> create account; staff sign-in has no sign-up (staff accounts come from an administrator).
     $('#authSwitch').hidden = setup || mode === 'staff';
-    // Customer | Technician / Admin switch at the top of the sign-in card.
+    // Customer | Technician switch at the top of the sign-in card.
     $('#authSide').hidden = mode !== 'signin' && mode !== 'staff';
     // Create account is for customers only; staff accounts are created by an administrator.
-    $('#signupStaffNote').hidden = !signup;
     $('#authSide').querySelectorAll('a').forEach(link => {
       if (link.dataset.authLink === mode) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
       link.href = linkFor(link.dataset.authLink);
@@ -95,7 +101,7 @@
     // Keep ?next in the address bar so a refresh or back-navigation still knows where to go.
     const query = new URLSearchParams();
     if (nextParam()) query.set('next', nextParam());
-    // Signed-out visits to the staff workspaces (/console, /admin) open log in on the Technician / Admin side.
+    // Signed-out visits to the staff workspaces (/console, /admin) open log in on the Technician side.
     const staff = !auth.setup_required && !nextParam() && path !== '/signup' && (params().get('as') === 'staff' || ['/console', '/admin'].includes(path));
     const target = auth.setup_required ? '/login' : path === '/signup' ? '/signup' : '/login';
     if (staff) { query.delete('next'); query.set('as', 'staff'); }
@@ -107,7 +113,7 @@
 
   function requestBody(values) {
     if (mode === 'setup') return ['/api/auth/setup', {name: values.name, username: values.username, password: values.password, setup_token: values.setup_token || ''}];
-    if (mode === 'signup') return ['/api/auth/register', {name: values.name.trim(), username: values.username.trim(), password: values.password}];
+    if (mode === 'signup') return ['/api/auth/register', {name: values.name.trim(), email: values.username.trim(), password: values.password}];
     // The page decides the side; the server rejects accounts that belong to the other side.
     return ['/api/auth/login', {username: values.username, password: values.password, expected_role: mode === 'staff' ? 'technician' : 'customer'}];
   }
@@ -118,6 +124,7 @@
     if (!field) return 'Fill in the highlighted fields.';
     if (field.name === 'name' && field.validity.tooShort) return 'Enter your full name (at least 2 characters).';
     if (field.name === 'password' && field.validity.tooShort) return 'Use a password of at least 12 characters.';
+    if (field.name === 'username' && field.validity.typeMismatch) return 'Enter a valid email address, like name@company.com.';
     return 'Fill in the highlighted fields.';
   }
 
@@ -134,9 +141,10 @@
     // Same rules as the server, checked here too (the browser only checks lengths on typed input).
     const problem = mode !== 'signup' && mode !== 'setup' ? null
       : body.name.trim().length < 2 ? ['name', 'Enter your full name (at least 2 characters).']
-      : mode === 'signup' && !/^[a-zA-Z0-9_.@-]{3,80}$/.test(body.username) ? ['username', 'Use 3 or more letters, numbers, dots, dashes, underscores or @ for your username, with no spaces.']
+      : mode === 'signup' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.email) ? ['username', 'Enter a valid email address, like name@company.com.']
+      : mode === 'setup' && !/^[a-zA-Z0-9_.@+-]{3,254}$/.test(body.username) ? ['username', 'Use 3 or more letters, numbers, dots, dashes, underscores or @ for the username, with no spaces.']
       : body.password.length < 12 ? ['password', 'Use a password of at least 12 characters.']
-      : mode === 'signup' && body.password.toLowerCase().includes(body.username.toLowerCase()) ? ['password', 'Choose a password that doesn’t contain your username.']
+      : mode === 'signup' && body.email.split('@')[0].length >= 3 && body.password.toLowerCase().includes(body.email.split('@')[0].toLowerCase()) ? ['password', 'Choose a password that doesn’t contain your email.']
       : null;
     if (problem) { showError(problem[1], [problem[0]]); form.elements[problem[0]].focus(); return; }
     submit.disabled = true; submit.setAttribute('aria-busy', 'true');
