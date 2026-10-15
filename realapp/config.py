@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     gemini_provider: str = "google_ai"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.8-flash"
+    # Used when the main model is overloaded (503/429) after a few retries; empty disables the fallback.
+    gemini_fallback_model: str = "gemini-3.5-flash-lite"
     gemini_transcription_model: str = "gemini-3.5-transcribe"
     gemini_tts_model: str = "gemini-3.8-flash-lite-tts"
     gemini_voice: str = "Kore"
@@ -32,6 +34,9 @@ class Settings(BaseSettings):
     livekit_max_calls: int = 5
     livekit_max_call_seconds: int = 1800
     admin_setup_token: str = ""
+    # Customers may create their own account at /signup (ALLOW_CUSTOMER_SIGNUP=false turns it off).
+    allow_customer_signup: bool = True
+    signups_per_hour_per_address: int = 5
     voice_tts_model: str = "gpt-4o-mini-tts"
     voice_tts_voice: str = "coral"
     voice_activity_threshold: int = 450

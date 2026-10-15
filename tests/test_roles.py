@@ -29,7 +29,7 @@ def accounts(monkeypatch):
         created=admin.post('/api/users',json=value)
         assert created.status_code==201,created.text
         client=TestClient(main.app)
-        assert client.post('/api/auth/login',json=value).status_code==200
+        assert client.post('/api/auth/login',json={**value,'expected_role':'customer' if role=='customer' else 'technician'}).status_code==200
         setattr(result,name,client);setattr(result,name+'_id',created.json()['id'])
     return result
 

@@ -23,7 +23,6 @@ window.loadCalling = async () => {
     if (!calling.user) { $('#signInButton').hidden = false; $('#routeRequestButton').disabled = true; return; }
     if (calling.user.role === 'customer') { calling.data = null; calling.selected = null; return; }
     calling.data = await api('/api/calling');
-    if (!calling.knowledgeData) calling.knowledgeData = await api('/api/knowledge').catch(() => []);
     calling.user = calling.data.user;
     if (calling.user.role === 'admin' && $('#view-technicians').classList.contains('active')) calling.data.users = await api('/api/users');
     $('#callsUnavailable').hidden = true; $('#usersError').hidden = true;
@@ -231,45 +230,10 @@ function renderCallDetail() {
   renderCallTicket(c);
 }
 
-function renderCallKnowledge(call, open = new Set()) {
-  const container = $('#activeCallKnowledge');
-  if (!container) return;
-  const matched = call.knowledge_matches || [];
-  const all = calling.knowledgeData || [];
-  const search = calling.knowledgeSearch.trim().toLowerCase();
-  const searchWords = search.split(/\s+/).filter(Boolean);
-  let articles;
-  if (matched.length && !search) {
-    articles = matched.slice(0, 5).map(match => {
-      const full = all.find(article => article.id === match.id);
-      return full ? {...full, excerpt: match.excerpt || full.symptoms} : {...match, symptoms: match.excerpt || '', product: '', resolution: ''};
-    });
-  } else {
-    const words = `${call.service || ''} ${(call.transcript || []).map(turn => turn.text).join(' ')}`.toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 2);
-    const uniqueWords = [...new Set(words)];
-    articles = all.map(article => {
-      const haystack = `${article.title} ${article.product} ${article.symptoms} ${(article.tags || []).join(' ')} ${(article.steps || []).join(' ')}`.toLowerCase();
-      const score = uniqueWords.reduce((total, word) => total + (haystack.includes(word) ? 1 : 0), 0);
-      return {article, score, haystack};
-    }).filter(item => !searchWords.length || searchWords.every(word => item.haystack.includes(word)))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5).map(item => item.article);
-  }
-  const status = call.knowledge_status;
-  const note = matched.length ? 'Ranked from this call’s latest conversation.' : all.length ? 'Browse the team knowledge base while the customer explains the issue.' : status === 'error' ? esc(call.knowledge_error || 'Could not load knowledge articles.') : 'No knowledge articles have been added yet.';
-  container.innerHTML = `<p class="helper">${note}</p>${articles.map(article => {
-    const summary = article.excerpt || article.symptoms || '';
-    const steps = article.steps || [];
-    return `<details class="active-call-article" data-kb="${esc(article.id)}" ${open.has(article.id) ? 'open' : ''}><summary>${esc(article.title)}</summary><p><strong>${esc(article.product || call.service || 'Support')}</strong>${summary ? ` · ${esc(summary)}` : ''}</p>${steps.length ? `<ol>${steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol>` : ''}${article.resolution ? `<p><strong>Resolution:</strong> ${esc(article.resolution)}</p>` : ''}<button type="button" class="text-button" data-call-knowledge="${esc(article.id)}" data-call-knowledge-title="${esc(article.title)}">Open in Knowledge →</button></details>`;
-  }).join('') || `<p class="helper">${search ? 'No matching articles. Try a shorter search.' : status === 'searching' ? 'Finding call-related guidance…' : 'No matching guidance yet. Search the knowledge base above.'}</p>`}`;
-}
-
 async function renderCallTicket(call) {
-  const panel = $('#activeCallTicketPanel');
-  const ended = ['Completed','Failed','Callback requested'].includes(call.status);
-  $('#activeCallKnowledgePanel').hidden = ended;
-  panel.hidden = !ended;
-  if (!ended) return;
+  // The linked incident sits with the call's facts; before the call ends it says when the incident will be created.
+  const panel = $('#callTicketPanel');
+  panel.hidden = false;
   if (!call.case_id) {
     patch(panel, `<h2 class="h3">Incident</h2><p class="sec">${['Completed','Failed','Callback requested'].includes(call.status) ? (call.transcript.some(t=>t.speaker==='Customer') ? '● Creating the incident from the conversation…' : 'No incident: the customer didn’t describe an issue.') : 'An incident is created from the conversation when the call ends.'}</p>`);
     return;

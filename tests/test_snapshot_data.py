@@ -22,11 +22,21 @@ def test_snapshot_roundtrip_excludes_credentials_preserves_records(tmp_path):
                             ('knowledge', {'id': 'KB00001'}), ('metadata', {'incident': 1})]:
             db.execute(f'CREATE TABLE {table} (id TEXT, body TEXT)')
             db.execute(f'INSERT INTO {table} VALUES (?, ?)', (item.get('id', 'numbers'), json.dumps(item)))
+        db.execute('CREATE TABLE resolution_assessments (case_id TEXT, body TEXT)')
+        db.execute('INSERT INTO resolution_assessments VALUES (?, ?)', ('case1', json.dumps({'case_id':'case1','verdict':'Permanent fix'})))
+        db.execute('CREATE TABLE resolution_clusters (id TEXT, body TEXT)')
+        db.execute('INSERT INTO resolution_clusters VALUES (?, ?)', ('cluster1', json.dumps({'id':'cluster1','title':'Browser issues'})))
+        db.execute('CREATE TABLE engineering_followups (id TEXT, cluster_id TEXT, body TEXT)')
+        db.execute('INSERT INTO engineering_followups VALUES (?, ?, ?)', ('followup1','cluster1',json.dumps({'id':'followup1','cluster_id':'cluster1'})))
     snapshot = tmp_path/'snapshot'
     assert export_data(data, snapshot)['users'] == 1
     assert 'private' not in ''.join(file.read_text() for file in snapshot.glob('*.json'))
     restored = tmp_path/'restored'
     restore_data(snapshot, restored)
+    with sqlite3.connect(restored/'resolveai.sqlite3') as db:
+        assert json.loads(db.execute('SELECT body FROM resolution_assessments').fetchone()[0])['case_id']=='case1'
+        assert json.loads(db.execute('SELECT body FROM resolution_clusters').fetchone()[0])['id']=='cluster1'
+        assert db.execute('SELECT cluster_id FROM engineering_followups').fetchone()[0]=='cluster1'
     with sqlite3.connect(restored/'calling.sqlite3') as db:
         result = json.loads(db.execute('SELECT body FROM routing').fetchone()[0])
     assert result['sessions'] == {}
