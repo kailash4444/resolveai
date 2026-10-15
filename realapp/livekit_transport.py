@@ -177,7 +177,17 @@ class LiveKitTransport:
 
     @staticmethod
     def customer_status(call):
-        return {key: call.get(key) for key in ('id', 'status', 'technician_name', 'last_error')}
+        return {
+            key: call.get(key) for key in ('id', 'status', 'technician_name', 'last_error')
+        } | {
+            # The short-lived support token is scoped to this customer's call.
+            # Return only their own transcript so the portal can show live captions.
+            'transcript': [
+                {key: turn.get(key) for key in ('speaker', 'text', 'timestamp')}
+                | {'text': str(turn.get('text') or '')[:2000]}
+                for turn in call.get('transcript', [])[-30:]
+            ],
+        }
 
     def offer(self, call_id, actor, call=None):
         call = call if call is not None else self.service.get(call_id)

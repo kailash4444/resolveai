@@ -6,7 +6,7 @@ from collections.abc import Callable
 from uuid import uuid4
 
 from realapp.config import Settings
-from realapp.gemini import GeminiEngine
+from realapp.gemini import GeminiEngine, vision_prompt
 from realapp.knowledge import article_document
 from realapp.incident_context import audit_ticket_json, resolution_evidence, KNOWLEDGE_PROMPT, AUDIT_PROMPT
 from realapp.models import (
@@ -337,12 +337,7 @@ class OpenAIEngine:
             else:
                 media_messages.append({"type": "text", "text": f"[Attached video file: {att.filename} ({att.size_bytes} bytes)]"})
 
-        prompt = (
-            "You are the multimodal vision diagnostic engine for ResolveAI enterprise IT service desk.\n"
-            "A customer reported an incident and attached photos and/or video recordings of the issue.\n"
-            "Carefully examine all attached media along with the customer's text description.\n\n"
-            f"CUSTOMER DESCRIPTION:\n{description}"
-        )
+        prompt = vision_prompt(description, attachments)
 
         try:
             client = self._client_or_raise()

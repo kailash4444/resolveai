@@ -53,7 +53,7 @@
       <div class="landing" id="landing">
         <header class="landing__nav">
           <a class="brand" href="/" aria-label="ResolveAI home"><span class="brand__mark" aria-hidden="true">R</span>ResolveAI</a>
-          <nav class="landing__links" aria-label="Main"><a class="sec" href="#preview">How it works</a><a class="sec" href="#workspaces">Workspaces</a><button type="button" class="icon-btn theme-toggle" data-theme-toggle aria-label="Switch theme"></button><a class="btn btn-soft btn-sm" href="/?auth=login" id="navLogInBtn">Log in</a></nav>
+          <nav class="landing__links" aria-label="Main"><a class="sec" href="#preview">How it works</a><a class="sec" href="#workspaces">Workspaces</a><button type="button" class="icon-btn theme-toggle" data-theme-toggle aria-label="Switch theme"></button><a class="btn btn-soft btn-sm" href="/login" id="navLogInBtn">Log in</a><a class="btn btn-primary btn-sm" href="/signup" id="navSignUpBtn">Create account</a></nav>
         </header>
         <div class="landing__main">
         <section class="landing__hero">
@@ -61,12 +61,12 @@
           <p class="annc follow" style="--d:0ms"><em>New</em>Talk to support right in your browser</p>
           <h1 class="landing__title" id="heroTitle"><span class="rise" style="--i:0">Less</span> <span class="rise" style="--i:1">firefighting.</span><br><span class="rise rise--line" style="--i:3"><span class="sweep">More resolution.</span></span></h1>
           <p class="sec landing__lede follow" style="--d:350ms">AI that listens, investigates and suggests. People verify and resolve. From the first signal to verified closure.</p>
-          <div class="landing__actions follow" style="--d:450ms" id="roleSignInChoices"><a class="btn btn-primary btn-lg" href="/?auth=login">Log in <span aria-hidden="true">→</span></a></div>
+          <div class="landing__actions follow" style="--d:450ms" id="roleSignInChoices"><a class="btn btn-primary btn-lg" href="/login">Log in <span aria-hidden="true">→</span></a><a class="btn btn-soft btn-lg" href="/signup">Create account</a></div>
           <p class="help landing__signin-note" id="landingSignInNote">Customers, technicians and administrators all log in from the same page.</p>
           <div class="card landing__setup" id="firstAdminSetup" hidden>
             <h2>Set up ResolveAI</h2>
             <p class="sec">No accounts exist yet. Create the first administrator account, then add your technicians and customers.</p>
-            <a class="btn btn-primary" href="/?auth=login">Create administrator account <span aria-hidden="true">→</span></a>
+            <a class="btn btn-primary" href="/login">Create administrator account <span aria-hidden="true">→</span></a>
           </div>
           <ul class="trust follow" style="--d:550ms"><li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>Browser voice support</li><li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>Gemini-assisted investigation</li><li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>Human-led resolution</li></ul>
           </div>
@@ -138,9 +138,9 @@
           <h2 id="workspacesTitle">Choose your workspace</h2>
           <p class="sec">Customers can create their own account. Technician and admin accounts are created by your administrator.</p>
           <div class="landing__roles">
-            <article class="card role-card" style="--tint:var(--ok)"><span class="role-card__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><h3>Customer</h3><p class="sec">Report a problem, talk or chat with support, and follow every incident to closure.</p><a class="link" href="/?auth=login">Open customer portal</a></article>
-            <article class="card role-card" style="--tint:var(--link)"><span class="role-card__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg></span><h3>Technician</h3><p class="sec">Work the queue, take browser calls, and review AI suggestions before anything ships.</p><a class="link" href="/?auth=login&amp;as=staff">Open technician console</a></article>
-            <article class="card role-card" style="--tint:var(--high)"><span class="role-card__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span><h3>Admin</h3><p class="sec">Manage users and knowledge, and watch resolution debt over time.</p><a class="link" href="/?auth=login&amp;as=staff">Open admin workspace</a></article>
+            <article class="card role-card" style="--tint:var(--ok)"><span class="role-card__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><h3>Customer</h3><p class="sec">Report a problem, talk or chat with support, and follow every incident to closure.</p><a class="link" href="/login">Open customer portal</a></article>
+            <article class="card role-card" style="--tint:var(--link)"><span class="role-card__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg></span><h3>Technician</h3><p class="sec">Work the queue, take browser calls, and review AI suggestions before anything ships.</p><a class="link" href="/login?as=staff">Open technician console</a></article>
+            <article class="card role-card" style="--tint:var(--high)"><span class="role-card__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span><h3>Admin</h3><p class="sec">Manage users and knowledge, and watch resolution debt over time.</p><a class="link" href="/login?as=staff">Open admin workspace</a></article>
           </div>
         </section>
         </div>
@@ -151,7 +151,7 @@
         <header class="auth__bar"><a class="brand" href="/" aria-label="ResolveAI home"><span class="brand__mark" aria-hidden="true">R</span>ResolveAI</a><div class="row row--sm"><button type="button" class="icon-btn theme-toggle" data-theme-toggle aria-label="Switch theme"></button><a class="link link--back" href="/">Back to home</a></div></header>
         <div class="auth__main">
           <section class="card auth__card" id="authCard" data-mode="signin">
-            <nav class="auth__side" id="authSide" aria-label="Log in as"><a href="/?auth=login" data-auth-link="signin" aria-current="page"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Customer</a><a href="/?auth=login&amp;as=staff" data-auth-link="staff"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="2.5" y="14" width="4" height="6" rx="1.5"/><rect x="17.5" y="14" width="4" height="6" rx="1.5"/></svg>Technician / Admin</a></nav>
+            <nav class="auth__side" id="authSide" aria-label="Log in as"><a href="/login" data-auth-link="signin" aria-current="page"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Customer</a><a href="/login?as=staff" data-auth-link="staff"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="2.5" y="14" width="4" height="6" rx="1.5"/><rect x="17.5" y="14" width="4" height="6" rx="1.5"/></svg>Technician / Admin</a></nav>
             <p class="kicker" id="authKicker">Log in</p>
             <h1 id="authTitle" tabindex="-1">Welcome back</h1>
             <p class="sec auth__desc" id="authDescription">Log in with your username and password.</p>
@@ -169,6 +169,12 @@
               <button class="btn btn-primary auth__submit" type="submit" id="authSubmit">Log in <span aria-hidden="true">→</span></button>
               <p class="help" id="authHelp">Forgot your password? Contact your ResolveAI administrator.</p>
             </form>
+            <div class="stack" id="authSignupNotice" hidden>
+              <p class="alert alert--info"><strong>○ You can’t create an account here.</strong><span class="sec">Your administrator adds you in ResolveAI and tells you your username.</span></p>
+              <a class="btn btn-primary" href="/login" data-auth-link="signin">Back to log in</a>
+            </div>
+            <p class="alert alert--info auth__staff-note" id="signupStaffNote" hidden><strong>○ Technician or administrator?</strong><span class="sec">Don’t create an account here. Your administrator creates your account and shares your login details. <a href="/login?as=staff" data-auth-link="staff">Log in as Technician / Admin</a></span></p>
+            <p class="auth__switch" id="authSwitch"><span id="authSwitchText">New to ResolveAI?</span> <a class="link" id="authSwitchLink" href="/signup" data-auth-link="signup">Create an account</a></p>
           </section>
         </div>
       </div>
@@ -653,11 +659,11 @@
   <script src="/static/shell.js?v=20261015-qa"></script>
   <script src="/static/uploader.js?v=20261015-qa"></script>
   <script src="/static/app.js?v=20261015-qa"></script>
-  <script src="/static/auth.js?v=9"></script>
+  <script src="/static/auth.js?v=10"></script>
   <script src="/static/landing.js?v=2"></script>
   <script src="/static/support-hub.js?v=6"></script>
   <script src="/static/resolution-radar.js?v=5"></script>
-  <script src="/static/calling.js?v=20261015-qa"></script>
+  <script src="/static/calling.js?v=20261015-qa2"></script>
   <script src="/static/transcripts.js?v=20261015-qa"></script>
   <script src="/static/incident-time-machine.js?v=4"></script>
 </body>

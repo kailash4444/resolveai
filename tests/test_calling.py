@@ -168,7 +168,7 @@ def test_ticket_storage_survives_reinitialization(service, tmp_path):
 
 def test_passwords_sessions_and_rate_limiting(service):
     tech = technician(service)
-    token, _ = service.login(Login(username="alex", password="test-password-12345"), "local")
+    token, _ = service.login(Login(username="alex", password="test-password-12345", expected_role="technician"), "local")
     assert service.authenticate(token)["id"] == tech["id"]
     assert "password_hash" not in tech
     assert token not in str(service.repository.data)
@@ -176,9 +176,9 @@ def test_passwords_sessions_and_rate_limiting(service):
     assert service.authenticate(token) is None
     for _ in range(10):
         with pytest.raises(HTTPException):
-            service.login(Login(username="alex", password="wrong"), "remote")
+            service.login(Login(username="alex", password="wrong", expected_role="technician"), "remote")
     with pytest.raises(HTTPException) as blocked:
-        service.login(Login(username="alex", password="wrong"), "remote")
+        service.login(Login(username="alex", password="wrong", expected_role="technician"), "remote")
     assert blocked.value.status_code == 429
 
 
@@ -207,7 +207,7 @@ def test_authentication_admin_only_and_remote_bootstrap(webapp):
     value.update(name="Technician", username="tech")
     assert admin.post('/api/technicians', json=value).status_code == 201
     worker = TestClient(app)
-    assert worker.post('/api/auth/login', json=value).status_code == 200
+    assert worker.post('/api/auth/login', json={**value, 'expected_role': 'technician'}).status_code == 200
     assert worker.post('/api/technicians', json={**value, "username": "someone"}).status_code == 403
     assert worker.post('/api/technicians/me/heartbeat', json={}, headers={"Origin": "https://attacker.test"}).status_code == 403
 

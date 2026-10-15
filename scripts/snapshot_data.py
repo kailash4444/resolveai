@@ -14,6 +14,7 @@ PRIVATE_FIELDS = {'password', 'password_hash', 'salt', 'sessions', 'login_attemp
                   'token', 'access_token', 'refresh_token', 'api_key', 'api_secret',
                   'setup_token', 'authorization', 'cookie', 'livekit_token',
                   'customer_token', 'join_token', 'session_token'}
+EXTRA_TABLES = {'resolution_assessments': 'case_id', 'resolution_clusters': 'id', 'engineering_followups': 'id'}
 
 
 def clean(value):
@@ -41,7 +42,10 @@ def export_data(data_dir, destination):
     }
     with closing(sqlite3.connect(f'{(data_dir/"resolveai.sqlite3").resolve().as_uri()}?mode=ro', uri=True)) as db, db:
         records['metadata'] = {key: json.loads(body) for key, body in db.execute('SELECT id, body FROM metadata')}
-    manifest = {'schema_version': 1, 'exported_at': datetime.now(timezone.utc).isoformat(),
+        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        for table, key in EXTRA_TABLES.items():
+            records[table] = [json.loads(row[0]) for row in db.execute(f'SELECT body FROM {table} ORDER BY {key}')] if table in tables else []
+    manifest = {'schema_version': 2, 'exported_at': datetime.now(timezone.utc).isoformat(),
                 'counts': {key: len(value) for key, value in records.items()}, 'sha256': {},
                 'excluded': ['Passwords and hashes', 'API credentials', 'Login sessions', 'Login attempts', 'Voice access tokens']}
     for name, value in records.items():
@@ -57,10 +61,11 @@ def restore_data(source, data_dir):
     if data_dir.exists() and any(data_dir.iterdir()):
         raise ValueError('Restore requires an empty data directory. Existing data has not been changed.')
     manifest = json.loads((source/'manifest.json').read_text(encoding='utf-8'))
-    if manifest['schema_version'] != 1:
+    if manifest['schema_version'] not in {1, 2}:
         raise ValueError('Unsupported snapshot version.')
     records = {}
-    for name in ['users', 'calls', 'incidents', 'knowledge', 'metadata']:
+    names = ['users', 'calls', 'incidents', 'knowledge', 'metadata'] + (list(EXTRA_TABLES) if manifest['schema_version']==2 else [])
+    for name in names:
         payload = (source/f'{name}.json').read_bytes()
         if hashlib.sha256(payload).hexdigest() != manifest['sha256'][f'{name}.json']:
             raise ValueError(f'Snapshot checksum failed: {name}')
@@ -82,6 +87,14 @@ def restore_data(source, data_dir):
             db.executemany(f'INSERT INTO {table} VALUES (?, ?)', [(item['id'], json.dumps(item)) for item in records[name]])
         db.execute('CREATE TABLE metadata (id TEXT PRIMARY KEY, body TEXT NOT NULL)')
         db.executemany('INSERT INTO metadata VALUES (?, ?)', [(key, json.dumps(value)) for key, value in records['metadata'].items()])
+        for table, key in EXTRA_TABLES.items():
+            if table == 'engineering_followups':
+                db.execute('CREATE TABLE engineering_followups (id TEXT PRIMARY KEY, cluster_id TEXT NOT NULL, body TEXT NOT NULL)')
+                db.executemany('INSERT INTO engineering_followups VALUES (?, ?, ?)',
+                               [(item['id'], item['cluster_id'], json.dumps(item)) for item in records.get(table, [])])
+            else:
+                db.execute(f'CREATE TABLE {table} ({key} TEXT PRIMARY KEY, body TEXT NOT NULL)')
+                db.executemany(f'INSERT INTO {table} VALUES (?, ?)', [(item[key], json.dumps(item)) for item in records.get(table, [])])
     routing = {'technicians': {user['id']: user for user in records['users']},
                'calls': {call['id']: call for call in records['calls']}, 'sessions': {}, 'login_attempts': {}}
     # A restored checkout cannot resume another server's live audio connection.
