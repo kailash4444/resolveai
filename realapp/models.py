@@ -166,6 +166,12 @@ class AnalysisPayload(BaseModel):
     attempted_steps: list[str] = Field(default_factory=list, max_length=6)
 
 
+class CompletedCallAnalysisPayload(AnalysisPayload):
+    call_resolved: bool
+    resolution_notes: str = Field(max_length=3000)
+    customer_confirmation: str = Field(max_length=1000)
+
+
 class CounterfactualStep(BaseModel):
     action: str = Field(min_length=3, max_length=300)
     possible_outcome: str = Field(min_length=3, max_length=500)

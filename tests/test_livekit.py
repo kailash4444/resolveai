@@ -151,25 +151,33 @@ def test_permission_failure_requeues_and_does_not_leave_technician_busy(voice_ap
 
 
 def test_ai_voice_resolution_only_after_confirmed_outcome(service,monkeypatch):
-    from realapp.calling import VoiceReply
+    from realapp.calling import VoiceDecision
     from realapp.models import AnalysisRequest
     async def run():
         case=service.engine.analyze(AnalysisRequest(transcript='Customer: How to restart my printer?'))
         case.routing.handler,case.routing.risk,case.routing.confidence='AI','Low',.97
         monkeypatch.setattr(service.engine,'analyze',lambda _:case)
         monkeypatch.setattr(service.engine,'transcribe',lambda *args:'How to restart my printer?')
-        monkeypatch.setattr(service,'reply',lambda _:VoiceReply(reply='Please restart your printer.',escalate=False,customer_confirmed_resolved=False))
+        service.settings.llm_provider = 'vertex'
+        monkeypatch.setattr(service.knowledge_engine, 'retrieve', lambda *a, **kw: case.knowledge_matches)
+        decision = VoiceDecision(reply='Please restart your printer.',escalate=False,customer_confirmed_resolved=False,
+            safe_guidance=True,confidence=.99,service='Printing',summary='Restart printer')
+        monkeypatch.setattr(service.engine,'generate_voice',lambda *args:decision,raising=False)
         call=service.create_call('Customer','browser')
-        transport=LiveKitTransport(service.settings,service);transport.resolve=AsyncMock()
+        transport=LiveKitTransport(service.settings,service)
         session=BrowserSession(transport,call['id']);session.say=AsyncMock()
         await session.process_utterance('Customer',b'audio')
         assert service.get(call['id'])['status']=='AI'
-        transport.resolve.assert_not_awaited()
+        assert not service.get(call['id'])['case_id']
         monkeypatch.setattr(service.engine,'transcribe',lambda *args:'It works now. My issue is fixed.')
-        monkeypatch.setattr(service,'reply',lambda _:VoiceReply(reply='Glad it is working.',escalate=False,customer_confirmed_resolved=True))
+        decision.reply='Glad it is working.'
+        decision.customer_confirmed_resolved=True
         await session.process_utterance('Customer',b'audio')
-        transport.resolve.assert_awaited_once()
-        assert transport.resolve.call_args.args[0]['case_id']
+        incident=service.case_store.get_case(service.get(call['id'])['case_id'])
+        assert incident.ticket.state == 'Resolved'
+        assert incident.ticket.assigned_to == 'AI'
+        assert incident.ticket.assignment_group == 'Artificial intelligence'
+        assert 'My issue is fixed' in incident.ticket.resolution
         assert service.get(call['id'])['status']=='Completed'
     asyncio.run(run())
 

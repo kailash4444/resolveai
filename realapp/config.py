@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.8-flash"
     # Used when the main model is overloaded (503/429) after a few retries; empty disables the fallback.
     gemini_fallback_model: str = "gemini-3.5-flash-lite"
+    gemini_voice_model: str = "gemini-3.5-flash-lite"
+    voice_reply_timeout_ms: int = Field(default=8000, ge=1000, le=20000)
     gemini_transcription_model: str = "gemini-3.5-transcribe"
     gemini_tts_model: str = "gemini-3.8-flash-lite-tts"
     gemini_voice: str = "Kore"

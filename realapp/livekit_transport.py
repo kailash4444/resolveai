@@ -99,7 +99,6 @@ class LiveKitTransport:
         self.sessions = {}
         self.start_lock = asyncio.Lock()
         self.attempts = {}
-        self.resolve = None
 
     @property
     def configured(self):
@@ -368,8 +367,8 @@ class BrowserSession:
         @self.room.on('disconnected')
         def disconnected(reason):
             if not self.closed:
-                self.service.error(self.call_id, 'Voice connection interrupted. Please start a new call.')
-                self.service.finish(self.call_id, 'Failed')
+                self.task(asyncio.to_thread(self.service.error, self.call_id, 'Voice connection interrupted. Please start a new call.'))
+                self.task(asyncio.to_thread(self.service.finish, self.call_id, 'Failed'))
 
         token = self.transport.token(self.call_id, f'agent:{self.call_id}', 'ResolveAI', 'agent')
         await asyncio.wait_for(self.room.connect(self.transport.settings.livekit_url, token), 20)
@@ -540,8 +539,6 @@ class BrowserSession:
         call = self.service.get(self.call_id)
         if call['status'] in TERMINAL:
             return
-        if not call['case_id']:
-            await asyncio.to_thread(self.service.triage, self.call_id)
         await asyncio.to_thread(self.service.enqueue, self.call_id, reason)
         try:
             await self.say('I am connecting you to an available technician. Please stay on the call.')
@@ -570,7 +567,8 @@ class BrowserSession:
             return
         if speaker == 'Customer' and call['status'] not in TERMINAL:
             self.interrupt()
-            self.request_knowledge()
+            if call['status'] in {'Connected', 'Ringing', 'Queued'}:
+                self.request_knowledge()
             self.turn_revision += 1
         if speaker != 'Customer' or call['status'] in TERMINAL | {'Connected', 'Ringing', 'Queued'}:
             return
@@ -599,11 +597,9 @@ class BrowserSession:
         call = await asyncio.to_thread(self.service.get, self.call_id)
         if call['status'] in TERMINAL | {'Connected', 'Ringing', 'Queued'}:
             return
-        if call['status'] == 'Triage':
-            call = await asyncio.to_thread(self.service.triage, self.call_id)
         if call['status'] == 'Queued':
             await self.escalate('Technician assistance required')
-        elif call['status'] == 'AI':
+        elif call['status'] in {'Triage', 'AI'}:
             if revision != self.turn_revision:
                 return
             reply = await asyncio.to_thread(self.service.reply, self.call_id)
@@ -619,19 +615,21 @@ class BrowserSession:
                 return
             logging.getLogger('uvicorn.error.voice').info('Voice reply ready call=%s revision=%s duration_ms=%.0f',
                 self.call_id, revision, (time.monotonic()-started)*1000)
+            if reply.escalate:
+                await self.escalate('AI requested technician assistance')
+                return
+            if reply.customer_confirmed_resolved and not reply.escalate:
+                customer_turn = next((t for t in reversed(current['transcript']) if t['speaker'] == 'Customer'), None)
+                await asyncio.to_thread(self.service.confirm_ai_resolution, self.call_id, customer_turn)
             if await self.say(reply.reply) is False:
                 return
             current = await asyncio.to_thread(self.service.get, self.call_id)
             if current['status'] != 'AI' or revision != self.turn_revision:
                 return
-            if reply.escalate:
-                await self.escalate('AI requested technician assistance')
-            elif reply.customer_confirmed_resolved:
+            if reply.customer_confirmed_resolved:
                 self.finalizing = True
                 try:
-                    completed = await asyncio.to_thread(self.service.finish, self.call_id)
-                    if self.transport.resolve:
-                        await self.transport.resolve(completed, reply.reply)
+                    await asyncio.to_thread(self.service.finish, self.call_id)
                 finally:
                     self.finalizing = False
 

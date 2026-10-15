@@ -1,4 +1,3 @@
-from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import time
 import hmac
@@ -39,7 +38,7 @@ class TechnicianCallNoteDraft(BaseModel):
     text: str = Field(default='', max_length=4000)
 
 
-def install_calling(app, settings, store, engine, update_ticket):
+def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=()):
     service = CallingService(settings, create_calling_store(settings), store, engine)
     transport = LiveKitTransport(settings, service)
     setup_service = LiveKitSetup(settings, service)
@@ -48,10 +47,42 @@ def install_calling(app, settings, store, engine, update_ticket):
     quality = CallQuality(service)
     app.state.call_quality = quality
     service.on_finished = quality.submit
-    service.background = ThreadPoolExecutor(max_workers=2, thread_name_prefix='incident')
     app.state.voice = transport
     app.state.calling_task = None
     app.state.qa_tasks = set()
+    ticket_jobs = {}
+    event_loop = None
+
+    async def publish_ticket(call_id):
+        try:
+            await asyncio.to_thread(service.finalize_ticket, call_id)
+            call = await asyncio.to_thread(service.get, call_id)
+            if call.get('case_id'):
+                case = await asyncio.to_thread(store.get_case, call['case_id'])
+                if case and case.ticket.state == 'Resolved':
+                    for fn in resolved_tasks:
+                        await asyncio.to_thread(fn, case.id)
+            await asyncio.to_thread(service.repository.mutate,
+                lambda db: db['calls'][call_id].update(ticket_postprocessing='complete'), call_ids=(call_id,))
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception('Post-call incident publication failed for %s', call_id)
+            await asyncio.to_thread(service.repository.mutate,
+                lambda db: db['calls'][call_id].update(ticket_postprocessing='pending'), call_ids=(call_id,))
+        finally:
+            ticket_jobs.pop(call_id, None)
+
+    def schedule_ticket(call_id):
+        def start():
+            if call_id in ticket_jobs:
+                return
+            task = asyncio.create_task(publish_ticket(call_id))
+            ticket_jobs[call_id] = task
+            app.state.qa_tasks.add(task)
+            task.add_done_callback(app.state.qa_tasks.discard)
+        if event_loop is not None:
+            event_loop.call_soon_threadsafe(start)
+
     router = APIRouter()
     # Preserve legacy assignments where they identify exactly one existing account.
     existing = service.snapshot()
@@ -508,18 +539,6 @@ def install_calling(app, settings, store, engine, update_ticket):
             updated = service.mark_waiting(call_id)
         return updated
 
-    async def resolve(call, reply):
-        if not call["case_id"]:
-            return
-        notes = "Customer confirmed that the issue was resolved during the AI-assisted call.\n" + reply
-        tasks = BackgroundTasks()
-        await asyncio.to_thread(update_ticket, call["case_id"], TicketUpdate(state="Resolved", resolution=notes), tasks)
-        task = asyncio.create_task(tasks())
-        app.state.qa_tasks.add(task)
-        task.add_done_callback(app.state.qa_tasks.discard)
-
-    transport.resolve = resolve
-
     async def loop():
         while True:
             try:
@@ -531,23 +550,40 @@ def install_calling(app, settings, store, engine, update_ticket):
                 logging.getLogger(__name__).warning("Call dispatcher temporarily unavailable; retrying")
             await asyncio.sleep(2)
 
+    async def retry_tickets():
+        while True:
+            await asyncio.sleep(30)
+            try:
+                snapshot = await asyncio.to_thread(service.snapshot)
+                for call in snapshot['calls']:
+                    if call['status'] in TERMINAL and call.get('ticket_postprocessing') == 'pending':
+                        schedule_ticket(call['id'])
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning('Post-call recovery will retry')
+
     @asynccontextmanager
     async def lifespan(_):
+        nonlocal event_loop
+        event_loop = asyncio.get_running_loop()
+        service.on_ticket_pending = schedule_ticket
         # One voice worker per deployment; recover calls left by a process crash.
         for call in service.snapshot()["calls"]:
             if call["origin"] != "desk" and call["status"] not in TERMINAL:
                 service.error(call["id"], "Voice service restarted. Please start a new call.")
                 service.finish(call["id"], "Failed")
-        # Finish writing incidents that a restart interrupted (incident ids are deterministic, so this can't duplicate).
-        for call in service.snapshot()["calls"]:
-            if service.needs_incident(call):
-                service.background.submit(service.finalize_ticket_safely, call["id"])
+            elif service.needs_incident(call) or call.get('ticket_postprocessing') == 'pending':
+                schedule_ticket(call['id'])
         app.state.calling_task = asyncio.create_task(loop())
+        ticket_recovery = asyncio.create_task(retry_tickets())
         try:
             yield
         finally:
             app.state.calling_task.cancel()
-            await asyncio.gather(app.state.calling_task, return_exceptions=True)
+            ticket_recovery.cancel()
+            await asyncio.gather(app.state.calling_task, ticket_recovery, return_exceptions=True)
             await transport.close()
             if app.state.qa_tasks:
                 await asyncio.gather(*app.state.qa_tasks, return_exceptions=True)

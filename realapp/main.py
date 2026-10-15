@@ -1061,7 +1061,8 @@ def overview(http: Request):
 
 from realapp.calling_api import install_calling
 
-calling = install_calling(app, settings, store, engine, update_ticket)
+calling = install_calling(app, settings, store, engine, update_ticket,
+    resolved_tasks=(run_background_qa, run_background_knowledge, run_background_radar))
 
 # Convert public numbers and all call-side references together on startup.
 from realapp.numbering import rewrite
