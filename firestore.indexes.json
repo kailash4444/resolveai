@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "resolveai_cases_knowledge_vectors",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "embedding_space", "order": "ASCENDING"},
+        {"fieldPath": "embedding", "vectorConfig": {"dimension": 768, "flat": {}}}
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

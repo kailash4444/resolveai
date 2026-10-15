@@ -24,7 +24,7 @@ from realapp.models import KnowledgeFromIncidentsRequest, CustomerIncidentCreate
 from datetime import datetime, timezone
 from realapp.incident_assist import ai_analysed, assess, escalate
 from realapp.access import actor, can_read, can_report, require_case, visible_case
-from realapp.resolved_knowledge import ResolvedKnowledgePublisher
+from realapp.resolved_knowledge import ResolvedKnowledgePublisher, existing_knowledge
 from realapp.bulk_qa import BulkAudit
 from realapp.attachments import (save_attachment, get_attachment_data, find_case_for_attachment,
                                  validate_attachment, is_image, MAX_FILES_PER_REQUEST, MAX_TOTAL_SIZE)
@@ -1026,6 +1026,10 @@ def draft_knowledge_from_incidents(request: KnowledgeFromIncidentsRequest, http:
     if len(context) > 120_000:
         raise HTTPException(422, 'These incidents contain too much source material for one draft. Select fewer tickets.')
     try:
+        existing = existing_knowledge(engine, context)
+        if existing:
+            return {'existing_article': {'id': existing.id, 'title': existing.title},
+                    'warnings': warnings, 'message': 'An existing article already covers this problem and resolution.'}
         content = engine.draft_knowledge(context)
     except RuntimeError as error:
         raise HTTPException(503, str(error)) from error
@@ -1066,3 +1070,6 @@ if number_aliases:
     def migrate_call_references(db):
         db['calls'] = rewrite(db['calls'],number_aliases)
     calling.repository.mutate(migrate_call_references)
+
+from realapp.knowledge_vectors import install_index_worker
+install_index_worker(app, store, engine)

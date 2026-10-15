@@ -1,5 +1,5 @@
 const state = { user: null, users: [], config: null, cases: [], knowledge: [], current: null, mediaRecorder: null, audioChunks: [], audioStream: null };
-let knowledgeDraftSources = [], knowledgeGeneration;
+let knowledgeDraftSources = [], knowledgeGeneration, knowledgeEditingId = null;
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const esc = (value = "") => String(value).replace(/[&<>'"]/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[char]));
@@ -740,7 +740,7 @@ function renderKnowledge(query = "") {
   $('#knowledgeCount').textContent = term ? `${articles.length} of ${state.knowledge.length} articles match` : `${state.knowledge.length} published articles`;
   const staff = state.user?.role !== 'customer';
   $("#knowledgeList").innerHTML = articles.length ? page.map(article => `<article class="card stack stack--sm" aria-labelledby="kb-${esc(article.id)}"><div class="row row--between"><h2 class="h3" id="kb-${esc(article.id)}">${esc(article.title)}</h2><span class="badge badge--ok">✓ Published</span></div>
-      <p class="help"><span class="mono">${esc(article.id)}</span> · ${esc(article.product)}${article.tags.length ? ` · ${esc(article.tags.join(', '))}` : ''}</p><p class="sec">${esc(article.symptoms)}</p>
+      <p class="help"><span class="mono">${esc(article.id)}</span> · ${esc(article.product)}${article.tags.length ? ` · ${esc(article.tags.join(', '))}` : ''}${staff ? ` · <button type="button" class="link" data-edit-knowledge="${esc(article.id)}">Edit article</button>` : ''}</p><p class="sec">${esc(article.symptoms)}</p>
       <details><summary>Steps (${article.steps.length})</summary><ol class="plain-steps">${article.steps.map(step => `<li>${esc(step)}</li>`).join("")}</ol><p class="small"><strong>Expected result:</strong> ${esc(article.resolution)}</p>${staff && article.source_ticket_ids?.length ? `<p class="help">Drafted from: ${article.source_ticket_ids.map(number => `<button type="button" class="link" data-source-ticket="${esc(number)}">${esc(number)}</button>`).join(" ")}</p>` : ""}</details></article>`).join("")
     : state.knowledge.length ? `<div class="empty"><h2 class="h3">No articles match “${esc(query)}”</h2><p class="sec">Try other words, or clear the search.</p></div>`
       : `<div class="empty"><h2 class="h3">No articles yet</h2><p class="sec">${staff ? 'Add an article, or draft one from resolved incidents.' : 'Help articles will appear here.'}</p></div>`;
@@ -755,6 +755,7 @@ async function addKnowledge(event) {
   const values = Object.fromEntries(new FormData(form).entries());
   values.steps = values.steps.split("\n").map(value => value.trim()).filter(Boolean); values.tags = values.tags.split(",").map(value => value.trim()).filter(Boolean);
   values.source_ticket_ids = knowledgeDraftSources.slice();
+  if (knowledgeEditingId) values.id = knowledgeEditingId;
   const button = $('#knowledgeSubmit'); button.disabled = true; button.setAttribute('aria-busy', 'true'); setFormStatus($('#knowledgeMessage'), 'Publishing…');
   try {
     const article = await api("/api/knowledge", { method: "POST", body: JSON.stringify(values) });
@@ -764,8 +765,9 @@ async function addKnowledge(event) {
   finally { button.disabled = false; button.removeAttribute('aria-busy'); }
 }
 
-function openKnowledgeEditor(article, warnings = []) {
+function openKnowledgeEditor(article, warnings = [], editing = false) {
   const form = $('#knowledgeForm'); form.reset(); form.querySelectorAll('[aria-invalid]').forEach(el => el.removeAttribute('aria-invalid'));
+  knowledgeEditingId = editing ? article.id : null;
   knowledgeDraftSources = article?.source_ticket_ids || [];
   for (const field of ['title','product','symptoms','resolution']) form.elements[field].value = article?.[field] || '';
   form.elements.steps.value = article?.steps.join('\n') || '';
@@ -777,6 +779,12 @@ function openKnowledgeEditor(article, warnings = []) {
   $('#knowledgeSources').hidden = !knowledgeDraftSources.length;
   $('#knowledgeWarnings').textContent = warnings.length ? `◆ ${warnings.join(' ')}` : ''; $('#knowledgeWarnings').hidden = !warnings.length;
   $('#knowledgeSubmit').textContent = article ? 'Publish draft' : 'Publish article';
+  if (editing) {
+    $('#knowledgeModalTitle').textContent = `Edit ${article.id}`;
+    $('#knowledgeDraftBadge').hidden = true;
+    $('#knowledgeModalIntro').textContent = 'Saved changes automatically refresh the article in knowledge search.';
+    $('#knowledgeSubmit').textContent = 'Save changes';
+  }
   setFormStatus($('#knowledgeMessage'), '');
   $('#knowledgeModal').showModal();
   form.elements.title.focus();
@@ -796,6 +804,13 @@ async function generateIncidentKnowledge(event) {
     const result = await api('/api/knowledge/from-incidents', {method:'POST', signal:controller.signal, body:JSON.stringify({ticket_numbers:numbers})});
     if (controller.signal.aborted) return;
     $('#incidentKnowledgeModal').close(); event.target.reset();
+    if (result.existing_article) {
+      await loadKnowledge();
+      $('#knowledgeSearch').value = result.existing_article.id;
+      renderKnowledge(result.existing_article.id);
+      toast(`${result.existing_article.id}: ${result.existing_article.title} already covers this problem. No duplicate created.`);
+      return;
+    }
     openKnowledgeEditor(result.article, result.warnings);
   } catch (error) {
     if (error.name !== 'AbortError') setFormStatus(message, `✕ ${error.message}`, true);
@@ -894,6 +909,11 @@ document.addEventListener("click", event => {
   if (reveal) { const input = $('#' + reveal.dataset.reveal), show = input.type === 'password'; input.type = show ? 'text' : 'password'; reveal.setAttribute('aria-pressed', String(show)); }
   if (event.target.closest('#dismissGlobalFeedback')) $('#globalFeedback').hidden = true;
   if (event.target.closest("#openKnowledgePanel")) openKnowledgeEditor();
+  const editKnowledge = event.target.closest('[data-edit-knowledge]');
+  if (editKnowledge) {
+    const article = state.knowledge.find(item => item.id === editKnowledge.dataset.editKnowledge);
+    if (article) openKnowledgeEditor(article, [], true);
+  }
   if (event.target.closest('#openIncidentKnowledgePanel')) { setFormStatus($('#incidentKnowledgeMessage'), ''); $('#incidentKnowledgeModal').showModal(); }
   if (event.target.closest('#closeIncidentKnowledgePanel')) $('#incidentKnowledgeModal').close();
   const source = event.target.closest('[data-source-ticket]'); if (source) openKnowledgeSource(source.dataset.sourceTicket);

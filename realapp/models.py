@@ -42,6 +42,12 @@ class KnowledgeContent(BaseModel):
     tags: list[str] = []
 
 
+class KnowledgeCoverage(BaseModel):
+    article_id: str | None = None
+    confidence: float = Field(ge=0, le=1)
+    reason: str
+
+
 class KnowledgeArticleInput(KnowledgeContent):
     id: str | None = None
     source_ticket_ids: list[str] = Field(default_factory=list, max_length=20)

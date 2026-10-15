@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pydantic import Field
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -20,6 +21,7 @@ class Settings(BaseSettings):
     gemini_tts_model: str = "gemini-3.8-flash-lite-tts"
     gemini_voice: str = "Kore"
     embedding_model: str = "gemini-embedding-001"
+    embedding_dimensions: int = Field(default=768, ge=128, le=2048)
     google_cloud_project: str | None = None
     google_cloud_location: str = "global"
     data_backend: str = "sqlite"

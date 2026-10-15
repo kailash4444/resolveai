@@ -3,11 +3,19 @@ import hashlib
 import logging
 import re
 from uuid import uuid4
+import threading
 
 from realapp.incident_context import knowledge_context
 from realapp.models import KnowledgeArticleInput, KnowledgeContent, WorkNote
 
 logger = logging.getLogger(__name__)
+
+_publish_lock = threading.RLock()
+
+
+def existing_knowledge(engine, context):
+    check = getattr(engine, 'find_existing_knowledge', None)
+    return check(context) if check else None
 
 
 def _normalize(value: str) -> str:
@@ -46,6 +54,11 @@ class ResolvedKnowledgePublisher:
         self.call_lookup = call_lookup
 
     def publish(self, case_id: str) -> None:
+        # Serialize local auto-publish jobs so the next check includes the prior save.
+        with _publish_lock:
+            return self._publish(case_id)
+
+    def _publish(self, case_id: str) -> None:
         case = self.case_store.get_case(case_id)
         if not case or case.ticket.state != "Resolved" or not case.ticket.resolution.strip():
             return
@@ -60,11 +73,20 @@ class ResolvedKnowledgePublisher:
             return
 
         context, _ = knowledge_context([case], self.call_lookup)
+        duplicate = existing_knowledge(self.engine, context)
+        if duplicate:
+            logger.info('Knowledge already covers resolved incident ticket=%s article=%s', ticket_id, duplicate.id)
+            self._note(case_id, f'Knowledge : already covered by {duplicate.id}; no duplicate article created')
+            return
         try:
             content, drafted_by = self.engine.draft_knowledge(context), "AI draft"
         except Exception:
             logger.warning("AI knowledge drafting unavailable for %s; saving the technician's resolution as written", ticket_id)
             content, drafted_by = _from_ticket(case), "technician's resolution notes"
+        # Do not publish evidence from a ticket reopened/edited during generation.
+        current = self.case_store.get_case(case_id)
+        if not current or knowledge_context([current], self.call_lookup)[0] != context:
+            return
         key = _article_key(content.title, content.product, content.symptoms)
         duplicate = next((article for article in articles
                           if _article_key(article.title, article.product, article.symptoms) == key), None)

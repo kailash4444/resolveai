@@ -70,7 +70,8 @@ def test_gemini_audio_validation_precedes_api_requests():
 
 def test_gemini_analysis_and_qa_use_google_structured_output():
     value = engine()
-    value._client.models.embed_content.return_value = SimpleNamespace(embeddings=[SimpleNamespace(values=[1., 0.])])
+    value._client.models.embed_content.return_value = SimpleNamespace(embeddings=[SimpleNamespace(values=[1.] + [0.]*767)])
+    value.knowledge_index.sync_all(strict=True)
     payload = value._mock_analysis('The payroll application crashes when I log in.')
     value._client.models.generate_content.return_value = SimpleNamespace(parsed=payload)
     case = value.analyze(AnalysisRequest(caller='Customer', channel='Voice', transcript='The payroll application crashes when I log in.'))

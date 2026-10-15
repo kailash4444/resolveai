@@ -94,7 +94,7 @@ class CallingService:
     def __init__(self, settings, repository, case_store, engine, now=time.time):
         self.settings, self.repository, self.case_store, self.engine, self.now = settings, repository, case_store, engine, now
         from realapp.gemini import GeminiEngine
-        self.knowledge_engine = GeminiEngine(settings, case_store.list_knowledge)
+        self.knowledge_engine = engine if isinstance(engine, GeminiEngine) else GeminiEngine(settings, case_store.list_knowledge)
         self._ticket_lock = RLock()
         self.on_finished = None
 

@@ -57,6 +57,8 @@ class MemoryStore:
             key = self._meta.get('knowledge_aliases',{}).get(value.id,value.id)
             article = assign_article(value,self._knowledge.get(key),self._meta)
             self._knowledge[article.id] = deepcopy(article)
+            if getattr(self, 'knowledge_changed', None):
+                self.knowledge_changed()
             return article
 
     def migrate_numbers(self):
@@ -180,7 +182,10 @@ class FirestoreStore:
             transaction.set(self.numbers,meta)
             transaction.set(self.knowledge.document(saved.id),saved.model_dump(mode='json'))
             return saved
-        return save(self.client.transaction())
+        saved = save(self.client.transaction())
+        if getattr(self, 'knowledge_changed', None):
+            self.knowledge_changed()
+        return saved
 
     def migrate_numbers(self):
         from google.cloud import firestore
@@ -308,6 +313,8 @@ class SQLiteStore(MemoryStore):
             article = assign_article(value,existing,meta)
             db.execute("INSERT OR REPLACE INTO knowledge VALUES (?, ?)", (article.id, article.model_dump_json()))
             self._write_meta(db,meta)
+        if getattr(self, 'knowledge_changed', None):
+            self.knowledge_changed()
         return article
 
     @staticmethod
