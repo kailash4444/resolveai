@@ -20,7 +20,7 @@
     Failed: ['badge--err', '✕ Chat interrupted'],
   };
   const ENDED = new Set(['Completed', 'Callback requested', 'Failed']);
-  let voiceConfigured = null, chat = null, poll = null, sending = false, voiceActive = false, renderedTurns = 0;
+  let voiceConfigured = null, chat = null, poll = null, sending = false, voiceActive = false, renderedTurns = 0, endedByMe = false;
 
   const mode = () => chooser.elements.supportMode.value;
   function syncButton() {
@@ -85,10 +85,25 @@
     tick();
     afterSupportTimer = setInterval(tick, 3000);
   }
+  // When a call or chat ends, Get support says so for a moment and then goes back to its options, ready for the next
+  // conversation. The transcript stays available from "Your recent calls and chats" and the incident.
+  let backTimer = null;
+  function returnToOptions(message, delay) {
+    clearTimeout(backTimer);
+    backTimer = setTimeout(() => {
+      if (voiceActive || (chat && !ENDED.has(chat.status))) return;   // a new conversation already started
+      show('chooser'); resetChatPanel();
+      const frame = $('#voiceFrame'); frame.removeAttribute('src'); frame.style.height = '';
+      if (message) toast(message);
+    }, delay);
+  }
   window.addEventListener('message', event => {
     if (event.origin !== location.origin || event.data?.type !== 'resolveai-support-state') return;
     if (event.source !== $('#voiceFrame').contentWindow) return;
-    if (voiceActive && ['ended', 'error'].includes(event.data.state)) refreshAfterSupport();
+    if (voiceActive && ['ended', 'error'].includes(event.data.state)) {
+      refreshAfterSupport();
+      if (event.data.state === 'ended') returnToOptions('Call ended. Your incident stays on My support.', 6000);
+    }
     voiceActive = ['requesting', 'connecting', 'active', 'muted', 'requested', 'connected', 'reconnecting'].includes(event.data.state);
     if (!$('#voicePanel').hidden) show('voice');
   });
@@ -118,7 +133,15 @@
     $('#chatReplyForm').hidden = ended;
     $('#chatAskTechnician').hidden = !['Triage', 'AI'].includes(chat.status);
     if (ended) {
-      if (poll) refreshAfterSupport();   // the chat was live in this tab and has just ended
+      if (poll) {   // the chat was live in this tab and has just ended
+        refreshAfterSupport();
+        const note = document.createElement('p');
+        note.className = 'chat-note';
+        note.textContent = endedByMe ? 'You ended the chat' : chat.status === 'Completed' && chat.technician_name ? `${chat.technician_name} ended the chat` : 'The chat has ended';
+        $('#chatLog').append(note); $('#chatLog').scrollTop = $('#chatLog').scrollHeight;
+        returnToOptions(chat.ticket_number ? `Chat ended. Incident ${chat.ticket_number} stays on My support.` : 'Chat ended.', endedByMe ? 1500 : 6000);
+        endedByMe = false;
+      }
       stopPolling();
       try { sessionStorage.removeItem(KEY); } catch (_) {}
       setFormStatus($('#chatStatus'), chat.status === 'Callback requested' ? 'Nobody could join in time. Your incident is open and the team will follow up there.' : chat.status === 'Failed' ? 'The chat was interrupted. Your incident is still open.' : 'Chat ended. Your incident stays on My support.');
@@ -184,6 +207,7 @@
   $('#confirmEndChat').addEventListener('click', async () => {
     $('#endChatDialog').close();
     if (!chat) return;   // nothing to end (no chat started in this tab)
+    endedByMe = true;
     try { chat = await api(`/api/support/chats/${encodeURIComponent(chat.id)}/end`, {method: 'POST', body: '{}'}); renderChat(); refreshAfterSupport(); }
     catch (error) { setFormStatus($('#chatStatus'), `✕ ${error.message}`, true); }
   });

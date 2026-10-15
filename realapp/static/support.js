@@ -72,6 +72,22 @@ async function request(path, options = {}) {
   return result;
 }
 
+// When the technician (or the assistant) ends the call, say who ended it rather than reporting a lost connection.
+function endedBy(call) {
+  return call.technician_name ? {text: `${call.technician_name} ended the call. If you described an issue, you’ll find the incident on My support.`} : {};
+}
+// The audio room closed. Ask the server why before deciding: a call that was ended normally isn't an error.
+async function audioClosed() {
+  const current = session;
+  try {
+    const call = await request(`/api/support/calls/${current.call_id}`);
+    if (session !== current) return;
+    if (call.status === 'Completed') return await finish('ended', endedBy(call), false);
+    if (call.status === 'Callback requested') return await finish('ended', {title: 'No technician was available', text: 'Nobody could take the call right now. Please try again later, or report the issue in writing.'}, false);
+  } catch (_) {}
+  if (session === current) finish('error', {text: 'The voice connection ended. Start another call to continue.'});
+}
+
 async function finish(state = 'ended', overrides = {}, send = true) {
   clearInterval(poll);
   const previous = session; session = null; callStatus = '';
@@ -100,7 +116,7 @@ async function refresh() {
     const call = await request(`/api/support/calls/${session.call_id}`);
     callStatus = call.status;
     renderTranscript(call.transcript || []);
-    if (call.status === 'Completed') return await finish('ended', {}, false);
+    if (call.status === 'Completed') return await finish('ended', endedBy(call), false);
     if (call.status === 'Callback requested') return await finish('ended', {title: 'No technician was available', text: 'Nobody could take the call right now. Please try again later, or report the issue in writing.', badge: ['badge--high', '◆ No technician available'], show: ['form', 'report']}, false);
     if (call.status === 'Failed') return await finish('error', {text: call.last_error || 'The call was interrupted. Start another call to continue.'}, false);
     if (voiceState !== 'reconnecting') {
@@ -140,7 +156,7 @@ $('#supportForm').addEventListener('submit', async event => {
     await ResolveAIVoice.microphonePermission();
     setState('connecting');
     session = await request('/api/support/calls', {method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(event.target)))});
-    room = await ResolveAIVoice.connect(session, () => { if (session) finish('error', {text: 'The voice connection ended. Start another call to continue.'}); });
+    room = await ResolveAIVoice.connect(session, () => { if (session) audioClosed(); });
     callStatus = 'Triage';
     const events = LivekitClient.RoomEvent;
     for (const name of [events.ActiveSpeakersChanged, events.TrackMuted, events.TrackUnmuted, events.ConnectionStateChanged]) room.on(name, updateListeningIndicator);
