@@ -279,7 +279,7 @@ class BrowserSession:
         self.queue = asyncio.Queue(maxsize=12)
         self.responses = asyncio.Queue(maxsize=24)
         self.turn_revision = 0
-        self.speech_revision = 0
+        self.caption_interruptions = set()
         self.recognition_tasks = set()
         self.call_state = None
         self.streaming_speech = None
@@ -403,6 +403,11 @@ class BrowserSession:
             await asyncio.sleep(0.5)
 
     async def caption(self, speaker, text, segment, final=False):
+        # Acoustic activity can be a fan, echo or a click. Only recognized words
+        # should interrupt playback, once per segment (not on every audio frame).
+        if speaker == 'Customer' and text.strip() and not final and segment not in self.caption_interruptions:
+            self.caption_interruptions.add(segment)
+            self.interrupt()
         try:
             await self.room.local_participant.publish_data(json.dumps({
                 'speaker': speaker, 'text': text[:4000], 'segment': segment, 'final': final,
@@ -433,9 +438,12 @@ class BrowserSession:
         except asyncio.CancelledError:
             raise
         except Exception as error:
-            logging.getLogger('uvicorn.error.voice').warning('Streaming STT failed call=%s type=%s', self.call_id, type(error).__name__)
+            logging.getLogger('uvicorn.error.voice').warning('Streaming STT failed call=%s type=%s: %s',
+                self.call_id, type(error).__name__, _safe_provider_error(error))
             await asyncio.to_thread(self.service.error, self.call_id,
                 'Live transcription is unavailable. Check the Speech-to-Text API, speech.client permission and speech region. Voice audio is still connected.')
+        finally:
+            self.caption_interruptions.discard(segment)
 
     async def listen(self, track, identity):
         stream = rtc.AudioStream(track, sample_rate=16000, num_channels=1, frame_size_ms=20)
@@ -458,10 +466,6 @@ class BrowserSession:
                 pcm = bytes(event.frame.data)
                 was_active = detector.active
                 chunk = detector.feed(pcm)
-                if customer and detector.active and not was_active:
-                    self.speech_revision += 1
-                if customer and detector.voiced >= 6400:
-                    self.interrupt()
                 if self.use_streaming:
                     if segment_queue is None and detector.active and detector.voiced >= 6400:
                         segment_queue = asyncio.Queue(maxsize=650)
@@ -519,6 +523,8 @@ class BrowserSession:
             except asyncio.CancelledError:
                 if self.closed:
                     raise
+                return False
+            return True
 
     async def escalate(self, reason):
         call = self.service.get(self.call_id)
@@ -553,6 +559,7 @@ class BrowserSession:
         if self.closed:
             return
         if speaker == 'Customer' and call['status'] not in TERMINAL:
+            self.interrupt()
             self.request_knowledge()
             self.turn_revision += 1
         if speaker != 'Customer' or call['status'] in TERMINAL | {'Connected', 'Ringing', 'Queued'}:
@@ -578,7 +585,7 @@ class BrowserSession:
                 self.responses.task_done()
 
     async def respond(self, revision):
-        speech_revision = self.speech_revision
+        started = time.monotonic()
         call = await asyncio.to_thread(self.service.get, self.call_id)
         if call['status'] in TERMINAL | {'Connected', 'Ringing', 'Queued'}:
             return
@@ -587,13 +594,25 @@ class BrowserSession:
         if call['status'] == 'Queued':
             await self.escalate('Technician assistance required')
         elif call['status'] == 'AI':
-            reply = await asyncio.to_thread(self.service.reply, self.call_id)
-            current = await asyncio.to_thread(self.service.get, self.call_id)
-            if current['status'] != 'AI' or revision != self.turn_revision or speech_revision != self.speech_revision:
+            if revision != self.turn_revision:
                 return
-            await self.say(reply.reply)
+            reply = await asyncio.to_thread(self.service.reply, self.call_id)
+            # Finish recognition already in flight before speaking. Empty/noise
+            # segments leave this answer valid; a new customer turn supersedes it
+            # and already has its own response queued by record_text.
+            pending = [task for task in self.recognition_tasks if not task.done()]
+            if pending:
+                await asyncio.gather(*(asyncio.shield(task) for task in pending), return_exceptions=True)
             current = await asyncio.to_thread(self.service.get, self.call_id)
-            if current['status'] != 'AI' or revision != self.turn_revision or speech_revision != self.speech_revision:
+            if current['status'] != 'AI' or revision != self.turn_revision:
+                logging.getLogger('uvicorn.error.voice').info('Voice reply superseded call=%s revision=%s', self.call_id, revision)
+                return
+            logging.getLogger('uvicorn.error.voice').info('Voice reply ready call=%s revision=%s duration_ms=%.0f',
+                self.call_id, revision, (time.monotonic()-started)*1000)
+            if await self.say(reply.reply) is False:
+                return
+            current = await asyncio.to_thread(self.service.get, self.call_id)
+            if current['status'] != 'AI' or revision != self.turn_revision:
                 return
             if reply.escalate:
                 await self.escalate('AI requested technician assistance')

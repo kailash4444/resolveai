@@ -136,3 +136,87 @@ def test_hangup_flushes_last_stream_before_finishing(service):
         assert service.get(call['id'])['transcript'][-1]['text'] == 'These are my final words.'
         session.streaming_speech.close.assert_awaited_once()
     asyncio.run(run())
+
+
+def test_microphone_noise_during_reasoning_does_not_discard_reply(service, monkeypatch):
+    """A short acoustic onset with no recognized words used to drop the answer."""
+    import struct
+    import threading
+    from realapp.livekit_transport import rtc
+    async def run():
+        call = service.create_call('Customer', 'browser')
+        service.repository.mutate(lambda db: db['calls'][call['id']].update(status='AI'))
+        session = BrowserSession(LiveKitTransport(service.settings, service), call['id'])
+        session.call_state = service.get(call['id'])
+        session.use_streaming = False
+        session.say = AsyncMock(return_value=True)
+        started, release = asyncio.Event(), threading.Event()
+        loop = asyncio.get_running_loop()
+        def reply(_):
+            loop.call_soon_threadsafe(started.set)
+            assert release.wait(3)
+            return SimpleNamespace(reply='Open Chrome settings.', escalate=False, customer_confirmed_resolved=False)
+        monkeypatch.setattr(service, 'reply', reply)
+        class Stream:
+            async def __aiter__(self):
+                # 80 ms of sound triggers acoustic onset but is not a spoken turn.
+                for pcm in [struct.pack('<320h', *([2000] * 320))] * 4 + [b'\0' * 640] * 30:
+                    yield SimpleNamespace(frame=SimpleNamespace(data=pcm))
+            async def aclose(self): pass
+        monkeypatch.setattr(rtc, 'AudioStream', lambda *a, **k: Stream())
+        task = asyncio.create_task(session.respond(0))
+        try:
+            await asyncio.wait_for(started.wait(), 1)
+            await session.listen(object(), 'customer:' + call['id'])
+        finally:
+            release.set()
+        await asyncio.wait_for(task, 2)
+        session.say.assert_awaited_once_with('Open Chrome settings.')
+    asyncio.run(run())
+
+
+def test_recognized_customer_words_interrupt_once_per_segment(service):
+    from unittest.mock import Mock
+    async def run():
+        call = service.create_call('Customer', 'browser')
+        session = BrowserSession(LiveKitTransport(service.settings, service), call['id'])
+        session.room = SimpleNamespace(local_participant=SimpleNamespace(publish_data=AsyncMock()))
+        session.interrupt = Mock()
+        await session.caption('Customer', ' ', 'noise')
+        await session.caption('Technician', 'Hello', 'tech')
+        session.interrupt.assert_not_called()
+        await session.caption('Customer', 'Wait', 'turn')
+        await session.caption('Customer', 'Wait, I use Edge', 'turn')
+        await session.caption('Customer', 'Wait, I use Edge', 'turn', final=True)
+        session.interrupt.assert_called_once()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('new_text', ['', 'Actually, I use Edge.'])
+def test_reply_waits_for_pending_recognition_and_only_discards_for_new_words(service, monkeypatch, new_text):
+    async def run():
+        call = service.create_call('Customer', 'browser')
+        service.repository.mutate(lambda db: db['calls'][call['id']].update(status='AI'))
+        session = BrowserSession(LiveKitTransport(service.settings, service), call['id'])
+        session.request_knowledge = lambda: None
+        session.say = AsyncMock(return_value=True)
+        monkeypatch.setattr(service, 'reply', lambda _: SimpleNamespace(
+            reply='Open Chrome settings.', escalate=False, customer_confirmed_resolved=False))
+        release = asyncio.Event()
+        async def recognize():
+            await release.wait()
+            if new_text:
+                await session.record_text('Customer', new_text)
+        pending = asyncio.create_task(recognize())
+        session.recognition_tasks.add(pending)
+        response = asyncio.create_task(session.respond(0))
+        await asyncio.sleep(.05)
+        session.say.assert_not_awaited()
+        release.set()
+        await asyncio.wait_for(response, 2)
+        if new_text:
+            session.say.assert_not_awaited()
+            assert session.responses.get_nowait() == ('respond', 1)
+        else:
+            session.say.assert_awaited_once_with('Open Chrome settings.')
+    asyncio.run(run())
