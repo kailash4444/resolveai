@@ -207,6 +207,39 @@ class CallingService:
         self.repository.mutate(save, call_ids=())
         return token, self.authenticate(token)
 
+    def oauth_account(self, email, name, side, allow_signup):
+        """Log in with Google / Microsoft. The provider has already confirmed `email`. An account with that email (or that
+        email as its username) logs in; on the customer side a new email gets a new customer account. Staff accounts are
+        never created here, and the wrong side gets the same refusal as a wrong password."""
+        def find(db):
+            return next((t for t in db['technicians'].values() if email in {t['username'], t.get('email')}), None)
+        tech = self.repository.read(find, call_ids=())
+        if tech and (tech['role'] == 'customer') != (side == 'customer'):
+            raise HTTPException(401, 'Incorrect email or password.')
+        if not tech:
+            if side != 'customer':
+                raise HTTPException(401, 'Incorrect email or password.')
+            if not allow_signup:
+                raise HTTPException(403, 'Creating an account is turned off. Ask your ResolveAI administrator for an account.')
+            # The person signs in with the provider, so the password is a long random one nobody knows.
+            self.create_technician(TechnicianCreate(role='customer', name=name if len(name) >= 2 else 'Customer', username=email,
+                                                    email=email, password=secrets.token_urlsafe(32)))
+            tech = self.repository.read(find, call_ids=())
+        return self.start_session(tech['id'])
+
+    def start_session(self, tech_id):
+        token = secrets.token_urlsafe(32)
+        hashed, now = hashlib.sha256(token.encode()).hexdigest(), self.now()
+
+        def save(db):
+            db["sessions"] = {k: v for k, v in db["sessions"].items() if v["expires"] > now}
+            db["sessions"][hashed] = {"technician_id": tech_id, "expires": now + 43200}
+            current = db['technicians'][tech_id]
+            if current['role'] != 'customer' and not current['current_call_id']:
+                current['status'] = public_technician(current)['availability']
+        self.repository.mutate(save, call_ids=())
+        return token, self.authenticate(token)
+
     def authenticate(self, token):
         hashed = hashlib.sha256((token or "").encode()).hexdigest()
 
@@ -338,7 +371,7 @@ class CallingService:
     def add_turn(self, call_id, speaker, text):
         def append(db):
             call = db["calls"][call_id]
-            call["transcript"].append({"speaker": speaker, "text": text[:8000], "timestamp": stamp()})
+            call["transcript"].append({"id": uuid4().hex[:12], "speaker": speaker, "text": text[:8000], "timestamp": stamp()})
             # Whoever just sent a message has stopped typing.
             call.setdefault('typing', {})['customer' if speaker == 'Customer' else 'agent'] = 0
             if speaker == 'Customer':
@@ -350,6 +383,32 @@ class CallingService:
                 self._set_handoff_brief(call, call["handoff_brief"].get("handoff_reason"))
             return call
         call = self.repository.mutate(append, call_ids=(call_id,))
+        if call["case_id"]:
+            case = self.case_store.get_case(call["case_id"])
+            if case:
+                case.transcript = [TranscriptTurn(**turn) for turn in call["transcript"]]
+                self.case_store.save_case(case)
+        return call
+
+    EDIT_WINDOW_SECONDS = 15 * 60
+
+    def edit_turn(self, call_id, turn_id, speaker, text):
+        """Chat message editing: the sender may change their own message while the chat is open, within 15 minutes."""
+        def change(db):
+            call = db["calls"][call_id]
+            turn = next((t for t in call["transcript"] if t.get("id") == turn_id), None)
+            if not turn:
+                raise HTTPException(404, "Message not found.")
+            if turn["speaker"] != speaker:
+                raise HTTPException(403, "You can only edit your own messages.")
+            if call["status"] in TERMINAL:
+                raise HTTPException(409, "This chat has ended, so messages can no longer be edited.")
+            sent = datetime.fromisoformat(turn["timestamp"]).timestamp() if turn.get("timestamp") else 0
+            if time.time() - sent > self.EDIT_WINDOW_SECONDS:
+                raise HTTPException(409, "Messages can be edited for 15 minutes after sending.")
+            turn.update(text=text[:8000], edited=True)
+            return call
+        call = self.repository.mutate(change, call_ids=(call_id,))
         if call["case_id"]:
             case = self.case_store.get_case(call["case_id"])
             if case:
@@ -472,16 +531,18 @@ class CallingService:
         fields = ("short_description", "description", "category", "subcategory", "service", "priority", "assignment_group", "state")
         case.ticket.work_notes.append(WorkNote(id=f"NOTE-{uuid4().hex[:8]}", author="Ticket created", author_type="System",
             text="\n".join(f"{field.replace('_', ' ').capitalize()} : {getattr(case.ticket, field)}" for field in fields)))
-        if call['origin'] != 'browser':
-            self.case_store.save_case(case)
+        desk = call['origin'] != 'browser'
 
         def save(db):
             current = db["calls"][call_id]
             # Keep the link even if the customer hung up while analysis ran.
             if current["case_id"] or current.get('draft_case'):
                 return current
-            current.update(case_id=case.id if call['origin'] != 'browser' else None,
-                           draft_case=case.model_dump(mode='json') if call['origin'] == 'browser' else None,
+            # A technician who answered while the analysis ran has already opened the incident: keep that one, so the
+            # conversation never ends up with two incident numbers.
+            live = current.get('live_case_id')
+            current.update(case_id=(live or case.id) if desk else None,
+                           draft_case=case.model_dump(mode='json') if not desk and not live else None,
                            service=case.ticket.service, priority=case.ticket.priority,
                            summary=case.understanding.summary, reason=case.routing.rationale,
                            attempted_steps=case.attempted_steps, recommended_action=case.recommended_action,
@@ -493,7 +554,10 @@ class CallingService:
                     self._set_handoff_brief(current, case.routing.rationale)
                 history(current, f"Routed to {'AI' if ai else 'technician queue'}: {case.routing.rationale}")
             return current
-        return self.repository.mutate(save, call_ids=(call_id,))
+        linked = self.repository.mutate(save, call_ids=(call_id,))
+        if desk and linked.get('case_id') == case.id:
+            self.case_store.save_case(case)
+        return linked
 
     def set_typing(self, call_id, who, seconds=5):
         """Chat typing signals: who is 'customer' or 'agent' (technician or AI). They expire unless renewed."""

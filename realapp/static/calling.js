@@ -51,6 +51,7 @@ function renderIndicators() {
   else setBadge($('#presenceIndicator'), 'badge--muted', `○ ${presence}`);
   const inCall = !!(calling.room && calling.roomCallId), muted = inCall && !calling.room.localParticipant.isMicrophoneEnabled;
   const mic = !voice.configured ? ['badge--err', '✕ Browser calling not configured', 'Desk requests and chats still work. An administrator can connect LiveKit.']
+    : presence !== 'Available' && !inCall ? ['badge--muted', `○ Off · ${presence}`, `Set your availability to Available to use the microphone.`]
     : calling.micDenied ? ['badge--err', '✕ Blocked', 'Allow microphone access for this site in your browser, then turn the microphone on again.']
     : inCall ? (muted ? ['badge--high', '◆ Muted', 'The customer can’t hear you. Turn the microphone on to talk.'] : ['badge--ok', '✓ On · in a call', 'Turn the microphone off to mute yourself.'])
     : !user.calls_enabled ? ['badge--muted', '○ Off', 'Turn the microphone on to take browser calls.']
@@ -58,9 +59,11 @@ function renderIndicators() {
     : ['badge--muted', '○ Waiting for permission', 'Turn the microphone on and allow access when the browser asks.'];
   // One switch: on/off for taking browser calls, or mute/unmute while you are on a call. While a click is still
   // being applied, polling leaves the switch and its label alone so it doesn't flicker back.
-  const micSwitch = $('#micSwitch'), on = inCall ? !muted : !!(user.calls_enabled && calling.ready);
+  // Away or Offline: the switch is locked (shown off) until the technician is Available again. Mute still works in a call.
+  const away = presence !== 'Available' && !inCall;
+  const micSwitch = $('#micSwitch'), on = inCall ? !muted : !away && !!(user.calls_enabled && calling.ready);
   micSwitch.hidden = false;
-  micSwitch.disabled = !voice.configured || (!!user.current_call_id && !inCall);
+  micSwitch.disabled = !voice.configured || away || (!!user.current_call_id && !inCall);
   if (!calling.micBusy) {
     setBadge($('#microphoneIndicator'), mic[0], mic[1]); $('#callMicState').textContent = mic[2];
     micSwitch.setAttribute('aria-checked', String(on));
@@ -226,6 +229,12 @@ function ticketNumber(call) {
   }
   return ticketNumbers[call.case_id];
 }
+// The customer's conversation with the AI, up to the moment a technician joined.
+function aiConversation(call) {
+  const joined = call.connected_at ? call.connected_at * 1000 : Infinity;
+  return (call.transcript || []).filter(turn => turn.speaker !== 'Technician' && turn.text?.trim()
+    && (!turn.timestamp || new Date(turn.timestamp).getTime() <= joined));
+}
 function renderDock(pageCallId) {
   const dock = $('#callDock'), call = myLiveCall();
   if (!call || pageCallId === call.id) { dock.hidden = true; delete dock.dataset.callId; return; }
@@ -233,9 +242,9 @@ function renderDock(pageCallId) {
   if (dock.dataset.callId !== call.id) {
     dock.dataset.callId = call.id;
     dock.innerHTML = `<div class="dock-head" id="dockHead"></div><div class="dock-grid">
-      <section class="dock-pane dock-pane--lead" aria-labelledby="dockSummaryTitle"><h3 class="dock-label" id="dockSummaryTitle">AI summary · next step</h3><div class="dock-scroll" id="dockSummary" tabindex="0"></div></section>
-      <section class="dock-pane" aria-labelledby="dockKnowledgeTitle"><h3 class="dock-label" id="dockKnowledgeTitle">Related knowledge</h3><div class="dock-scroll" id="dockKnowledge" tabindex="0"></div></section>
-      <section class="dock-pane" aria-labelledby="dockConvoTitle"><h3 class="dock-label" id="dockConvoTitle">Latest conversation</h3><div class="dock-scroll" id="dockConvo" tabindex="0" aria-live="polite"></div></section></div>
+      <section class="dock-pane dock-pane--lead" aria-labelledby="dockConvoTitle"><h3 class="dock-label" id="dockConvoTitle">Conversation with AI</h3><div class="dock-scroll" id="dockConvo" tabindex="0"></div></section>
+      <section class="dock-pane" aria-labelledby="dockSummaryTitle"><h3 class="dock-label" id="dockSummaryTitle">AI summary · next steps</h3><div class="dock-scroll" id="dockSummary" tabindex="0"></div></section>
+      <section class="dock-pane" aria-labelledby="dockKnowledgeTitle"><h3 class="dock-label" id="dockKnowledgeTitle">Suggested knowledge articles</h3><div class="dock-scroll" id="dockKnowledge" tabindex="0"></div></section></div>
       <div class="dock-actions" id="dockActions"></div>`;
   }
   dock.hidden = false;
@@ -246,13 +255,17 @@ function renderDock(pageCallId) {
   const brief = call.handoff_brief || {};
   const summary = [call.summary, brief.issue].find(text => text && text !== 'Understanding the customer issue') || 'The AI is still working out the customer’s issue.';
   const question = call.next_question || brief.next_step || call.recommended_action;
-  patch($('#dockSummary'), `<p>${esc(summary)}</p>${question ? `<p class="dock-question">${esc(question)}</p>` : ''}<p class="dock-note">Based on the latest customer update. Updates with the conversation.</p>`);
+  const guidance = call.knowledge_matches || [];
+  const steps = [...new Set([question, call.recommended_action, ...(guidance[0]?.steps || [])].filter(Boolean).map(step => step.trim()))].slice(0, 4);
+  patch($('#dockSummary'), `<p>${esc(summary)}</p>${steps.length ? `<ol class="dock-steps">${steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol>` : ''}<p class="dock-note">From the customer’s conversation with the AI.</p>`);
   const matches = call.knowledge_matches || [];
   patch($('#dockKnowledge'), matches.length ? `<ul class="dock-list">${matches.map(k => `<li><strong>${esc(k.title)}</strong><span class="dock-note">${esc(k.id)}</span></li>`).join('')}</ul>`
     : '<p>Related knowledge will appear as the customer describes the issue.</p>');
   const convo = $('#dockConvo'), before = convo.dataset.html;
-  patch(convo, call.transcript.length ? call.transcript.map(turn => `<p class="dock-msg"><b>${esc(turn.speaker_name || turn.speaker)}:</b> ${esc(turn.text)}</p>`).join('')
-    : '<p>The conversation appears here as people speak.</p>');
+  // Only what the customer and the AI said before a technician joined; the live conversation isn't shown.
+  const aiTurns = aiConversation(call), who = {Customer: call.caller, 'AI Agent': 'AI'};
+  patch(convo, aiTurns.length ? aiTurns.map(turn => `<p class="dock-msg"><b>${esc(who[turn.speaker] || turn.speaker)}:</b> ${esc(turn.text)}</p>`).join('')
+    : '<p>The customer didn’t talk with the AI before you joined.</p>');
   if (fresh || convo.dataset.html !== before) convo.scrollTop = convo.scrollHeight;   // always open at the newest message
   const inRoom = calling.room && calling.roomCallId === call.id, muted = inRoom && !calling.room.localParticipant.isMicrophoneEnabled;
   patch($('#dockActions'), `${inRoom ? `<button type="button" class="btn btn-soft btn-sm" data-dock-mute aria-pressed="${muted}">${muted ? 'Unmute' : 'Mute'}</button>` : ''}<button type="button" class="btn btn-danger btn-sm" data-call-action="finish" data-call-id="${esc(call.id)}">End ${chat ? 'chat' : 'call'}</button>`);
@@ -428,9 +441,12 @@ function renderCallDetail() {
 
   // One slim strip for the call's state, plus Accept / Decline while it's ringing.
   const strip = (title, text) => `<p class="cf-strip"><strong>${title}</strong><span class="sec">${text}</span></p>`;
-  const notice = c.status === 'Queued' ? strip('◆ Waiting for a technician.', 'Choose Answer in the Call card to join. Browser calls need the microphone switched on.')
-    : c.status === 'Completed' && c.queued_at && !c.connected_at ? strip('○ This call ended while waiting.', 'Its audio room is closed and can’t be joined. Ask the customer to start another support call.')
-    : ended ? strip('○ This call has ended.', 'It can’t be joined. The incident keeps everything that was said.') : '';
+  const isChat = c.channel === 'chat';
+  const notice = c.status === 'Queued' ? strip('◆ Waiting for a technician.', isChat ? 'Choose Answer chat in the Chat card to join.' : 'Choose Answer in the Call card to join. Browser calls need the microphone switched on.')
+    : c.status === 'Completed' && c.queued_at && !c.connected_at ? (isChat ? strip('○ This chat ended while waiting.', 'The customer left before a technician joined. The incident keeps the conversation.')
+      : strip('○ This call ended while waiting.', 'Its audio room is closed and can’t be joined. Ask the customer to start another support call.'))
+    : ended ? (isChat ? strip('○ This chat has ended.', 'It can’t be reopened. The incident keeps the whole conversation.')
+      : strip('○ This call has ended.', 'It can’t be joined. The incident keeps everything that was said.')) : '';
   let ringing = '';
   if (c.status === 'Ringing' && own) {
     const phoneReady = c.origin !== 'browser' || calling.ready;
@@ -452,14 +468,15 @@ function renderCallDetail() {
 
   // Scratch pad: private notes, saved to the incident when the call ends (existing draft saving).
   if (!$('#cfPad').contains(document.activeElement)) patch($('#cfPad'), c.status === 'Connected' && canManage
-    ? `<label class="dock-label" for="callNoteText">Scratch pad</label><textarea class="input cf-pad__text" id="callNoteText" data-call-id="${esc(c.id)}" maxlength="4000" aria-label="Scratch pad" placeholder="Private notes for this call. Saved to the incident when the call ends.">${esc(calling.noteDrafts[c.id] || '')}</textarea>`
-    : `<h2 class="dock-label">Scratch pad</h2><p class="help">${ended ? 'Notes were saved to the incident when the call ended.' : 'Available while you’re connected to the call.'}</p>`);
+    ? `<label class="dock-label" for="callNoteText">Scratch pad</label><textarea class="input cf-pad__text" id="callNoteText" data-call-id="${esc(c.id)}" maxlength="4000" aria-label="Scratch pad" placeholder="Private notes for this ${c.channel === 'chat' ? 'chat' : 'call'}. Saved to the incident when the ${c.channel === 'chat' ? 'chat' : 'call'} ends.">${esc(calling.noteDrafts[c.id] || '')}</textarea>`
+    : `<h2 class="dock-label">Scratch pad</h2><p class="help">${ended ? `Notes were saved to the incident when the ${c.channel === 'chat' ? 'chat' : 'call'} ended.` : `Available while you’re connected to the ${c.channel === 'chat' ? 'chat' : 'call'}.`}</p>`);
 
   if (layout === 'chat') {
     // Live chat: the conversation with a reply box (enabled once you've accepted), Transfer and End inside the card.
     const canReply = c.status === 'Connected' && own, box = $('#techReplyText');
     renderChatWindow($('#cfChat'), c.transcript, {mine: 'Technician', name: turn => turn.speaker === 'Customer' ? c.caller : turn.speaker === 'AI Agent' ? 'ResolveAI assistant' : turn.speaker === 'Technician' ? 'You' : turn.speaker,
-      typing: c.customer_typing ? c.caller : ''});
+      typing: c.customer_typing ? c.caller : '', open: canReply,
+      onEdit: async (turnId, text) => { const updated = await api(`/api/calling/${encodeURIComponent(c.id)}/messages/${encodeURIComponent(turnId)}`, {method: 'PATCH', body: JSON.stringify({text})}); await loadCalling(); return updated; }});
     box.disabled = !canReply; $('#techReplyForm button').disabled = !canReply;
     box.placeholder = canReply ? 'Write a reply. Enter sends, Shift+Enter adds a line.' : c.status === 'Ringing' ? 'Accept the chat to reply.' : 'This chat isn’t open for replies yet.';
     $('#cfChatState').textContent = c.status === 'Connected' ? '● Live' : '';
@@ -583,9 +600,10 @@ document.addEventListener('click', async event => {
       if (kind === 'accept') { await answerCall(id); return; }
       if (['transfer', 'finish'].includes(kind)) {
         const dialog = $('#callActionDialog'); dialog.dataset.callId = id; dialog.dataset.action = kind;
-        $('#callActionTitle').textContent = kind === 'transfer' ? 'Transfer this call?' : 'Finish this call?';
-        $('#callActionDescription').textContent = kind === 'transfer' ? 'The call will return to the support queue for another technician.' : 'The conversation will stop for everyone.';
-        $('#confirmCallAction').textContent = kind === 'transfer' ? 'Transfer call' : 'Finish call';
+        const noun = calling.data?.calls.find(c => c.id === id)?.channel === 'chat' ? 'chat' : 'call';
+        $('#callActionTitle').textContent = kind === 'transfer' ? `Transfer this ${noun}?` : `End this ${noun}?`;
+        $('#callActionDescription').textContent = kind === 'transfer' ? `The ${noun} will return to the support queue for another technician.` : 'The conversation will stop for everyone.';
+        $('#confirmCallAction').textContent = kind === 'transfer' ? `Transfer ${noun}` : `End ${noun}`;
         dialog.showModal(); return;
       }
       action.disabled = true;

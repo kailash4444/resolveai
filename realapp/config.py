@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     admin_setup_token: str = ""
     # Customers may create their own account at /signup (ALLOW_CUSTOMER_SIGNUP=false turns it off).
     allow_customer_signup: bool = True
+    # Log in with Google / Microsoft: each provider shows on the log-in page only when its client ID and secret are set.
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    microsoft_client_id: str | None = None
+    microsoft_client_secret: str | None = None
+    # 'common' accepts personal and work accounts; set your directory (tenant) ID to accept only your organisation.
+    microsoft_tenant: str = "common"
     signups_per_hour_per_address: int = 5
     voice_tts_model: str = "gpt-4o-mini-tts"
     voice_tts_voice: str = "coral"

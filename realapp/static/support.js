@@ -104,9 +104,10 @@ async function finish(state = 'ended', overrides = {}, send = true) {
   setState(state, overrides);
 }
 
+// The call is still transcribed and saved to the incident, but the live transcript isn't shown during the call.
 function renderTranscript(turns) {
   const snapshot = JSON.stringify(turns), box = $('#supportTranscript');
-  if (snapshot === transcriptSnapshot) return;
+  if (!box || snapshot === transcriptSnapshot) return;
   const atTop = box.scrollTop < 32;   // newest line is on top; stay there unless the customer scrolled down
   transcriptSnapshot = snapshot;
   const who = {Customer: 'You', 'AI Agent': 'ResolveAI assistant'};

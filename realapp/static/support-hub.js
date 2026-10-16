@@ -147,7 +147,8 @@
     $('#chatStartForm').hidden = true; $('#chatLog').hidden = false;
     // Newest message at the bottom, like any chat; "…" while the assistant or the technician is typing.
     const typing = chat.agent_typing && !ENDED.has(chat.status) ? (chat.status === 'Connected' ? (chat.technician_name || 'Technician') : 'ResolveAI assistant') : '';
-    renderChatWindow($('#chatLog'), chat.transcript, {mine: 'Customer', name: who, typing});
+    renderChatWindow($('#chatLog'), chat.transcript, {mine: 'Customer', name: who, typing, open: !ENDED.has(chat.status),
+      onEdit: async (turnId, text) => { chat = await api(`/api/support/chats/${encodeURIComponent(chat.id)}/messages/${encodeURIComponent(turnId)}`, {method: 'PATCH', body: JSON.stringify({text})}); renderChat(); }});
     renderedTurns = chat.transcript.length;
     const ended = ENDED.has(chat.status);
     $('#chatReplyForm').hidden = ended;
@@ -238,7 +239,12 @@
       await checkVoice();
       let id = null; try { id = sessionStorage.getItem(KEY); } catch (_) {}
       if (id && !chat) {
-        try { chat = await api(`/api/support/chats/${encodeURIComponent(id)}`); renderedTurns = 0; $('#chatLog').innerHTML = ''; delete $('#chatLog').dataset.count; renderChat(); if (!ENDED.has(chat.status)) startPolling(); return; }
+        try {
+          const saved = await api(`/api/support/chats/${encodeURIComponent(id)}`);
+          // A chat that ended while this page was closed isn't reopened; it's on My support with its incident.
+          if (ENDED.has(saved.status)) throw new Error('ended');
+          chat = saved; renderedTurns = 0; $('#chatLog').innerHTML = ''; delete $('#chatLog').dataset.count; renderChat(); startPolling(); return;
+        }
         catch (_) { try { sessionStorage.removeItem(KEY); } catch (__) {} }
       }
       // A finished chat or call isn't shown again: My support opens on the options, ready for a new request.

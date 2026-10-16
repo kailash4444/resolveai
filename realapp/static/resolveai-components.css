@@ -34,7 +34,7 @@
   --canvas: #0B0B0B;  --surface: #161616;  --surface-2: #111111;  --input: #111111;
   --border: #2A2A2A;  --border-strong: #6E6E6E;
   --text: #F2F2F2;    --text-2: #B5B5B5;   --text-3: #949494;
-  --edge: #F2F2F2;    --on-edge: #0B0B0B;  --link: #6FD3A0;     --focus: #7FB2FF;   --quiet-edge: #333333;
+  --edge: #F2F2F2;    --on-edge: #0B0B0B;  --link: #6FD3A0;     --focus: #BDBDBD;   --quiet-edge: #333333;
   --ok: #86C3A2;      --critical: #E39A91; --high: #DCA87E;     --medium: #D0BC80;  --low: #A2BAD2;
   --danger-bg: #B9443F; --danger-fg: #FFFFFF;
   --hl: #FFFFFF12;  --shade: #000000A6;  --glow: 30%;
@@ -899,7 +899,7 @@ body[data-shell="customer"] :is(.shell__main,.shell__notices){max-width:1440px}
 @keyframes wave{50%{transform:scaleY(var(--s,.8))}}
 .demo__chat{gap:10px}
 .bubble{align-self:flex-start;max-width:82%;padding:10px 14px;border-radius:16px 16px 16px 6px;background:var(--surface);border:1px solid var(--border)}
-.bubble--you{align-self:flex-end;border-radius:16px 16px 6px 16px;background:var(--btn-bg);color:var(--btn-fg);border-color:transparent}
+.demo__chat .bubble--you{align-self:flex-end;border-radius:16px 16px 6px 16px;background:var(--btn-bg);color:var(--btn-fg);border-color:transparent}
 .typing{display:none;gap:4px;margin:10px 0 0;padding:12px 14px;width:max-content;border-radius:16px;background:var(--surface);border:1px solid var(--border)}
 .typing.is-shown{display:inline-flex}
 .typing i{width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:blink 1s infinite}
@@ -1290,7 +1290,7 @@ p + .turns{margin-top:10px}
 .cf-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:4px;scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
 .cf-body:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
 .cf-chat{height:632px}
-.cf-kb{height:250px}.cf-steps{height:210px}.cf-pad{height:140px}
+.cf-kb{height:240px}.cf-steps{height:176px}.cf-pad{height:184px}
 .cf-steps--main{height:250px}.cf-pad--main{height:330px}.cf-kb--tall{height:596px}
 .cf-chat .chat-window{flex:1;height:auto;min-height:0}
 .cf-chat__actions{display:flex;gap:8px;padding-top:10px;border-top:1px solid var(--border)}
@@ -1321,3 +1321,62 @@ p + .turns{margin-top:10px}
   .cf-strip .sec{white-space:normal}
 }
 .calls--focused .calls-grid{margin-top:0}
+/* Phones and tablets: iOS zooms the page in when a field under 16px gets focus, which pushed the page off the right
+   edge. Touch screens get 16px fields. The workspace bar also stays on one row (back, menu, logo, theme, log out). */
+@media (hover:none) and (pointer:coarse){
+  :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),select,textarea){font-size:16px!important}
+}
+@media (max-width:768px){
+  .topbar__end{flex-wrap:nowrap;gap:8px}
+  .topbar__end .btn{min-height:40px;padding-inline:14px}
+  .topbar :is(.topbar__back,.topbar__menu,.theme-toggle){flex:none;width:40px;height:40px;min-height:40px}
+}
+@media (max-width:480px){.topbar__brand .brand__name{display:none}}
+/* Phones (iOS and Android): heights follow the visible screen (dvh), so when the keyboard opens the chat card and the
+   live-call panel shrink with it and the reply box stays in view. */
+@supports (height:100dvh){
+  .call-dock{max-height:min(72dvh,calc(100dvh - 24px))}
+}
+@media (max-width:900px){
+  .cf-chat{height:min(632px,calc(100dvh - 140px));min-height:360px}
+  .cf-kb--tall{height:auto;max-height:520px}
+  .cf-pad--main{height:240px}
+  .chat-composer{flex-wrap:nowrap}
+  .chat-composer .btn{flex:none}
+}
+/* Chat message editing. */
+.bubble__edited{font-size:11px;font-style:italic;opacity:.8}
+.bubble__edit{margin-left:auto;padding:0 6px;border:0;border-radius:6px;background:none;color:inherit;font:600 12px var(--font);opacity:.75;cursor:pointer}
+.bubble__edit:hover,.bubble__edit:focus-visible{opacity:1;text-decoration:underline}
+.bubble__edit:focus-visible{outline:2px solid var(--focus)}
+.bubble.is-editing{width:min(78%,560px)}
+.bubble__editor{display:flex;flex-direction:column;gap:6px}
+.bubble__editor textarea{min-height:60px;resize:vertical;color:var(--text);background:var(--input)}
+.bubble__editor-actions{display:flex;justify-content:flex-end;gap:6px}
+.bubble__error{margin:0;font-size:13px}
+@media (hover:hover){.bubble:not(:hover):not(:focus-within) .bubble__edit{opacity:0}}
+.dock-steps{margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.chat-window .bubble__edit{min-height:0;height:auto;background:transparent;border:0;box-shadow:none;color:inherit}
+.chat-window .bubble__editor{margin-top:2px;padding:8px;border-radius:12px;background:var(--surface);color:var(--text)}
+/* One back control: the arrow at the top-left. The in-page "Back to …" links stay in the page for the arrow to use. */
+:is(#ticketDetailBack,[data-call-back],#transcriptPageBack,[data-radar-back]){display:none!important}
+/* Focus: no blue outline. Fields show a quiet ring in the text colour; other controls keep a thin outline in the
+   theme's own neutral so keyboard users can still see where they are. */
+:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),select,textarea):focus,
+:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),select,textarea):focus-visible{outline:none;border-color:var(--text-2);box-shadow:0 0 0 3px color-mix(in srgb,var(--text) 10%,transparent)}
+:focus-visible{outline-width:2px}
+/* Scratch pad: the notes box fills its card instead of spilling past the bottom edge. */
+.cf-card .cf-pad__text{flex:1 1 auto;min-height:0;height:auto;resize:none}
+/* A small label above a heading (CASE MANAGEMENT / Tickets) gets breathing room, the same on every page; so does the
+   line under a page title. */
+:is(.kicker,.eyebrow) + :is(h1,h2,h3){margin-top:8px}
+.page-head :is(h1,h2) + :is(p,.sec,.help){margin-top:6px}
+/* Where the label and heading already sit in a flex column with its own gap, top it up to exactly 8px. */
+.auth__card .kicker + h1{margin-top:-4px}
+.call-full__head .kicker + h2{margin-top:4px}
+/* Log in with Google / Microsoft. */
+.auth__oauth{display:flex;flex-direction:column;gap:12px}
+.auth__or{display:flex;align-items:center;gap:12px;margin:0;font-size:13px;color:var(--text-3)}
+.auth__or::before,.auth__or::after{content:"";flex:1;height:1px;background:var(--border)}
+.auth__providers{display:flex;flex-direction:column;gap:8px}
+.auth__provider{justify-content:center;gap:10px;width:100%}

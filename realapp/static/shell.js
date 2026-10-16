@@ -2,16 +2,32 @@
 (() => {
   const byId = id => document.getElementById(id);
 
-  // Back arrow (top-left): goes back one step inside the app. It only shows when there is a page in this tab's
-  // ResolveAI history to return to; the depth survives a refresh of the same tab.
-  let depth = 0;
-  try { depth = Number(sessionStorage.getItem('resolveai-nav-depth') || 0); } catch (_) {}
-  const saveDepth = () => { try { sessionStorage.setItem('resolveai-nav-depth', String(depth)); } catch (_) {} const back = byId('navBack'); if (back) back.hidden = depth < 1; };
+  // Back arrow (top-left): the one back control in the workspace. On a detail page (a ticket, a call, a transcript, a
+  // Resolution debt issue) it returns to that page's list, using the page's own (hidden) back link; anywhere else it
+  // goes one step back in this tab's ResolveAI history. The history depth survives a refresh of the same tab.
+  const PAGE_BACK = '#ticketDetailBack, [data-call-back], #transcriptPageBack, [data-radar-back]';
+  const pageBack = () => [...document.querySelectorAll(PAGE_BACK)].find(el => !el.hidden && el.parentElement?.offsetParent !== null);
+  // The pages this tab came through (oldest first), so Back retraces the real path instead of bouncing between a list
+  // and the item just left.
+  let trail = [];
+  try { trail = JSON.parse(sessionStorage.getItem('resolveai-nav-trail') || '[]'); } catch (_) {}
+  const here = () => location.pathname + location.search;
+  const syncBack = () => { const back = byId('navBack'); if (back) back.hidden = !trail.length && !pageBack(); };
+  const saveDepth = () => { try { sessionStorage.setItem('resolveai-nav-trail', JSON.stringify(trail.slice(-50))); } catch (_) {} syncBack(); };
   const push = history.pushState.bind(history);
-  history.pushState = (...args) => { depth += 1; saveDepth(); return push(...args); };
-  window.addEventListener('popstate', () => { depth = Math.max(0, depth - 1); saveDepth(); });
-  document.addEventListener('click', event => { if (event.target.closest('#navBack')) history.back(); });
+  history.pushState = (...args) => { trail.push(here()); saveDepth(); return push(...args); };
+  window.addEventListener('popstate', () => { trail.pop(); saveDepth(); });
+  document.addEventListener('click', event => {
+    if (event.target.closest('#navBack')) {
+      const link = pageBack(), target = link && new URL(link.getAttribute('href') || '', location.href);
+      // Came here from that list: step back to it. Opened directly: go to the list. Anywhere else: one step back.
+      if (link && trail.at(-1) !== target.pathname + target.search) link.click();
+      else if (trail.length) history.back();
+    }
+    setTimeout(syncBack, 0);
+  });
   document.addEventListener('DOMContentLoaded', saveDepth);
+  setInterval(syncBack, 600);   // detail pages also open from code (deep links, offers), not only from clicks
   saveDepth();
   const svg = path => `<svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
   const ICONS = {

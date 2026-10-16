@@ -25,6 +25,28 @@
              button: 'Create administrator account', busy: 'Creating account…', page: 'Set up ResolveAI'},
   };
 
+  // Log in with Google / Microsoft: buttons appear for the providers the server has keys for. The side (customer or
+  // technician) travels with the request, and the server applies the same rules as the email form.
+  const PROVIDER_ICONS = {
+    google: '<svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>',
+    microsoft: '<svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 21 21"><path fill="#F25022" d="M1 1h9v9H1z"/><path fill="#7FBA00" d="M11 1h9v9h-9z"/><path fill="#00A4EF" d="M1 11h9v9H1z"/><path fill="#FFB900" d="M11 11h9v9h-9z"/></svg>',
+  };
+  const OAUTH_ERRORS = {
+    cancelled: 'Log in was cancelled. Try again, or use your email and password.',
+    expired: 'That log-in attempt timed out. Try again.',
+    unverified: 'That account didn’t share a verified email address. Log in with your email and password instead.',
+    no_account: 'We couldn’t log you in with that account. Check you chose the right side (Customer or Technician), or ask your administrator.',
+    signup_off: 'Creating an account is turned off. Ask your ResolveAI administrator for an account.',
+    failed: 'Log in with that account didn’t work. Try again, or use your email and password.',
+  };
+  function renderProviders() {
+    const list = auth?.oauth || [], show = list.length > 0 && ['signin', 'staff', 'signup'].includes(mode);
+    $('#authOauth').hidden = !show;
+    if (!show) return;
+    const side = mode === 'staff' ? 'technician' : 'customer', verb = mode === 'signup' ? 'Sign up' : 'Continue';
+    $('#authProviders').innerHTML = list.map(item => `<a class="btn btn-soft auth__provider" href="/api/auth/oauth/${encodeURIComponent(item.id)}/start?side=${side}">${PROVIDER_ICONS[item.id] || ''}<span>${verb} with ${esc(item.label)}</span></a>`).join('');
+  }
+
   // Customer links keep ?next (it only leads to customer pages) so the user still lands where they were going.
   const PATHS = {signin: '/login', signup: '/signup', staff: '/login'};
   function linkFor(target) {
@@ -75,6 +97,7 @@
     document.querySelectorAll('#authSignupNotice [data-auth-link]').forEach(link => { link.href = linkFor('signin'); });
     document.title = copy.page;
     clearError();
+    renderProviders();
   }
 
   function clearError() {
@@ -90,7 +113,7 @@
   // Called by loadApplication when nobody is signed in.
   async function showPublic(status) {
     auth = status;
-    const path = location.pathname;
+    const path = location.pathname, oauthError = OAUTH_ERRORS[params().get('oauth_error')];
     $('#roleSignInChoices').hidden = !!auth.setup_required;
     $('#firstAdminSetup').hidden = !auth.setup_required;
     // ?auth=login is the older log-in link (still used by some buttons and bookmarks); it opens /login.
@@ -108,6 +131,7 @@
     history.replaceState(null, '', `${target}${query.toString() ? `?${query}` : ''}`);
     setMode(auth.setup_required ? 'setup' : target === '/signup' ? (auth.signup_enabled === false ? 'closed' : 'signup') : staff ? 'staff' : 'signin');
     $('#authNextNotice').hidden = !nextParam() || mode === 'staff';
+    if (oauthError) showError(oauthError, []);   // back from Google / Microsoft without logging in
     (mode === 'setup' || mode === 'signup' ? form.elements.name : mode === 'closed' ? $('#authTitle') : form.elements.username).focus({preventScroll: true});
   }
 

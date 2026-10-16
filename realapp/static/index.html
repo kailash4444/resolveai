@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=3">
   <title>ResolveAI · Enterprise Service Desk</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/resolveai-components.css?v=20261015-ux26">
+  <link rel="stylesheet" href="/static/resolveai-components.css?v=20261016-m6">
   <script src="/static/theme.js?v=7"></script>
 </head>
 <body data-role="guest" data-shell="public" data-mode="focus">
@@ -172,6 +172,10 @@
               <button class="btn btn-primary auth__submit" type="submit" id="authSubmit">Log in <span aria-hidden="true">→</span></button>
               <p class="help" id="authHelp">Forgot your password? Contact your ResolveAI administrator.</p>
             </form>
+            <div class="auth__oauth" id="authOauth" hidden>
+              <p class="auth__or" aria-hidden="true"><span>or</span></p>
+              <div class="auth__providers" id="authProviders"></div>
+            </div>
             <div class="stack" id="authSignupNotice" hidden>
               <p class="alert alert--info"><strong>○ You can’t create an account here.</strong><span class="sec">Your administrator adds you in ResolveAI and tells you your login details.</span></p>
               <a class="btn btn-primary" href="/login" data-auth-link="signin">Back to log in</a>
@@ -653,14 +657,14 @@
   <script src="/static/resolveai-components.js?v=3"></script>
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=6"></script>
-  <script src="/static/shell.js?v=20261015-ux"></script>
+  <script src="/static/shell.js?v=20261016-m2"></script>
   <script src="/static/uploader.js?v=20261015-qa"></script>
-  <script src="/static/app.js?v=20261015-ux10"></script>
-  <script src="/static/auth.js?v=15"></script>
+  <script src="/static/app.js?v=20261016-m1"></script>
+  <script src="/static/auth.js?v=16"></script>
   <script src="/static/landing.js?v=2"></script>
-  <script src="/static/support-hub.js?v=11"></script>
+  <script src="/static/support-hub.js?v=13"></script>
   <script src="/static/resolution-radar.js?v=7"></script>
-  <script src="/static/calling.js?v=20261015-ux10"></script>
+  <script src="/static/calling.js?v=20261016-m4"></script>
   <script src="/static/transcripts.js?v=20261015-ux"></script>
   <script src="/static/incident-time-machine.js?v=6"></script>
 </body>

@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=3">
   <title>Talk to support · ResolveAI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/resolveai-components.css?v=72">
+  <link rel="stylesheet" href="/static/resolveai-components.css?v=78">
   <script src="/static/theme.js?v=7"></script>
 </head>
 <body class="support" data-mode="focus">
@@ -46,10 +46,6 @@
           <button id="askTechnician" class="call-btn" type="button"><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>Ask for a technician</button>
           <button id="endSupportCall" class="call-btn call-btn--danger" type="button"><span class="call-btn__icon"><svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15c5-5 13-5 18 0l-2 3-4-1v-3a10 10 0 0 0-6 0v3l-4 1z"/></svg></span>End call</button>
         </div>
-        <details class="transcript-box" open>
-          <summary>Live transcript</summary>
-          <div id="supportTranscript" class="turns" aria-live="polite" aria-relevant="additions" tabindex="0" aria-label="Live transcript"><p class="help">Your conversation appears here once transcription starts.</p></div>
-        </details>
       </section>
       <div data-live-caption-host></div>
       <section class="mic-panel stack stack--sm" data-microphone-panel hidden></section>
@@ -70,6 +66,6 @@
   <script src="/static/resolveai-components.js?v=3"></script>
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=6"></script>
-  <script src="/static/support.js?v=21"></script>
+  <script src="/static/support.js?v=22"></script>
 </body>
 </html>

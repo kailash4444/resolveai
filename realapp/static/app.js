@@ -11,12 +11,18 @@ function priorityBadge(value) {
 // One chat window for customers and technicians. Messages are added at the bottom (only new ones, so screen readers
 // announce just those); the view follows the newest message unless the reader scrolled up. "typing" names whoever is
 // typing on the other side and shows an animated bubble.
-function renderChatWindow(box, turns, {mine, name, typing = ''}) {
+function renderChatWindow(box, turns, {mine, name, typing = '', open = false, onEdit = null}) {
+  // Leave the window alone while a message is being edited, so polling doesn't throw the edit away.
+  if (box.querySelector('.bubble.is-editing')) return;
+  box._onEdit = onEdit;
+  // Edited messages and the chat closing redraw the window; otherwise only new messages are added.
+  const signature = `${open && onEdit ? 1 : 0}|${turns.map(turn => turn.edited ? `${turn.id}:${turn.text}` : '').join('|')}`;
+  if (box.dataset.signature !== signature) { box.innerHTML = ''; box.dataset.count = 0; box.dataset.signature = signature; }
   const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
   box.querySelectorAll('[data-pending], .bubble--typing').forEach(item => item.remove());
   const shown = Number(box.dataset.count || 0);
   if (turns.length < shown) { box.innerHTML = ''; box.dataset.count = 0; }
-  turns.slice(Number(box.dataset.count || 0)).forEach(turn => box.append(chatBubble(turn, turn.speaker === mine, name(turn))));
+  turns.slice(Number(box.dataset.count || 0)).forEach(turn => box.append(chatBubble(turn, turn.speaker === mine, name(turn), false, open && !!onEdit && turn.speaker === mine && !!turn.id)));
   box.dataset.count = turns.length;
   if (typing) {
     const dots = document.createElement('div');
@@ -26,14 +32,67 @@ function renderChatWindow(box, turns, {mine, name, typing = ''}) {
   }
   if (nearBottom || turns.length > shown) box.scrollTop = box.scrollHeight;
 }
-function chatBubble(turn, own, who, pending = false) {
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
+function chatBubble(turn, own, who, pending = false, editable = false) {
   const item = document.createElement('div');
   item.className = `bubble${own ? ' bubble--me' : ''}${turn.speaker === 'AI Agent' ? ' bubble--ai' : ''}`;
   if (pending) item.dataset.pending = '';
+  if (turn.id) item.dataset.turn = turn.id;
   const time = turn.timestamp ? `<time>${esc(new Date(turn.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}))}</time>` : '';
-  item.innerHTML = `<span class="bubble__who">${esc(who)}${time}</span><p>${esc(turn.text)}</p>`;
+  const recent = turn.timestamp && Date.now() - new Date(turn.timestamp).getTime() < EDIT_WINDOW_MS;
+  const edit = editable && recent ? `<button type="button" class="bubble__edit" data-edit-turn="${esc(turn.id)}" aria-label="Edit message">Edit</button>` : '';
+  item.innerHTML = `<span class="bubble__who">${esc(who)}${time}${turn.edited ? '<span class="bubble__edited">Edited</span>' : ''}${edit}</span><p>${esc(turn.text)}</p>`;
   return item;
 }
+// Editing a sent chat message: the bubble turns into a small editor. Enter saves, Shift+Enter adds a line, Escape cancels.
+function closeBubbleEditor(bubble, text) {
+  bubble.classList.remove('is-editing');
+  bubble.querySelector('.bubble__editor')?.remove();
+  const p = bubble.querySelector('p'); p.hidden = false; if (text != null) p.textContent = text;
+  bubble.querySelector('.bubble__edit')?.focus();
+}
+async function saveBubbleEdit(bubble) {
+  const box = bubble.closest('.chat-window'), field = bubble.querySelector('.bubble__editor textarea'), text = field.value.trim();
+  const original = bubble.querySelector('p').textContent;
+  if (!text || text === original) { closeBubbleEditor(bubble); return; }
+  field.disabled = true;
+  try {
+    await box._onEdit(bubble.dataset.turn, text);
+    closeBubbleEditor(bubble, text);
+    box.dataset.signature = '';   // redraw with the "Edited" label
+  } catch (error) {
+    field.disabled = false;
+    const hint = bubble.querySelector('.bubble__error'); hint.textContent = error.message; hint.hidden = false;
+  }
+}
+document.addEventListener('click', event => {
+  const start = event.target.closest('[data-edit-turn]');
+  if (start) {
+    const bubble = start.closest('.bubble');
+    if (bubble.classList.contains('is-editing')) return;
+    bubble.classList.add('is-editing');
+    const p = bubble.querySelector('p'); p.hidden = true;
+    const editor = document.createElement('form');
+    editor.className = 'bubble__editor';
+    editor.innerHTML = `<textarea class="input" rows="2" maxlength="4000" aria-label="Edit message"></textarea><p class="bubble__error" role="alert" hidden></p><div class="bubble__editor-actions"><button type="button" class="btn btn-soft btn-sm" data-edit-cancel>Cancel</button><button type="submit" class="btn btn-primary btn-sm">Save</button></div>`;
+    bubble.append(editor);
+    const field = editor.querySelector('textarea'); field.value = p.textContent; field.focus(); field.setSelectionRange(field.value.length, field.value.length);
+    return;
+  }
+  const cancel = event.target.closest('[data-edit-cancel]');
+  if (cancel) closeBubbleEditor(cancel.closest('.bubble'));
+});
+document.addEventListener('submit', event => {
+  const editor = event.target.closest('.bubble__editor');
+  if (!editor) return;
+  event.preventDefault(); saveBubbleEdit(editor.closest('.bubble'));
+});
+document.addEventListener('keydown', event => {
+  const editor = event.target.closest?.('.bubble__editor');
+  if (!editor) return;
+  if (event.key === 'Escape') { event.preventDefault(); closeBubbleEditor(editor.closest('.bubble')); }
+  else if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); saveBubbleEdit(editor.closest('.bubble')); }
+});
 // A message the sender just wrote shows at once, before the server confirms it.
 function showPendingBubble(box, text, who) { box.append(chatBubble({text}, true, who, true)); box.scrollTop = box.scrollHeight; }
 

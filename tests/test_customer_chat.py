@@ -26,7 +26,7 @@ def test_customer_chat_runs_from_start_to_technician_reply_and_end(webapp):
     started = casey.post('/api/support/chats', json={'description': 'Outlook closes whenever I open the shared team calendar.'})
     assert started.status_code == 201
     chat = started.json()
-    assert chat['transcript'][0] == {'speaker': 'Customer', 'text': 'Outlook closes whenever I open the shared team calendar.', 'timestamp': chat['transcript'][0]['timestamp']}
+    assert chat['transcript'][0] == {'id': chat['transcript'][0]['id'], 'speaker': 'Customer', 'text': 'Outlook closes whenever I open the shared team calendar.', 'timestamp': chat['transcript'][0]['timestamp']}
     # Starting returns at once with the assistant typing; triage and the first reply follow in the background.
     assert chat['status'] == 'Triage' and chat['agent_typing'] is True
     chat = casey.get(f"/api/support/chats/{chat['id']}").json()
@@ -140,3 +140,81 @@ def test_a_chat_the_customer_left_is_closed_and_frees_the_technician(webapp):
     assert closed['status'] == 'Completed' and 'no reply' in closed['transcript'][-1]['text']
     tech = next(t for t in service.snapshot()['technicians'] if t['id'] == tara_id)
     assert tech['current_call_id'] is None
+
+
+def test_senders_can_edit_their_own_chat_messages_while_the_chat_is_open(webapp):
+    app, service, _ = _setup(webapp)
+    casey = _client(app, 'casey', 'casey-password-1234')
+    chat = casey.post('/api/support/chats', json={'description': 'Teams keeps freezing during meetings.'}).json()
+    casey.post(f"/api/support/chats/{chat['id']}/technician")
+    tara = _client(app, 'tara', 'tara-password-1234', 'technician')
+    tara_id = service.authenticate(tara.cookies.get('resolveai_session'))['id']
+    service.presence(tara_id, 'Available'); service.heartbeat(tara_id, False)
+    tara.post(f"/api/calling/{chat['id']}/accept")
+    sent = casey.post(f"/api/support/chats/{chat['id']}/messages", json={'text': 'It freezes on vidoe'}).json()['transcript'][-1]
+    assert sent['id']
+
+    edited = casey.patch(f"/api/support/chats/{chat['id']}/messages/{sent['id']}", json={'text': 'It freezes on video calls'})
+    assert edited.status_code == 200
+    turn = next(t for t in edited.json()['transcript'] if t['id'] == sent['id'])
+    assert turn['text'] == 'It freezes on video calls' and turn['edited'] is True
+    # The incident keeps the corrected text.
+    assert any(t.text == 'It freezes on video calls' for t in service.case_store.get_case(service.get(chat['id'])['case_id']).transcript)
+
+    # Nobody edits someone else's message: not the AI's, not the customer's from the technician side.
+    ai = next(t for t in edited.json()['transcript'] if t['speaker'] == 'AI Agent')
+    assert casey.patch(f"/api/support/chats/{chat['id']}/messages/{ai['id']}", json={'text': 'x'}).status_code == 403
+    assert tara.patch(f"/api/calling/{chat['id']}/messages/{sent['id']}", json={'text': 'x'}).status_code == 403
+    reply = tara.post(f"/api/calling/{chat['id']}/reply", json={'text': 'Plese clear the cache.'}).json()['transcript'][-1]
+    assert tara.patch(f"/api/calling/{chat['id']}/messages/{reply['id']}", json={'text': 'Please clear the cache.'}).status_code == 200
+    other = _client(app, 'other', 'other-password-1234')
+    assert other.patch(f"/api/support/chats/{chat['id']}/messages/{sent['id']}", json={'text': 'x'}).status_code == 404
+
+    casey.post(f"/api/support/chats/{chat['id']}/end")
+    assert casey.patch(f"/api/support/chats/{chat['id']}/messages/{sent['id']}", json={'text': 'later'}).status_code == 409
+
+
+def test_a_chat_goes_to_a_technician_when_the_ai_cannot_read_the_request(webapp):
+    app, service, _ = _setup(webapp)
+    casey = _client(app, 'casey', 'casey-password-1234')
+
+    def down(call_id):
+        raise RuntimeError('Gemini unavailable')
+    service.triage = down
+    chat = casey.post('/api/support/chats', json={'description': 'Excel crashes when I open the budget workbook.'}).json()
+    chat = casey.get(f"/api/support/chats/{chat['id']}").json()
+    assert chat['status'] == 'Queued' and chat['agent_typing'] is False
+    assert 'connecting you with a technician' in chat['transcript'][-1]['text']
+
+
+def test_a_technician_answering_before_the_ai_finishes_keeps_one_incident(webapp):
+    app, service, _ = _setup(webapp)
+    casey = _client(app, 'casey', 'casey-password-1234')
+    real_triage = service.triage
+    service.triage = lambda call_id: service.get(call_id)   # the AI is still reading the request
+    chat = casey.post('/api/support/chats', json={'description': 'Please connect me to a technician about my monitor.'}).json()
+    casey.post(f"/api/support/chats/{chat['id']}/technician")
+    tara = _client(app, 'tara', 'tara-password-1234', 'technician')
+    tara_id = service.authenticate(tara.cookies.get('resolveai_session'))['id']
+    service.presence(tara_id, 'Available'); service.heartbeat(tara_id, False)
+    assert tara.post(f"/api/calling/{chat['id']}/accept").status_code == 200
+    live = service.get(chat['id'])['live_case_id']
+    before = len(service.case_store.list_cases())
+
+    real_triage(chat['id'])   # the analysis finishes after the technician answered
+    assert service.get(chat['id'])['case_id'] == live and len(service.case_store.list_cases()) == before
+    tara.post(f"/api/calling/{chat['id']}/finish")
+    assert service.get(chat['id'])['case_id'] == live
+
+
+def test_the_handoff_message_is_posted_once_and_gains_the_incident_number(webapp):
+    app, service, _ = _setup(webapp)
+    casey = _client(app, 'casey', 'casey-password-1234')
+    service.triage = lambda call_id: service.get(call_id)   # the AI is still reading the request
+    chat = casey.post('/api/support/chats', json={'description': 'My second monitor stays black after docking.'}).json()
+    casey.post(f"/api/support/chats/{chat['id']}/technician")
+    # Starting the chat already handed off (the stubbed analysis didn't pick the AI); asking for a technician
+    # straight after must not post the message a second time.
+    turns = casey.get(f"/api/support/chats/{chat['id']}").json()['transcript']
+    handoffs = [t for t in turns if t['text'].startswith('I’m connecting you with a technician')]
+    assert len(handoffs) == 1

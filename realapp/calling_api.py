@@ -1,12 +1,15 @@
+import logging
 import asyncio
 import time
 import hmac
+import hashlib
+import json
 from contextlib import asynccontextmanager
 from pydantic import BaseModel, Field
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, HTMLResponse, RedirectResponse
 from realapp.call_analytics import CallQuality, filtered_analytics, overall_quality, visible_call, audit_current
 
 from realapp.calling import CallingService, TechnicianCreate, Registration, Login, Presence, Heartbeat, CallSettings, SupportRequest, CustomerMessage, TERMINAL
@@ -15,6 +18,7 @@ from realapp.services import normalize_service
 from realapp.models import TicketUpdate
 from realapp.livekit_transport import LiveKitTransport
 from realapp.livekit_setup import LiveKitSetup, LiveKitCredentials, check_connection
+from realapp import oauth
 
 
 class ChatStart(BaseModel):
@@ -117,7 +121,7 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
                 allowed = {str(request.base_url).rstrip("/"), settings.public_base_url.rstrip("/")}
                 if origin and origin not in allowed:
                     return JSONResponse({"detail": "Cross-site requests are not allowed."}, status_code=403)
-            public = path in {'/api/health','/api/auth/status','/api/auth/setup','/api/auth/login','/api/auth/register'}
+            public = path in {'/api/health','/api/auth/status','/api/auth/setup','/api/auth/login','/api/auth/register'} or path.startswith('/api/auth/oauth/')
             if not public:
                 actor = service.authenticate(request.cookies.get('resolveai_session'))
                 if not actor:
@@ -145,7 +149,83 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
     @router.get("/api/auth/status")
     def auth_status(request: Request):
         return {"setup_required": not service.has_users(), "user": service.authenticate(request.cookies.get("resolveai_session")),
-                "setup_token_required": not local(request), "login_required": True, "signup_enabled": settings.allow_customer_signup}
+                "setup_token_required": not local(request), "login_required": True, "signup_enabled": settings.allow_customer_signup,
+                "oauth": oauth.providers(settings)}
+
+    # ---- Log in with Google / Microsoft ----
+    # Start: remember this attempt (state, PKCE verifier, nonce, which log-in side) for 10 minutes in the shared store, so
+    # any instance can finish it, and tie it to this browser with a short-lived cookie. Return: check both, swap the code
+    # for the person's verified email, then log in exactly like the email form does.
+    OAUTH_COOKIE, OAUTH_PATH = 'resolveai_oauth', '/api/auth/oauth'
+
+    def oauth_return_url(request, provider):
+        base = (settings.public_base_url or '').rstrip('/')
+        if not base:
+            scheme = request.headers.get('x-forwarded-proto', request.url.scheme).split(',')[0].strip()
+            base = f"{scheme}://{request.headers.get('host') or request.url.netloc}"
+        return f'{base}/api/auth/oauth/{provider}/callback'
+
+    def back_to_login(side, code):
+        return RedirectResponse(f"/login?{'as=staff&' if side == 'technician' else ''}oauth_error={code}", status_code=303)
+
+    @router.get('/api/auth/oauth/{provider}/start')
+    def oauth_start(provider: str, request: Request, side: str = 'customer'):
+        if provider not in {item['id'] for item in oauth.providers(settings)}:
+            raise HTTPException(404, 'This sign-in option isn’t set up on this server.')
+        side, attempt, now = ('technician' if side == 'technician' else 'customer'), oauth.new_request(), time.time()
+        # Local testing: providers have http://127.0.0.1:… registered, so a sign-in started on localhost moves to
+        # 127.0.0.1 first (cookies are kept per host name, so the whole sign-in has to happen on one of them).
+        if not settings.public_base_url and request.url.hostname == 'localhost':
+            return RedirectResponse(str(request.url.replace(hostname='127.0.0.1')), status_code=303)
+
+        def remember(db):
+            pending = {k: v for k, v in db.get('oauth_states', {}).items() if v['expires'] > now}
+            pending[hashlib.sha256(attempt['state'].encode()).hexdigest()] = {
+                'provider': provider, 'side': side, 'verifier': attempt['verifier'], 'nonce': attempt['nonce'], 'expires': now + 600}
+            db['oauth_states'] = pending
+        service.repository.mutate(remember, call_ids=())
+        response = RedirectResponse(oauth.authorize_url(settings, provider, oauth_return_url(request, provider), attempt), status_code=303)
+        response.set_cookie(OAUTH_COOKIE, attempt['state'], httponly=True, secure=not local(request), samesite='lax', max_age=600, path=OAUTH_PATH)
+        return response
+
+    @router.get('/api/auth/oauth/{provider}/callback')
+    def oauth_callback(provider: str, request: Request, state: str = '', code: str = '', error: str = ''):
+        now, key = time.time(), hashlib.sha256(state.encode()).hexdigest()
+
+        def take(db):   # single use: the attempt is removed whatever happens next
+            pending = {k: v for k, v in db.get('oauth_states', {}).items() if v['expires'] > now}
+            attempt = pending.pop(key, None)
+            db['oauth_states'] = pending
+            return attempt
+        attempt = service.repository.mutate(take, call_ids=()) if state else None
+        side = attempt['side'] if attempt else 'customer'
+        if not attempt or attempt['provider'] != provider or not hmac.compare_digest(request.cookies.get(OAUTH_COOKIE, ''), state):
+            return back_to_login(side, 'expired')
+        if error or not code:
+            return back_to_login(side, 'cancelled' if error == 'access_denied' else 'failed')
+        log = logging.getLogger(__name__)
+        try:
+            tokens = oauth.fetch_tokens(settings, provider, code, oauth_return_url(request, provider), attempt['verifier'])
+            email, name = oauth.identity(settings, provider, tokens, attempt['nonce'])
+            token, account = service.oauth_account(email, name, side, settings.allow_customer_signup)
+        except oauth.OAuthError as problem:
+            log.warning('%s sign-in refused: %s', provider, problem)
+            return back_to_login(side, problem.code)
+        except HTTPException as problem:
+            return back_to_login(side, {401: 'no_account', 403: 'signup_off'}.get(problem.status_code, 'failed'))
+        except Exception as problem:
+            log.warning('%s sign-in failed (%s)', provider, type(problem).__name__)
+            return back_to_login(side, 'failed')
+        # The session cookie is SameSite=Strict, which browsers hold back on a redirect chain that began at Google or
+        # Microsoft. This small page moves on from our own site, so the cookie goes with the next request.
+        home = {'customer': '/portal', 'admin': '/admin'}.get(account['role'], '/console')
+        page = (f'<!doctype html><html lang="en"><meta charset="utf-8"><title>Logging in · ResolveAI</title>'
+                f'<meta http-equiv="refresh" content="0;url={home}"><script>location.replace({json.dumps(home)})</script>'
+                f'<p>Logging you in… <a href="{home}">Continue</a></p></html>')
+        response = HTMLResponse(page, headers={'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer'})
+        cookie(response, token, request)
+        response.delete_cookie(OAUTH_COOKIE, path=OAUTH_PATH)
+        return response
 
     @router.post("/api/auth/setup", status_code=201)
     def setup(value: TechnicianCreate, request: Request, response: Response):
@@ -385,7 +465,8 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
         return {key: call.get(key) for key in ('id', 'status', 'technician_name', 'case_id', 'created_at', 'ended_at', 'last_error')} | {
             'ticket_number': case.ticket.id if case else '',
             'agent_typing': service.is_typing(call, 'agent'),
-            'transcript': [{key: turn.get(key) for key in ('speaker', 'text', 'timestamp')} for turn in call.get('transcript', [])[-100:]]}
+            'transcript': [{key: turn.get(key) for key in ('speaker', 'text', 'timestamp')} | {key: turn[key] for key in ('id', 'edited') if turn.get(key)}
+                           for turn in call.get('transcript', [])[-100:]]}
 
     def own_chat(request, chat_id):
         actor = user(request)
@@ -394,12 +475,25 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
             raise HTTPException(404, 'Chat not found.')
         return call
 
+    HANDOFF = 'I’m connecting you with a technician now. They’ll join this chat shortly.'
+
     def handoff_message(call_id):
-        """Posted when a chat moves to the technician queue, so the customer knows what happens and has their number."""
+        """Posted when a chat moves to the technician queue, so the customer knows what happens and has their number.
+        Posted once: if it's already the latest message (the customer asked while the AI was still reading the request),
+        it only gains the incident number."""
         call = service.get(call_id)
         case = service.case_store.get_case(call['case_id']) if call.get('case_id') else None
-        number = f' Your incident number is {case.ticket.id}.' if case else ''
-        service.add_turn(call_id, 'AI Agent', f'I’m connecting you with a technician now. They’ll join this chat shortly.{number}')
+        text = HANDOFF + (f' Your incident number is {case.ticket.id}.' if case else '')
+        last = call['transcript'][-1] if call['transcript'] else None
+        if last and last['speaker'] == 'AI Agent' and last['text'].startswith(HANDOFF):
+            if case and case.ticket.id not in last['text']:
+                def number(db):
+                    turn = db['calls'][call_id]['transcript'][-1]
+                    if turn.get('id') == last.get('id'):
+                        turn['text'] = text
+                service.repository.mutate(number, call_ids=(call_id,))
+            return
+        service.add_turn(call_id, 'AI Agent', text)
 
     def ai_turn(call_id, background_tasks, resolve_on_confirm):
         """The assistant's next chat message. Runs after the customer's message has been saved and returned, with a
@@ -436,8 +530,18 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
         return chat_view(service.get(call['id']))
 
     def first_reply(call_id, background_tasks):
-        call = service.triage(call_id)
-        service.refresh_knowledge(call_id)
+        try:
+            call = service.triage(call_id)
+            service.refresh_knowledge(call_id)
+        except Exception:
+            # The AI couldn't read the request (for example Gemini is down): hand the chat to a technician instead of
+            # leaving the customer watching the typing dots.
+            logging.getLogger(__name__).warning('Chat triage failed for %s; handing to a technician', call_id)
+            service.repository.mutate(lambda db: db['calls'][call_id].setdefault('typing', {}).update(agent=0), call_ids=(call_id,))
+            if service.get(call_id)['status'] not in TERMINAL:
+                service.enqueue(call_id, 'AI assistance is unavailable')
+                handoff_message(call_id)
+            return
         if call['status'] == 'AI':
             ai_turn(call_id, background_tasks, False)
         else:
@@ -473,6 +577,11 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
             service.enqueue(chat_id, 'Customer asked for a technician')
             handoff_message(chat_id)
         return chat_view(service.get(chat_id))
+
+    @router.patch('/api/support/chats/{chat_id}/messages/{turn_id}')
+    def chat_edit(chat_id: str, turn_id: str, value: CustomerMessage, request: Request):
+        own_chat(request, chat_id)
+        return chat_view(service.edit_turn(chat_id, turn_id, 'Customer', value.text))
 
     @router.post('/api/support/chats/{chat_id}/end')
     def end_chat(chat_id: str, request: Request):
@@ -529,6 +638,13 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
             raise HTTPException(409, 'You can reply after you accept this chat.')
         service.add_turn(call_id, 'Technician', value.text)
         return service.get(call_id)
+
+    @router.patch('/api/calling/{call_id}/messages/{turn_id}')
+    def technician_edit(call_id: str, turn_id: str, value: CustomerMessage, request: Request):
+        _, call = own_call(request, call_id)
+        if call.get('channel') != 'chat':
+            raise HTTPException(409, 'Only chat messages can be edited.')
+        return service.edit_turn(call_id, turn_id, 'Technician', value.text)
 
     def own_call(request, call_id):
         actor = user(request)
