@@ -7,6 +7,7 @@ import secrets
 import time
 from threading import RLock
 from uuid import uuid4
+from weakref import WeakValueDictionary
 
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -138,6 +139,9 @@ class CallingService:
         from realapp.gemini import GeminiEngine
         self.knowledge_engine = engine if isinstance(engine, GeminiEngine) else GeminiEngine(settings, case_store.list_knowledge)
         self._ticket_lock = RLock()
+        # Searches for different calls never block each other. Idle locks are released.
+        self._knowledge_locks = WeakValueDictionary()
+        self._knowledge_lock_guard = RLock()
         self._idle_checked = 0
         self.on_finished = None
         # Running apps schedule durable post-call jobs; standalone integrations may supply an executor.
@@ -338,7 +342,11 @@ class CallingService:
     def add_turn(self, call_id, speaker, text):
         def append(db):
             call = db["calls"][call_id]
+            call['transcript_revision'] = call.get('transcript_revision', len(call['transcript'])) + 1
             call["transcript"].append({"speaker": speaker, "text": text[:8000], "timestamp": stamp()})
+            if not call.get('knowledge_original_issue'):
+                call['knowledge_original_issue'] = next((turn['text'].strip()[:500] for turn in call['transcript']
+                    if turn['speaker'] == 'Customer' and self._knowledge_text(turn['text'])), '')
             # Whoever just sent a message has stopped typing.
             call.setdefault('typing', {})['customer' if speaker == 'Customer' else 'agent'] = 0
             if speaker == 'Customer':
@@ -387,8 +395,22 @@ class CallingService:
         return self.repository.mutate(save, call_ids=(call_id,))
 
     @staticmethod
+    def _knowledge_text(text):
+        return text.strip() and text.strip().casefold().strip('.!?') not in {
+            'hello', 'hi', 'ok', 'okay', 'thanks', 'thank you', 'sure'}
+
+    @staticmethod
     def knowledge_query(call):
-        return '\n'.join(turn['text'] for turn in call['transcript'] if turn['speaker'] == 'Customer')[-4000:]
+        # Keep the original problem, but weight the recent conversation by giving it
+        # most of the query budget. Labels distinguish questions/suggestions from outcomes.
+        turns = [turn for turn in call['transcript']
+            if turn.get('speaker') in {'Customer', 'Technician', 'AI Agent', 'AI', 'Assistant'}
+            and CallingService._knowledge_text(turn.get('text', ''))]
+        original = call.get('knowledge_original_issue') or next((turn['text'].strip() for turn in turns if turn['speaker'] == 'Customer'), '')
+        if not original:
+            return ''
+        recent = '\n'.join(f"{turn['speaker']}: {turn['text'].strip()[-400:]}" for turn in turns[-8:])
+        return f'Original customer issue: {original[:500]}\nRecent conversation (latest last):\n{recent}'[:4000]
 
     @staticmethod
     def _handoff_brief(call, reason):
@@ -416,13 +438,33 @@ class CallingService:
         call['handoff_brief'] = self._handoff_brief(call, reason)
 
     def refresh_knowledge(self, call_id):
-        """Retrieve off the audio thread; only update call guidance, never ticket edits."""
+        """Retrieve off the audio thread; one search per call, never ticket edits."""
+        with self._knowledge_lock_guard:
+            lock = self._knowledge_locks.get(call_id)
+            if lock is None:
+                lock = self._knowledge_locks[call_id] = RLock()
+        with lock:
+            return self._refresh_knowledge(call_id)
+
+    def _refresh_knowledge(self, call_id):
         call = self.get(call_id)
         query = self.knowledge_query(call)
         if not query or call['status'] in TERMINAL:
             return
+        revision = call.get('transcript_revision', len(call['transcript']))
+        through = call['transcript'][-1].get('timestamp') if call['transcript'] else None
+        if call.get('knowledge_query') == query and call.get('knowledge_status') in {'ready', 'updating'}:
+            def reuse(db):
+                current = db['calls'][call_id]
+                if current['status'] not in TERMINAL and revision >= current.get('knowledge_revision', -1):
+                    current.update(knowledge_revision=revision, knowledge_through_at=through,
+                        knowledge_status='ready' if self.knowledge_query(current) == query else 'updating')
+            self.repository.mutate(reuse, call_ids=(call_id,))
+            return
         def status(db):
-            db['calls'][call_id]['knowledge_status'] = 'searching'
+            current = db['calls'][call_id]
+            if current['status'] not in TERMINAL:
+                current.update(knowledge_status='searching', knowledge_requested_revision=revision)
         self.repository.mutate(status, call_ids=(call_id,))
         try:
             matches = self.knowledge_engine.retrieve(query, limit=5)
@@ -431,10 +473,19 @@ class CallingService:
             result, error = [], 'Knowledge suggestions are unavailable. Check Google credentials and model access.'
         def save(db):
             current = db['calls'][call_id]
-            if current['status'] in TERMINAL or self.knowledge_query(current) != query:
-                return  # A later customer utterance supersedes this search.
-            current.update(knowledge_matches=result, knowledge_status='error' if error else 'ready',
-                           knowledge_error=error, knowledge_updated_at=stamp(), knowledge_query=query)
+            if current['status'] in TERMINAL or revision < current.get('knowledge_revision', -1):
+                return
+            if error:
+                # Keep the last successful suggestions and their evidence timestamp.
+                if revision >= current.get('knowledge_requested_revision', -1):
+                    current.update(knowledge_status='error', knowledge_error=error)
+                return
+            # New speech must not starve the panel. Publish this revision; the worker
+            # coalesces any newer turns into its next search. Older results never win.
+            current.update(knowledge_matches=result,
+                knowledge_status='ready' if self.knowledge_query(current) == query else 'updating',
+                knowledge_error='', knowledge_updated_at=stamp(), knowledge_query=query,
+                knowledge_revision=revision, knowledge_through_at=through)
         self.repository.mutate(save, call_ids=(call_id,))
 
     def triage(self, call_id):

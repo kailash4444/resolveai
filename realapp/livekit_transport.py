@@ -312,7 +312,7 @@ class BrowserSession:
     async def refresh_knowledge(self):
         # Coalesce speech bursts; embeddings must never delay transcription or voice replies.
         while self.knowledge_pending and not self.closed:
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(1)
             self.knowledge_pending = False
             await asyncio.to_thread(self.service.refresh_knowledge, self.call_id)
 
@@ -566,10 +566,10 @@ class BrowserSession:
         call = await asyncio.to_thread(self.service.add_turn, self.call_id, speaker, text)
         if self.closed:
             return
+        if speaker in {'Customer', 'Technician'} and call['status'] in {'Connected', 'Ringing', 'Queued'}:
+            self.request_knowledge()
         if speaker == 'Customer' and call['status'] not in TERMINAL:
             self.interrupt()
-            if call['status'] in {'Connected', 'Ringing', 'Queued'}:
-                self.request_knowledge()
             self.turn_revision += 1
         if speaker != 'Customer' or call['status'] in TERMINAL | {'Connected', 'Ringing', 'Queued'}:
             return

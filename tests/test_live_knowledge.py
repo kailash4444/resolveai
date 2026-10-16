@@ -48,7 +48,7 @@ def test_call_retrieval_tracks_customer_problem_and_never_overwrites_ticket(acco
     original = accounts.store.get_case(call['case_id'])
     match = SimpleNamespace(model_dump=lambda: {'id':'KB-1','title':'Payroll','score':.9,'excerpt':'Export error','steps':['Check reports']})
     def retrieve(query, limit):
-        assert 'Can you explain' not in query and 'Payroll' in query and limit == 5
+        assert 'Technician: Can you explain' in query and 'Payroll' in query and limit == 5
         updated = accounts.store.get_case(call['case_id'])
         updated.ticket.description = 'Technician edit during retrieval'
         accounts.store.save_case(updated)
@@ -59,10 +59,12 @@ def test_call_retrieval_tracks_customer_problem_and_never_overwrites_ticket(acco
     assert accounts.store.get_case(original.id).ticket.description == 'Technician edit during retrieval'
     def stale(query, limit):
         service.add_turn(call['id'], 'Customer', 'Now an entirely different error appears.')
-        return []
+        return [match]
     service.knowledge_engine = SimpleNamespace(retrieve=stale)
+    service.add_turn(call['id'], 'Technician', 'Please read the error code.')
     service.refresh_knowledge(call['id'])
     assert service.get(call['id'])['knowledge_matches'][0]['id'] == 'KB-1'
+    assert service.get(call['id'])['knowledge_status'] == 'updating'
     service.knowledge_engine = SimpleNamespace(retrieve=Mock(side_effect=RuntimeError('private provider detail')))
     service.refresh_knowledge(call['id'])
     current = service.get(call['id'])
@@ -107,4 +109,6 @@ def test_connected_speech_starts_nonblocking_coalesced_retrieval(accounts):
         refresh.assert_called_once_with(call['id'])
         await session.process_utterance('Technician', b'audio')
         assert refresh.call_count == 1
+        await session.knowledge_task
+        assert refresh.call_count == 2
     asyncio.run(run())

@@ -248,8 +248,8 @@ function renderDock(pageCallId) {
   const question = call.next_question || brief.next_step || call.recommended_action;
   patch($('#dockSummary'), `<p>${esc(summary)}</p>${question ? `<p class="dock-question">${esc(question)}</p>` : ''}<p class="dock-note">Based on the latest customer update. Updates with the conversation.</p>`);
   const matches = call.knowledge_matches || [];
-  patch($('#dockKnowledge'), matches.length ? `<ul class="dock-list">${matches.map(k => `<li><strong>${esc(k.title)}</strong><span class="dock-note">${esc(k.id)}</span></li>`).join('')}</ul>`
-    : '<p>Related knowledge will appear as the customer describes the issue.</p>');
+  patch($('#dockKnowledge'), `<p class="dock-note">${esc(knowledgeHint(call))}</p>` + (matches.length ? `<ul class="dock-list">${matches.slice(0, 5).map(k => `<li><strong>${esc(k.title)}</strong><span class="dock-note">${esc(k.id)}</span></li>`).join('')}</ul>`
+    : '<p>Related knowledge will appear as the customer describes the issue.</p>'));
   const convo = $('#dockConvo'), before = convo.dataset.html;
   patch(convo, call.transcript.length ? call.transcript.map(turn => `<p class="dock-msg"><b>${esc(turn.speaker_name || turn.speaker)}:</b> ${esc(turn.text)}</p>`).join('')
     : '<p>The conversation appears here as people speak.</p>');
@@ -322,21 +322,37 @@ function announceNewTurns(call, sameCall) {
 // collapses after 10 seconds. Routing history and the transcript are still stored, just not shown here. The frame is
 // built once per call and layout, and each part is refreshed on its own, so polling never clears what you're doing.
 const BOILERPLATE = ['welcome to resolveai','this call is transcribed','please describe the issue','i am connecting you','i’m connecting you','i will connect you','a technician will help','please stay on the call'];
-function kbItem(article, open) {
+function kbItem(article, open, retained = false) {
   const steps = article.steps || [];
-  return `<details class="kb-item" data-kb="${esc(article.id)}" ${open ? 'open' : ''}><summary>${esc(article.title)} <span class="help">${esc(article.id)}</span></summary>${article.excerpt || article.symptoms ? `<p class="sec">${esc(article.excerpt || article.symptoms)}</p>` : ''}${steps.length ? `<ol class="plain-steps">${steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol>` : ''}</details>`;
+  return `<details class="kb-item" data-kb="${esc(article.id)}" ${open ? 'open' : ''}><summary>${esc(article.title)} <span class="help">${esc(article.id)}</span></summary>${retained ? '<p class="help">Open article · outside the current top five. Close it to dismiss.</p>' : ''}${article.excerpt || article.symptoms ? `<p class="sec">${esc(article.excerpt || article.symptoms)}</p>` : ''}${steps.length ? `<ol class="plain-steps">${steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol>` : ''}</details>`;
+}
+function knowledgeHint(call) {
+  const through = call.knowledge_through_at;
+  const time = through ? new Date(through).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'}) : '';
+  const evidence = time ? `Updated through ${time} · ` : '';
+  if (call.knowledge_status === 'error') return `${evidence}Couldn’t refresh suggestions. Previous results are retained.`;
+  if (['searching', 'updating'].includes(call.knowledge_status)) return `${evidence}● Updating from the conversation…`;
+  return `${evidence}Top 5 suggestions · verify before using`;
 }
 // One Knowledge card: the AI's suggestions for this call while the search box is empty, search results once you type.
 function renderCallSearch() {
   const list = $('#cfKbList'), c = calling.pageCall; if (!list || !c) return;
+  if (calling.knowledgePanel?.id !== c.id) calling.knowledgePanel = {id: c.id, articles: new Map()};
   const open = new Set([...list.querySelectorAll('details[open]')].map(item => item.dataset.kb));
+  const previous = calling.knowledgePanel.articles;
+  const focusId = list.contains(document.activeElement) ? document.activeElement.closest('details')?.dataset.kb : null;
+  const scrollTop = list.scrollTop;
   const query = ($('#cfKbSearch')?.value || '').trim().toLowerCase();
   const articles = query
     ? (state.knowledge || []).filter(article => [article.id, article.title, article.product, article.symptoms, (article.tags || []).join(' '), (article.steps || []).join(' ')].join(' ').toLowerCase().includes(query))
-    : (c.knowledge_matches || []);
-  $('#cfKbHint').textContent = query ? 'Search results' : c.knowledge_status === 'searching' ? '● Finding articles for this call…' : 'Suggested for this call · verify before using';
-  patch(list, articles.map(article => kbItem(article, open.has(article.id))).join('')
+    : (c.knowledge_matches || []).slice(0, 5);
+  const retained = query ? [] : [...open].filter(id => !articles.some(article => article.id === id)).map(id => previous.get(id)).filter(Boolean);
+  calling.knowledgePanel.articles = new Map([...articles, ...retained].map(article => [article.id, article]));
+  $('#cfKbHint').textContent = query ? 'Search results' : knowledgeHint(c);
+  patch(list, retained.map(article => kbItem(article, true, true)).join('') + articles.map(article => kbItem(article, open.has(article.id))).join('')
     || `<p class="help">${query ? 'No articles match. Try another word.' : 'Suggestions appear after the customer describes the issue. Search to find any article.'}</p>`);
+  if (focusId) list.querySelector(`[data-kb="${CSS.escape(focusId)}"] summary`)?.focus({preventScroll: true});
+  list.scrollTop = scrollTop;
 }
 document.addEventListener('input', event => { if (event.target.id === 'cfKbSearch') renderCallSearch(); });
 
@@ -404,7 +420,7 @@ function renderCallDetail() {
     workspace.dataset.callId = c.id; workspace.dataset.layout = layout;
     const knowledge = size => `<section class="card cf-card ${size}" aria-labelledby="cfKbTitle"><h2 class="dock-label" id="cfKbTitle">Knowledge</h2>
         <input class="input" id="cfKbSearch" type="search" placeholder="Search articles, e.g. VPN, Outlook, printer" aria-label="Search knowledge articles" autocomplete="off">
-        <p class="help cf-kb-hint" id="cfKbHint"></p><div class="cf-body" id="cfKbList" tabindex="0" aria-label="Knowledge articles"></div></section>`;
+        <p class="help cf-kb-hint" id="cfKbHint" role="status" aria-live="polite"></p><div class="cf-body" id="cfKbList" tabindex="0" aria-label="Knowledge articles"></div></section>`;
     const steps = size => `<section class="card cf-card ${size}" aria-labelledby="cfStepsTitle"><h2 class="dock-label" id="cfStepsTitle">AI next steps</h2><div class="cf-body" id="cfSteps" tabindex="0"></div></section>`;
     const pad = size => `<section class="card cf-card ${size}" id="cfPad"></section>`;
     workspace.innerHTML = `<header class="call-full__head" id="cfHead"></header><div class="stack" id="cfAlerts"></div>
