@@ -153,6 +153,9 @@ textarea.input{min-height:120px;resize:vertical}
 /* DIALOG */
 .dlg{max-width:440px;width:calc(100% - 32px);padding:28px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--r);box-shadow:0 30px 60px -24px var(--shade)}
 .dlg::backdrop{background:var(--shade)}.dlg h2{font-size:24px;margin-bottom:8px}.dlg .row{margin-top:24px}
+#endCallDialog{max-height:calc(100dvh - 32px);overflow:auto}
+#endCallDialog .row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#endCallDialog .row .btn{width:100%;min-width:0;padding-inline:10px;white-space:nowrap}
 
 /* TABS, SWITCH, NAV */
 .tabs{display:flex;gap:24px;border-bottom:1px solid var(--border);margin-bottom:16px}

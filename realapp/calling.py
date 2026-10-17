@@ -436,10 +436,18 @@ class CallingService:
         return call
 
     def add_technician_note(self, call_id, author, text):
-        note = {"author": author, "text": text[:4000], "timestamp": stamp()}
+        # The scratch pad is one editable note per call. A stable ID lets post-call
+        # autosaves update the incident note instead of creating one per edit.
+        note_id = f"NOTE-CALL-{call_id.removeprefix('CALL-')}-SCRATCH"
+        note = {"id": note_id, "author": author, "text": text[:4000], "timestamp": stamp()}
         def append(db):
             call = db["calls"][call_id]
-            call.setdefault("technician_notes", []).append(note)
+            notes = call.setdefault("technician_notes", [])
+            existing = next((index for index, item in enumerate(notes) if item.get('id') == note_id), None)
+            if existing is None:
+                notes.append(note)
+            else:
+                notes[existing] = note
             call.pop('technician_note_draft', None)
             call.pop('technician_note_author', None)
             return call
@@ -447,12 +455,43 @@ class CallingService:
         if call.get("case_id"):
             case = self.case_store.get_case(call["case_id"])
             if case:
-                case.ticket.work_notes.append(WorkNote(id=f"NOTE-{uuid4().hex[:8]}", author=author,
-                    author_type="Technician", text=text[:4000]))
+                work_note = WorkNote(id=note_id, author=author, author_type="Technician", text=text[:4000])
+                notes = case.ticket.work_notes
+                existing = next((index for index, item in enumerate(notes) if item.id == note_id), None)
+                if existing is None:
+                    notes.append(work_note)
+                else:
+                    notes[existing] = work_note
                 self.case_store.save_case(case)
         return call
 
     def save_technician_note_draft(self, call_id, author, text):
+        call = self.get(call_id)
+        if call['status'] in TERMINAL:
+            with self._ticket_lock:
+                call = self.get(call_id)
+                if call['status'] not in TERMINAL:
+                    return self.save_technician_note_draft(call_id, author, text)
+                if text.strip():
+                    return self.add_technician_note(call_id, author, text)
+
+                note_id = f"NOTE-CALL-{call_id.removeprefix('CALL-')}-SCRATCH"
+                def clear(db):
+                    current = db['calls'][call_id]
+                    current.setdefault('technician_notes', [])[:] = [
+                        note for note in current.get('technician_notes', []) if note.get('id') != note_id
+                    ]
+                    current.pop('technician_note_draft', None)
+                    current.pop('technician_note_author', None)
+                    return current
+                current = self.repository.mutate(clear, call_ids=(call_id,))
+                if current.get('case_id'):
+                    case = self.case_store.get_case(current['case_id'])
+                    if case:
+                        case.ticket.work_notes = [note for note in case.ticket.work_notes if note.id != note_id]
+                        self.case_store.save_case(case)
+                return current
+
         def save(db):
             call = db['calls'][call_id]
             if text.strip():
@@ -911,8 +950,10 @@ class CallingService:
                 if live:
                     case.created_at = existing.created_at
                 case.ticket.work_notes = ([*existing.ticket.work_notes] if live else []) + [summary_note]
-                case.ticket.work_notes.extend(WorkNote(id=f"NOTE-{uuid4().hex[:8]}", author=note['author'],
-                    author_type="Technician", text=note['text']) for note in call.get('technician_notes', []))
+                existing_note_ids = {note.id for note in case.ticket.work_notes}
+                case.ticket.work_notes.extend(WorkNote(id=note.get('id') or f"NOTE-{uuid4().hex[:8]}", author=note['author'],
+                    author_type="Technician", text=note['text']) for note in call.get('technician_notes', [])
+                    if not note.get('id') or note.get('id') not in existing_note_ids)
                 self.case_store.save_case(case)
             self._link_incident(call_id, case, 'Incident updated from the completed conversation' if live else 'Incident created from the completed conversation')
 

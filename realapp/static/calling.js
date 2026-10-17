@@ -441,7 +441,7 @@ function renderCallDetail() {
     const questions = `<section class="cf-question-panel" aria-labelledby="cfQuestionTitle"><div class="cf-question-panel__head"><h2 id="cfQuestionTitle">Questions to ask</h2><span class="cf-question-live"><i aria-hidden="true"></i>Live</span></div><p class="cf-question-panel__status" id="cfSuggestionStatus" aria-live="polite"></p><div id="cfSteps"></div></section>`;
     const summary = `<section class="cf-handoff-card" aria-labelledby="cfSummaryTitle"><div class="cf-handoff-card__head"><span class="cf-summary-icon" aria-hidden="true">↗</span><div><h2 id="cfSummaryTitle">Call summary</h2><p>What the customer and AI covered before handoff</p></div></div><div class="cf-handoff-card__body" id="cfSummary" aria-live="polite"></div></section>`;
     const pad = size => `<section class="card cf-card ${size}" id="cfPad"></section>`;
-    const padSize = c.status === 'Connected' && canManage ? 'cf-pad--main' : 'cf-pad--compact';
+    const padSize = (c.status === 'Connected' || ended) && canManage ? 'cf-pad--main' : 'cf-pad--compact';
     workspace.innerHTML = `<header class="call-full__head" id="cfHead"></header><div class="stack" id="cfAlerts"></div>
       ${layout === 'chat'
         ? `${questions}<div class="cf-grid cf-grid--chat"><section class="card cf-card cf-chat" aria-labelledby="cfChatTitle"><div class="row row--between"><h2 class="dock-label" id="cfChatTitle">Chat with ${esc(c.caller)}</h2><span class="help cf-live" id="cfChatState"></span></div>
@@ -453,7 +453,7 @@ function renderCallDetail() {
             <div id="cfReply"></div>`}`;
     renderCallSearch();
   }
-  const activeScratchpad = c.status === 'Connected' && canManage;
+  const activeScratchpad = (c.status === 'Connected' || ended) && canManage;
   $('#cfPad').classList.toggle('cf-pad--main', activeScratchpad);
   $('#cfPad').classList.toggle('cf-pad--compact', !activeScratchpad);
   const ticket = ticketNumber(c), caseKey = c.case_id || c.live_case_id;
@@ -492,9 +492,11 @@ function renderCallDetail() {
   patch($('#cfSteps'), questions.length ? `<ol class="cf-question-list">${questions.map((item, index) => `<li class="cf-question-item" style="--question-order:${index}"><span class="cf-question-item__number" aria-hidden="true">${index + 1}</span><div class="cf-question-item__content"><p class="cf-question-item__text">${esc(item.question)}</p><a class="cf-question-item__source" href="#cfKbList" data-open-kb="${esc(item.id)}">${esc(item.title)}</a></div></li>`).join('')}</ol>`
     : '<p class="cf-question-empty">No follow-up question is needed yet. New details will appear here as the call continues.</p>');
 
-  // Scratch pad: private notes, saved to the incident when the call ends (existing draft saving).
-  if (!$('#cfPad').contains(document.activeElement)) patch($('#cfPad'), c.status === 'Connected' && canManage
-    ? `<label class="dock-label" for="callNoteText">Scratch pad</label><textarea class="input cf-pad__text" id="callNoteText" data-call-id="${esc(c.id)}" maxlength="4000" aria-label="Scratch pad" placeholder="Private notes for this ${c.channel === 'chat' ? 'chat' : 'call'}. Saved to the incident when the ${c.channel === 'chat' ? 'chat' : 'call'} ends.">${esc(calling.noteDrafts[c.id] ?? c.technician_note_draft ?? '')}</textarea>`
+  // The pad stays editable after hangup; terminal-call edits autosave to its incident.
+  const savedNotes = c.technician_notes || [];
+  const savedScratch = savedNotes.find(note => note.id?.endsWith('-SCRATCH')) || savedNotes[savedNotes.length - 1];
+  if (!$('#cfPad').contains(document.activeElement)) patch($('#cfPad'), (c.status === 'Connected' || ended) && canManage
+    ? `<label class="dock-label" for="callNoteText">Scratch pad</label><textarea class="input cf-pad__text" id="callNoteText" data-call-id="${esc(c.id)}" maxlength="4000" aria-label="Scratch pad" placeholder="${ended ? 'Private notes for this call. Edits save to the incident automatically.' : `Private notes for this ${c.channel === 'chat' ? 'chat' : 'call'}. Saved to the incident when it ends.`}">${esc(calling.noteDrafts[c.id] ?? c.technician_note_draft ?? savedScratch?.text ?? '')}</textarea>`
     : `<h2 class="dock-label">Scratch pad</h2><p class="help">${ended ? `Notes were saved to the incident when the ${c.channel === 'chat' ? 'chat' : 'call'} ended.` : `Available while you’re connected to the ${c.channel === 'chat' ? 'chat' : 'call'}.`}</p>`);
 
   if (layout === 'chat') {
@@ -687,16 +689,25 @@ document.addEventListener('click', async event => {
   } catch(error) { showFeedback(error.message, true); loadCalling(); }
 });
 
+function saveCallNote(note) {
+  const callId = note.dataset.callId, text = note.value;
+  calling.noteDraftSaves[callId] = (calling.noteDraftSaves[callId] || Promise.resolve())
+    .catch(() => {}).then(() => api(`/api/calling/${encodeURIComponent(callId)}/note-draft`, {method:'PUT', body:JSON.stringify({text})}));
+  calling.noteDraftSaves[callId].catch(error => showFeedback(`Scratch pad could not be saved: ${error.message}`, true));
+}
 document.addEventListener('input', event => {
   const note = event.target.closest('#callNoteText, #dockCallNoteText');
   if (!note?.dataset.callId) return;
-  const callId = note.dataset.callId, text = note.value;
-  calling.noteDrafts[callId] = text;
+  const callId = note.dataset.callId;
+  calling.noteDrafts[callId] = note.value;
   clearTimeout(calling.noteDraftTimers[callId]);
-  calling.noteDraftTimers[callId] = setTimeout(() => {
-    calling.noteDraftSaves[callId] = (calling.noteDraftSaves[callId] || Promise.resolve())
-      .catch(() => {}).then(() => api(`/api/calling/${callId}/note-draft`, {method:'PUT', body:JSON.stringify({text})}));
-  }, 350);
+  calling.noteDraftTimers[callId] = setTimeout(() => saveCallNote(note), 350);
+});
+document.addEventListener('focusout', event => {
+  const note = event.target.closest('#callNoteText, #dockCallNoteText');
+  if (!note?.dataset.callId) return;
+  clearTimeout(calling.noteDraftTimers[note.dataset.callId]);
+  saveCallNote(note);
 });
 
 $('#presenceSelect').addEventListener('change', async event => {

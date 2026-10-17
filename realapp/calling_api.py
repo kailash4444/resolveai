@@ -679,8 +679,8 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
     @router.put("/api/calling/{call_id}/note-draft")
     def save_call_note_draft(call_id: str, value: TechnicianCallNoteDraft, request: Request):
         actor, call = own_call(request, call_id)
-        if call["status"] != "Connected":
-            raise HTTPException(409, "Technician notes can be drafted while the call is connected.")
+        if call["status"] != "Connected" and call["status"] not in TERMINAL:
+            raise HTTPException(409, "Scratch pad notes can be edited while connected or after the call ends.")
         return service.save_technician_note_draft(call_id, actor['name'], value.text)
 
     @router.post("/api/calling/{call_id}/connected")
