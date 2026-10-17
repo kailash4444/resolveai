@@ -139,6 +139,11 @@ function renderCalling() {
 const dismissedOffers = new Set();
 const ICON_PHONE = '<svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h3l2 5-2 2a15 15 0 0 0 5 5l2-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 4 5a2 2 0 0 1 2-2z"/></svg>';
 const ICON_X = '<svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const ICON_MIC = '<svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+const ICON_MIC_OFF = '<svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 9.3V6a3 3 0 0 0-5.7-1.3M9 9v2a3 3 0 0 0 5 2.2M5 11a7 7 0 0 0 11.4 5.4M19 11a7 7 0 0 1-.6 2.8M12 18v3M4 4l16 16"/></svg>';
+function callMicButton(enabled, label) {
+  return `<button type="button" class="icon-btn call-mic-btn" data-call-mic-toggle role="switch" aria-checked="${enabled}" aria-label="${label}" title="${label}" ${$('#micSwitch').disabled ? 'disabled' : ''}>${enabled ? ICON_MIC : ICON_MIC_OFF}</button>`;
+}
 function renderCallOffer(offer) {
   const box = $('#callOffer'), user = calling.user;
   const queued = (calling.data.incoming_calls || []).find(call => call.channel !== 'chat' && !dismissedOffers.has(call.id));
@@ -239,10 +244,10 @@ function renderDock(pageCallId) {
   patch($('#dockHead'), `<div class="dock-title"><h2 class="dock-name">${esc(call.caller)}</h2><span class="live-chip"><i aria-hidden="true"></i>LIVE ${chat ? 'CHAT' : 'CALL'}</span></div>
     <a class="btn btn-soft btn-sm" href="?view=calls&amp;call=${encodeURIComponent(call.id)}" data-call-select="${esc(call.id)}">Open full ${chat ? 'chat' : 'call'}</a>
     <span class="dock-meta">${esc(call.service || 'General')} · ${esc(call.id)}${ticket ? ` · ${esc(ticket)}` : ''}</span>`);
-  const brief = call.handoff_brief || {};
-  const summary = [call.summary, brief.issue].find(text => text && text !== 'Understanding the customer issue') || 'The AI is still working out the customer’s issue.';
-  const question = call.next_question || brief.next_step || call.recommended_action;
-  patch($('#dockGuidance'), `<strong class="dock-guidance__title">AI suggestions</strong><div><strong>${esc(question || 'AI is following the conversation')}</strong><span>${esc(summary)}</span></div>`);
+  const questions = technicianQuestions(call);
+  patch($('#dockGuidance'), `<strong class="dock-guidance__title">Questions to ask</strong>${questions.length
+    ? `<ol class="dock-question-list">${questions.map(item => `<li>${esc(item.question)}</li>`).join('')}</ol>`
+    : '<p class="dock-question-empty">No follow-up question is needed yet. New details will appear here as the call continues.</p>'}`);
   if (!$('#dockScratch').contains(document.activeElement)) {
     const note = calling.noteDrafts[call.id] ?? call.technician_note_draft ?? '';
     patch($('#dockScratch'), `<label class="dock-scratch__label" for="dockCallNoteText">Scratch pad</label><textarea class="input dock-scratch__text" id="dockCallNoteText" data-call-id="${esc(call.id)}" maxlength="4000" rows="2" aria-label="Scratch pad" placeholder="Private notes for this ${chat ? 'chat' : 'call'}… Saved to the incident when it ends.">${esc(note)}</textarea>`);
@@ -328,7 +333,7 @@ function renderCallSearch() {
 }
 document.addEventListener('input', event => { if (event.target.id === 'cfKbSearch') renderCallSearch(); });
 
-// Suggest up to four missing details requested by the relevant KB steps. This stays deterministic and local to the
+// Suggest up to three missing details requested by the relevant KB steps. This stays deterministic and local to the
 // browser: no extra model request is added to the live call, and every prompt links to its supporting article.
 function technicianQuestions(call) {
   const turns = (call.transcript || []).filter(turn => ['Customer', 'Technician'].includes(turn.speaker));
@@ -381,9 +386,9 @@ function technicianQuestions(call) {
           && !result.some(item => item.key === check.key)) {
         result.push({key: check.key, question: check.question, id: article.id, title: article.title});
       }
-      if (result.length === 4) break;
+      if (result.length === 3) break;
     }
-    if (result.length === 4) break;
+    if (result.length === 3) break;
   }
   return result;
 }
@@ -465,7 +470,7 @@ function renderCallDetail() {
   let ringing = '';
   if (c.status === 'Ringing' && own) {
     const phoneReady = c.origin !== 'browser' || calling.ready;
-    ringing = `<div class="call-controls"><button type="button" class="call-btn call-btn--answer" data-call-action="accept" ${phoneReady ? '' : 'disabled aria-describedby="acceptHelp"'}><span class="call-btn__icon">${ICON_PHONE}</span>Accept</button><button type="button" class="call-btn call-btn--danger" data-call-action="decline"><span class="call-btn__icon">${ICON_X}</span>Decline</button>${phoneReady ? '' : '<p class="help" id="acceptHelp">Turn the microphone on above to accept browser calls.</p>'}</div>`;
+    ringing = `<div class="call-controls">${c.origin === 'browser' ? callMicButton(calling.ready, calling.ready ? 'Turn microphone off' : 'Turn microphone on to accept') : ''}<button type="button" class="call-btn call-btn--answer" data-call-action="accept" ${phoneReady ? '' : 'disabled aria-describedby="acceptHelp"'}><span class="call-btn__icon">${ICON_PHONE}</span>Accept</button><button type="button" class="call-btn call-btn--danger" data-call-action="decline"><span class="call-btn__icon">${ICON_X}</span>Decline</button>${phoneReady ? '' : '<p class="help" id="acceptHelp">Turn on the microphone to accept this browser call.</p>'}</div>`;
   }
   patch($('#cfAlerts'), `${c.last_error ? `<div class="alert" role="alert"><strong>✕ Call problem.</strong><span class="sec">${esc(c.last_error)}</span></div>` : ''}${notice}${ringing}`);
 
@@ -508,7 +513,7 @@ function renderCallDetail() {
   if (!$('#cfReply').contains(document.activeElement)) patch($('#cfReply'), c.origin === 'desk' && !chat && c.status === 'AI' ? '<form id="callReplyForm" class="card call-full__card stack stack--sm" novalidate><div class="field field--inline"><label for="callReplyText">Customer reply</label><textarea class="input" id="callReplyText" name="text" rows="2" required maxlength="4000"></textarea></div><div class="row"><button type="submit" class="btn btn-primary btn-sm">Send reply</button><p class="form-status" id="callReplyMessage" role="status"></p></div></form>' : '');
   // Bottom bar for live calls: Mute (voice), Transfer to queue, End call.
   const inRoom = calling.room && calling.roomCallId === c.id, muted = inRoom && !calling.room.localParticipant.isMicrophoneEnabled;
-  patch($('#cfBar'), live && canManage ? `${inRoom ? `<button type="button" class="btn btn-soft btn-sm" data-dock-mute aria-pressed="${muted}">${muted ? 'Unmute' : 'Mute'}</button>` : ''}<button type="button" class="btn btn-soft btn-sm" data-call-action="transfer" data-call-id="${esc(c.id)}">Transfer to queue</button><button type="button" class="btn btn-danger btn-sm" data-call-action="finish" data-call-id="${esc(c.id)}">End ${chat ? 'chat' : 'call'}</button>` : '');
+  patch($('#cfBar'), live && canManage ? `${c.origin === 'browser' ? callMicButton(inRoom ? !muted : calling.ready, inRoom ? (muted ? 'Unmute microphone' : 'Mute microphone') : (calling.ready ? 'Turn microphone off' : 'Turn microphone on')) : ''}<button type="button" class="btn btn-soft btn-sm" data-call-action="transfer" data-call-id="${esc(c.id)}">Transfer to queue</button><button type="button" class="btn btn-danger btn-sm" data-call-action="finish" data-call-id="${esc(c.id)}">End ${chat ? 'chat' : 'call'}</button>` : '');
   $('#cfBar').hidden = !(live && canManage);
 }
 
@@ -698,11 +703,12 @@ $('#presenceSelect').addEventListener('change', async event => {
 
 // The switch flips the moment it's clicked and shows a spinner while the browser and server catch up; if that fails
 // it flips back and says why. Permission, the saved setting and the LiveKit check run at the same time.
-$('#micSwitch').addEventListener('click', async () => {
-  const button = $('#micSwitch');
-  if (calling.micBusy || button.disabled) return;
-  const turnOn = button.getAttribute('aria-checked') !== 'true';
-  calling.micBusy = true; button.setAttribute('aria-checked', String(turnOn)); button.setAttribute('aria-busy', 'true');
+async function toggleMicrophone(button = $('#micSwitch')) {
+  const stateButton = $('#micSwitch');
+  if (calling.micBusy || stateButton.disabled) return;
+  const turnOn = stateButton.getAttribute('aria-checked') !== 'true';
+  calling.micBusy = true; stateButton.setAttribute('aria-checked', String(turnOn)); stateButton.setAttribute('aria-busy', 'true');
+  $$('[data-call-mic-toggle]').forEach(control => { control.setAttribute('aria-checked', String(turnOn)); control.setAttribute('aria-busy', 'true'); });
   setBadge($('#microphoneIndicator'), 'badge--muted', turnOn ? '● Turning on…' : '● Turning off…');
   try {
     if (calling.room && calling.roomCallId) {
@@ -724,10 +730,17 @@ $('#micSwitch').addEventListener('click', async () => {
     if (['NotAllowedError', 'SecurityError'].includes(error.name)) calling.micDenied = true;
     else showFeedback(turnOn ? `Couldn’t turn the microphone on: ${error.message}` : error.message, true);
   } finally {
-    calling.micBusy = false; button.removeAttribute('aria-busy');
+    calling.micBusy = false; stateButton.removeAttribute('aria-busy');
+    $$('[data-call-mic-toggle]').forEach(control => control.removeAttribute('aria-busy'));
     if (calling.data) renderIndicators();
-    button.focus(); loadCalling();
+    if (button?.isConnected && !button.hidden) button.focus();
+    loadCalling();
   }
+}
+$('#micSwitch').addEventListener('click', event => toggleMicrophone(event.currentTarget));
+document.addEventListener('click', event => {
+  const control = event.target.closest('[data-call-mic-toggle]');
+  if (control) toggleMicrophone(control);
 });
 
 // Technician chat replies: shown at once, sent in the background; the box stays focused for the next message.

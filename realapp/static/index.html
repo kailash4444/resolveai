@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/resolveai-components.css?v=20261017-tech3">
+  <link rel="stylesheet" href="/static/resolveai-components.css?v=20261017-tech4">
   <script src="/static/theme.js?v=7"></script>
 </head>
 <body data-role="guest" data-shell="public" data-mode="focus">
@@ -365,7 +365,7 @@
       <ul class="inds" aria-label="Call readiness">
         <li><span class="muted">Presence</span><span id="presenceIndicator" class="badge badge--muted">○ Unknown</span>
           <div class="field field--inline" id="presenceControl" hidden><label for="presenceSelect">Availability</label><select class="input" id="presenceSelect"><option>Offline</option><option>Available</option><option>Away</option></select></div></li>
-        <li><span class="muted">Microphone</span><div class="mic-toggle"><button type="button" class="icon-btn mic-btn" role="switch" id="micSwitch" aria-checked="false" aria-label="Microphone" aria-describedby="callMicState" title="Turn the microphone on" hidden><svg class="mic-btn__on" aria-hidden="true" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><svg class="mic-btn__off" aria-hidden="true" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 9.3V6a3 3 0 0 0-5.7-1.3M9 9v2a3 3 0 0 0 5 2.2M5 11a7 7 0 0 0 11.4 5.4M19 11a7 7 0 0 1-.6 2.8M12 18v3M4 4l16 16"/></svg></button><div class="stack stack--sm"><span id="microphoneIndicator" class="badge badge--muted">○ Not enabled</span><p class="help" id="callMicState" aria-live="polite">Turn the microphone on to take browser calls.</p></div></div></li>
+        <li data-call-mic-readiness><span class="muted">Microphone</span><div class="mic-toggle"><button type="button" class="icon-btn mic-btn" role="switch" id="micSwitch" aria-checked="false" aria-label="Microphone" aria-describedby="callMicState" title="Turn the microphone on" hidden><svg class="mic-btn__on" aria-hidden="true" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><svg class="mic-btn__off" aria-hidden="true" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 9.3V6a3 3 0 0 0-5.7-1.3M9 9v2a3 3 0 0 0 5 2.2M5 11a7 7 0 0 0 11.4 5.4M19 11a7 7 0 0 1-.6 2.8M12 18v3M4 4l16 16"/></svg></button><div class="stack stack--sm"><span id="microphoneIndicator" class="badge badge--muted">○ Not enabled</span><p class="help" id="callMicState" aria-live="polite">Turn the microphone on to take browser calls.</p></div></div></li>
         <li><span class="muted">Call</span><span id="activeCallIndicator" class="badge badge--muted">○ No active call</span><p class="help" id="phoneConnection" role="status" aria-live="polite"></p><div class="call-offer" id="callOffer" hidden></div><div><button class="btn btn-soft btn-sm" id="signInButton" type="button" hidden>Log in</button></div></li>
         <li id="chatCard"><span class="muted">Chat</span><span id="chatIndicator" class="badge badge--muted">○ No chats waiting</span><p class="help" id="chatCardText" role="status" aria-live="polite">New chats from customers appear here.</p><div class="call-offer" id="chatOffer" hidden></div><div><button type="button" class="link" id="chatAlertsButton" hidden>Turn on chat alerts</button></div></li>
       </ul>
@@ -660,12 +660,12 @@
   <script src="/static/voice-browser.js?v=6"></script>
   <script src="/static/shell.js?v=20261017-b1"></script>
   <script src="/static/uploader.js?v=20261015-qa"></script>
-  <script src="/static/app.js?v=20261017-b1"></script>
+  <script src="/static/app.js?v=20261017-b4"></script>
   <script src="/static/auth.js?v=17"></script>
   <script src="/static/landing.js?v=2"></script>
   <script src="/static/support-hub.js?v=13"></script>
   <script src="/static/resolution-radar.js?v=7"></script>
-  <script src="/static/calling.js?v=20261017-tech4"></script>
+  <script src="/static/calling.js?v=20261017-tech5"></script>
   <script src="/static/transcripts.js?v=20261015-ux"></script>
   <script src="/static/incident-time-machine.js?v=6"></script>
 </body>

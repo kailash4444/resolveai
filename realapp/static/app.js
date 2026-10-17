@@ -379,14 +379,14 @@ function toggleTimeSort(button, label) {
   button.setAttribute('aria-label', `${label}: ${newest ? 'newest' : 'oldest'} first. Sort ${newest ? 'oldest' : 'newest'} first`);
   button.closest('th')?.setAttribute('aria-sort',newest ? 'descending' : 'ascending');
 }
-function ticketForm(item) {
+function ticketForm(item, {includeDescription = true, includeShortDescription = true} = {}) {
   const ticket = item.ticket, admin = state.user?.role === 'admin';
   const states = ticket.state === "Resolved" ? ["New","In Progress","On Hold","Resolved"] : ["New","In Progress","On Hold"];
   const priorities = {P1: '▲ Critical · P1', P2: '◆ High · P2', P3: '● Medium · P3', P4: '▽ Low · P4'};
   return `<form class="stack" id="ticketForm" novalidate>
     <div class="fields">
-      <div class="field field--wide"><label for="tf-short">Short description</label><input class="input" id="tf-short" name="short_description" value="${esc(ticket.short_description)}" required maxlength="200"></div>
-      <div class="field field--wide"><label for="tf-desc">Description</label><textarea class="input" id="tf-desc" name="description" rows="4">${esc(ticket.description)}</textarea></div>
+      ${includeShortDescription ? `<div class="field field--wide"><label for="tf-short">Short description</label><input class="input" id="tf-short" name="short_description" value="${esc(ticket.short_description)}" required maxlength="200"></div>` : ''}
+      ${includeDescription ? `<div class="field field--wide"><label for="tf-desc">Description</label><textarea class="input" id="tf-desc" name="description" rows="4">${esc(ticket.description)}</textarea></div>` : ''}
       ${taxonomyField("Category", "category", ticket.category, ["Access", "Hardware", "Incident", "Network", "Security", "Software", "Workplace"])}
       ${taxonomyField("Subcategory", "subcategory", ticket.subcategory, ["Account", "Account lockout", "Application crash", "Connectivity", "Display", "Investigation", "Password reset", "Permissions", "Triage", "Unclassified"])}
       <div class="field"><label for="tf-service">Service</label><select class="input" id="tf-service" name="service">${serviceOptions(ticket.service)}</select></div>
@@ -445,7 +445,7 @@ async function saveTicket(form) {
     if (values[field] === "Other") values[field] = (values[customField] || "").trim();
     delete values[customField];
   }
-  if (!values.short_description?.trim()) { setFormStatus(status, '✕ Short description can’t be empty.', true); form.elements.short_description.setAttribute('aria-invalid', 'true'); form.elements.short_description.focus(); return; }
+  if (form.elements.short_description && !values.short_description?.trim()) { setFormStatus(status, '✕ Short description can’t be empty.', true); form.elements.short_description.setAttribute('aria-invalid', 'true'); form.elements.short_description.focus(); return; }
   if (!form.reportValidity()) return;
   if (values.state !== "Resolved") values.resolution = "";
   button.disabled = true; button.setAttribute('aria-busy', 'true'); setFormStatus(status, 'Saving…');
@@ -727,11 +727,11 @@ document.addEventListener('click', event => {
 function staffTicketDetails(item) {
   const t = item.ticket, admin = state.user?.role === 'admin', resolved = t.state === 'Resolved';
   const canAudit = admin || t.assigned_user_id === state.user?.id;
-  return `<div class="page-head"><div><p class="kicker"><span class="mono">${esc(t.id)}</span>${t.call_id ? ` · call <span class="mono">${esc(t.call_id)}</span>` : ''}</p><h1 id="ticketDetailTitle" tabindex="-1">${esc(t.short_description)}</h1></div><div class="row row--sm">${priorityBadge(t.priority)}${stateBadge(t.state)}${exampleTag(item)}<button type="button" class="btn btn-soft btn-sm" data-enter-time-machine="${esc(item.id)}">Enter Time Machine <span aria-hidden="true">→</span></button></div></div>
+  return `<div class="page-head"><div><p class="kicker"><span class="mono">${esc(t.id)}</span>${t.call_id ? ` · call <span class="mono">${esc(t.call_id)}</span>` : ''}</p><h1 class="ticket-detail-title" id="ticketDetailTitle" tabindex="-1">${esc(t.short_description)}</h1></div><div class="row row--sm">${priorityBadge(t.priority)}${stateBadge(t.state)}${exampleTag(item)}<button type="button" class="btn btn-soft btn-sm" data-enter-time-machine="${esc(item.id)}">Enter Time Machine <span aria-hidden="true">→</span></button></div></div>
   <div class="detail-grid">
     <div class="stack stack--lg">
       ${renderVisualAnalysis(t, item.id)}${staffAssist(item)}${renderAttachments(t.attachments, false, t)}
-      <section class="card stack" aria-labelledby="fieldsTitle"><h2 class="h3" id="fieldsTitle">Ticket fields</h2>${ticketForm(item)}</section>
+      <section class="card stack" aria-labelledby="fieldsTitle"><h2 class="h3" id="fieldsTitle">Ticket fields</h2>${ticketForm(item, {includeShortDescription: false})}</section>
       ${followupPanels(item)}
       ${transcriptPanel(item)}
     </div>
