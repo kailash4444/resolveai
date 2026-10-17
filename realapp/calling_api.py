@@ -720,8 +720,11 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
 
     @router.post("/api/calling/{call_id}/decline")
     async def decline(call_id: str, request: Request):
-        actor, call = own_call(request, call_id)
-        if call["origin"] == "browser":
+        actor = user(request, staff=True)
+        call = service.get(call_id)
+        if actor['role'] != 'admin' and actor['id'] != call.get('technician_id') and actor['id'] not in call.get('offered_technician_ids', []):
+            raise HTTPException(404, "Call not found.")
+        if call["origin"] == "browser" and actor['id'] == call.get('technician_id'):
             await transport.remove_technician(call)
         return service.decline(call_id, actor["id"])
 

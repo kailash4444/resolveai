@@ -330,6 +330,22 @@ class CallingService:
             return public_technician(tech)
         return self.repository.mutate(update, call_ids=())
 
+    def _routed_candidates(self, call, technicians, now):
+        """Return the staff dispatch would offer this call to at this moment.
+
+        Keep queue visibility, manual pickup, and background dispatch on the same
+        eligibility and specialist-first policy so a shared queue cannot bypass routing.
+        """
+        eligible = [tech for tech in technicians if tech['role'] in {'admin', 'technician'}
+                    and tech['status'] == 'Available' and not tech.get('current_call_id')
+                    and now - tech.get('last_seen', 0) <= self.settings.technician_heartbeat_seconds
+                    and call.get('language', 'en') in tech.get('languages', [])
+                    and (call.get('origin') == 'desk' or tech.get('voice_ready'))
+                    and call.get('declined', {}).get(tech['id'], 0) < now]
+        service = normalize_service(call.get('service'))
+        specialists = [tech for tech in eligible if skill_matches(service, tech.get('skills', []))]
+        return specialists or [tech for tech in eligible if 'general' in tech.get('skills', [])]
+
     def snapshot(self, actor=None):
         def read(db):
             # Calls saved before the fixed service list show the service they map to.
@@ -337,12 +353,23 @@ class CallingService:
             techs = [public_technician(t) for t in db["technicians"].values()]
             incoming = []
             if actor and actor['role'] in {'admin', 'technician'}:
-                incoming = [{k:c.get(k) for k in ('id','caller','origin','channel','status','created_at','service','priority',
-                            'summary','attempted_steps','recommended_action','next_question','reserved_until')}
-                            for c in calls if c['status'] in {'Queued','Ringing'} and not c.get('pickup_claimed')
-                            and c.get('ready_at') is not None and c['ready_at'] <= self.now()
-                            and c['technician_id'] != actor['id']
-                            and (c['status'] == 'Queued' or actor['id'] in c.get('offered_technician_ids', []))]
+                now = self.now()
+                incoming = []
+                for call in calls:
+                    if (call['status'] not in {'Queued', 'Ringing'} or call.get('pickup_claimed')
+                            or call.get('ready_at') is None or call['ready_at'] > now
+                            or call.get('technician_id') == actor['id']):
+                        continue
+                    if call['status'] == 'Queued':
+                        recipient = any(tech['id'] == actor['id'] for tech in
+                                        self._routed_candidates(call, db['technicians'].values(), now))
+                    else:
+                        recipient = actor['id'] in call.get('offered_technician_ids', [])
+                    if not recipient:
+                        continue
+                    incoming.append({**{k: call.get(k) for k in ('id','caller','origin','channel','status','created_at','service','priority',
+                                      'summary','attempted_steps','recommended_action','next_question','reserved_until')},
+                                     'offered_to_me': call['status'] == 'Ringing'})
             if actor and actor['role'] == 'technician':
                 calls = [c for c in calls if c['technician_id'] == actor['id']]
                 techs = [t for t in techs if t['id'] == actor['id']]
@@ -701,12 +728,7 @@ class CallingService:
                 key=lambda c: (int(c["priority"][1:]) - int((now - c["queued_at"]) // 60), c["queued_at"]))
             offers = []
             for call in queue:
-                eligible = [t for t in db["technicians"].values() if t['role'] in {'admin','technician'} and t["status"] == "Available"
-                    and not t["current_call_id"] and now - t["last_seen"] <= self.settings.technician_heartbeat_seconds
-                    and call["language"] in t["languages"] and (call["origin"] == "desk" or t["voice_ready"])
-                    and call["declined"].get(t["id"], 0) < now]
-                specialists = [t for t in eligible if call["service"].lower() in t["skills"] or skill_matches(call["service"], t["skills"])]
-                candidates = specialists or [t for t in eligible if "general" in t["skills"]]
+                candidates = self._routed_candidates(call, db["technicians"].values(), now)
                 if not candidates:
                     continue
                 candidates.sort(key=lambda t: (t["last_assigned"], t["name"], t["id"]))
@@ -765,7 +787,12 @@ class CallingService:
             if call["status"] != "Ringing" or (dispatch_id and dispatch_id != call["dispatch_id"]):
                 return call
             if tech_id and call["technician_id"] != tech_id:
-                raise HTTPException(403, "This offer belongs to another technician.")
+                if tech_id not in call.get('offered_technician_ids', []):
+                    raise HTTPException(403, "This offer belongs to another technician.")
+                call['offered_technician_ids'] = [ident for ident in call['offered_technician_ids'] if ident != tech_id]
+                call['declined'][tech_id] = self.now() + 30
+                history(call, f"Offer declined by {db['technicians'][tech_id]['name']}")
+                return call
             self._release(db, call, reason, away=True)
             return call
         return self.repository.mutate(update, call_ids=(call_id,))
@@ -812,6 +839,10 @@ class CallingService:
                 raise HTTPException(409, 'This call is no longer waiting to be answered.')
             if tech['role'] not in {'admin','technician'}:
                 raise HTTPException(403, 'Only technicians can answer support calls.')
+            if call['status'] == 'Queued' and not any(
+                    candidate['id'] == tech_id
+                    for candidate in self._routed_candidates(call, db['technicians'].values(), self.now())):
+                raise HTTPException(409, 'This call is waiting for an available matching specialist or general technician.')
             if call.get('pickup_claimed') and call['technician_id'] != tech_id:
                 raise HTTPException(409, 'Another technician is answering this call.')
             if call['status'] == 'Ringing' and call['reserved_until'] <= self.now():

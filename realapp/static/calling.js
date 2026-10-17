@@ -62,7 +62,8 @@ function renderIndicators() {
     micSwitch.setAttribute('aria-checked', String(on));
     micSwitch.title = on ? 'Turn the microphone off' : 'Turn the microphone on';
   }
-  const offer = calling.data.calls.find(c => c.technician_id === user.id && c.status === 'Ringing');
+  const offer = calling.data.calls.find(c => c.technician_id === user.id && c.status === 'Ringing' && !dismissedOffers.has(c.id))
+    || (calling.data.incoming_calls || []).find(c => c.status === 'Ringing' && c.offered_to_me && !dismissedOffers.has(c.id));
   const waiting = (calling.data.incoming_calls || []).filter(call => call.channel !== 'chat' && !dismissedOffers.has(call.id)).length;   // chats have their own card; rejected ones don't count
   const call = calling.reconnecting ? ['badge--high', '◆ Reconnecting', 'Audio dropped. Trying to restore the call…']
     : calling.joining ? ['badge--medium', '● Joining call', 'Connecting your audio…']
@@ -93,6 +94,8 @@ function renderCalling() {
   if (document.activeElement !== $('#presenceSelect')) $('#presenceSelect').value = calling.user.availability;
   $('#presenceSelect').disabled = !!calling.user.current_call_id;
   const offer = renderIndicators();
+  const incoming = calling.data.incoming_calls || [];
+  const bannerCall = offer || incoming.find(call => call.status === 'Queued' && !dismissedOffers.has(call.id));
   renderCallOffer(offer);
   renderChatOffer(offer);
   $('#callsQueued').textContent = metrics.queued;
@@ -105,7 +108,6 @@ function renderCalling() {
   const callPage = paginateItems(calls, callPager, JSON.stringify([calling.user?.id, query, calling.priority, newest]), '#callPagination');
   patch($('#callList'), calls.length ? `<ul class="list">${callPage.map(c => { return `<li class="list__row"><span class="list__main"><strong>${esc(c.caller)}</strong><span class="help">${esc(c.service)} · ${(c.origin === 'browser' ? 'Browser call' : c.channel === 'chat' ? 'Chat' : 'Desk request')} · ${esc(c.technician_name || (['AI','Triage'].includes(c.status) ? 'AI assistant' : 'Unassigned'))} · ${esc(when(new Date(c.created_at * 1000).toISOString()))}</span></span>${priorityBadge(c.priority)}${callBadge(c.status)}<a class="link" href="?view=calls&amp;call=${encodeURIComponent(c.id)}" data-call-select="${esc(c.id)}"><span>Open<span class="sr"> call from ${esc(c.caller)}</span></span></a></li>`; }).join('')}</ul>`
     : calling.data.calls.length ? '<p class="sec">No calls match this search.</p>' : '<div class="empty"><h3 class="h4">The queue is empty</h3><p class="sec">Incoming browser calls and routed support requests appear here.</p></div>');
-  const incoming = calling.data.incoming_calls || [];
   const focusedCallId = new URLSearchParams(location.search).get('call');
   $('#sharedQueuePanel').hidden = !incoming.length && !focusedCallId;
   $('#answerHint').hidden = !incoming.some(call => call.origin === 'browser') || !!calling.user?.voice_ready;
@@ -113,9 +115,12 @@ function renderCalling() {
   patch($('#sharedQueue'), incoming.length ? incoming.map(call => `<li class="list__row"><span class="list__main"><strong>${esc(call.caller || 'Waiting customer')}</strong><span class="help">${esc(call.service)} · ${call.channel === 'chat' ? 'Chat' : call.origin === 'browser' ? 'Browser call' : 'Support request'} · ${esc(call.priority || 'P3')} · Waiting ${esc(elapsed(call.queued_at || call.created_at))}</span></span>${priorityBadge(call.priority)}<button type="button" class="btn btn-primary btn-sm" data-pickup-call="${esc(call.id)}"><span>Answer<span class="sr"> ${esc(call.channel === 'chat' ? 'chat' : 'call')} from ${esc(call.caller || 'customer')}</span></span></button></li>`).join('')
     : '<li class="list__row"><span class="sec">No other calls are waiting right now.</span></li>');
   if ($('#technicianRows')) renderUsersTable();
-  $('#incomingCallBanner').hidden = !offer || focusedCallId === offer.id;
-  if (offer) {
-    patch($('#incomingCallBanner'), `<div class="stack stack--sm"><strong>◆ Incoming ${offer.origin === 'browser' ? 'call' : offer.channel === 'chat' ? 'chat' : 'support request'} · ${esc(offer.caller)}</strong><span class="help">${esc(offer.service)} · answer within ${Math.max(0, Math.ceil(offer.reserved_until - Date.now()/1000))} seconds</span></div><a class="btn btn-primary btn-sm" href="?view=calls&amp;call=${encodeURIComponent(offer.id)}" data-call-select="${esc(offer.id)}">View request</a>`);
+  $('#incomingCallBanner').hidden = !bannerCall || focusedCallId === bannerCall.id;
+  if (bannerCall) {
+    const timing = bannerCall.status === 'Ringing'
+      ? `Answer within ${Math.max(0, Math.ceil(bannerCall.reserved_until - Date.now()/1000))} seconds`
+      : 'Waiting for the matching technician';
+    patch($('#incomingCallBanner'), `<div class="stack stack--sm"><strong>◆ Incoming ${bannerCall.origin === 'browser' ? 'call' : bannerCall.channel === 'chat' ? 'chat' : 'support request'} · ${esc(bannerCall.caller)}</strong><span class="help">${esc(bannerCall.service)} · ${timing}</span></div><a class="btn btn-primary btn-sm" href="?view=calls&amp;call=${encodeURIComponent(bannerCall.id)}" data-call-select="${esc(bannerCall.id)}">View request</a>`);
   }
   // List or call page, never both, so neither gets squeezed. The address (?call=ID) decides which one shows.
   const pageCall = new URLSearchParams(location.search).get('call');
@@ -147,7 +152,7 @@ function renderCallOffer(offer) {
   if (call?.id === new URLSearchParams(location.search).get('call')) call = null;
   box.hidden = !call;
   if (!call) { patch(box, ''); return; }
-  const name = call.caller || 'Customer', mine = call.technician_id === user.id && call.status === 'Ringing';
+  const name = call.caller || 'Customer', mine = call.offered_to_me || (call.technician_id === user.id && call.status === 'Ringing');
   setBadge($('#activeCallIndicator'), 'badge--medium', `● Incoming ${call.channel === 'chat' ? 'chat' : 'call'} · ${name}`);
   $('#phoneConnection').textContent = call.summary && call.summary !== 'Understanding the customer issue' ? call.summary : 'A customer asked for a technician.';
   patch(box, `<div class="call-controls"><button type="button" class="call-btn call-btn--answer" data-pickup-call="${esc(call.id)}"><span class="call-btn__icon">${ICON_PHONE}</span>Answer ${call.channel === 'chat' ? 'chat' : 'call'}<span class="sr"> from ${esc(name)}</span></button><button type="button" class="call-btn call-btn--danger" data-reject-call="${esc(call.id)}" data-offered="${mine ? 1 : 0}"><span class="call-btn__icon">${ICON_X}</span>Reject ${call.channel === 'chat' ? 'chat' : 'call'}<span class="sr"> from ${esc(name)}</span></button></div>`);
