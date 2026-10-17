@@ -1026,6 +1026,14 @@ class CallingService:
                         if refreshed.get('knowledge_status') != 'ready':
                             raise RuntimeError('Knowledge refresh unavailable')
                         decision = self.engine.generate_voice(instruction + f'KB: {refreshed.get("knowledge_matches", [])}', VoiceDecision)
+                    if decision.customer_confirmed_resolved:
+                        # A clear customer confirmation takes precedence over an inconsistent model routing flag.
+                        # Keep the customer in control of hang-up; the incident is finalized when they end the call.
+                        decision.escalate = False
+                        decision.reply = (
+                            "I’m glad that fixed the issue. If you don’t have any other questions, "
+                            "please end the call and I’ll mark your incident as resolved."
+                        )
                     summary_update = decision.summary
                     if decision.safe_guidance and decision.confidence >= self.settings.ai_routing_confidence and not decision.escalate:
                         if call['ai_turns'] == 0:

@@ -629,15 +629,8 @@ class BrowserSession:
                 await asyncio.to_thread(self.service.confirm_ai_resolution, self.call_id, customer_turn)
             if await self.say(reply.reply) is False:
                 return
-            current = await asyncio.to_thread(self.service.get, self.call_id)
-            if current['status'] != 'AI' or revision != self.turn_revision:
-                return
-            if reply.customer_confirmed_resolved:
-                self.finalizing = True
-                try:
-                    await asyncio.to_thread(self.service.finish, self.call_id)
-                finally:
-                    self.finalizing = False
+            # A customer-confirmed AI fix is recorded above, but the customer decides when to hang up.
+            # Their normal end-call action then creates the incident as Resolved from that confirmation.
 
     async def process(self):
         while not self.closed:

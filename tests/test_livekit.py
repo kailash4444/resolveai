@@ -175,6 +175,12 @@ def test_ai_voice_resolution_only_after_confirmed_outcome(service,monkeypatch):
         decision.reply='Glad it is working.'
         decision.customer_confirmed_resolved=True
         await session.process_utterance('Customer',b'audio')
+        pending=service.get(call['id'])
+        assert pending['status']=='AI' and not pending['case_id']
+        assert pending['ai_resolution']
+        assert session.say.await_args.args[0] == "I’m glad that fixed the issue. If you don’t have any other questions, please end the call and I’ll mark your incident as resolved."
+        await transport.end(call['id'])
+        service.finalize_ticket(call['id'])
         incident=service.case_store.get_case(service.get(call['id'])['case_id'])
         assert incident.ticket.state == 'Resolved'
         assert incident.ticket.assigned_to == 'AI'
