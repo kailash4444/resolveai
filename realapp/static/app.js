@@ -676,10 +676,15 @@ async function loadCases() {
     const cases = await api('/api/cases');
     if (state.user?.id !== userId) return;
     state.cases = cases;
-    const select = $('#ticketAssignee'), selected = select.value;
+    const select = $('#ticketAssignee'), technician = state.user?.role === 'technician';
+    const sameUser = select.dataset.userId === state.user?.id;
+    const selected = sameUser ? select.value : (technician ? '__mine__' : '');
     const names = [...new Set(cases.map(item => item.ticket.assigned_to).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-    select.innerHTML = '<option value="">Anyone</option><option value="__unassigned__">Unassigned</option>' + names.map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('');
-    select.value = [...select.options].some(option=>option.value===selected) ? selected : '';
+    select.innerHTML = technician
+      ? '<option value="__mine__">Assigned to me</option><option value="__unassigned__">Unassigned</option>'
+      : '<option value="">Anyone</option><option value="__unassigned__">Unassigned</option>' + names.map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('');
+    select.value = [...select.options].some(option=>option.value===selected) ? selected : (technician ? '__mine__' : '');
+    select.dataset.userId = state.user?.id || '';
     renderTickets();
   } catch (error) {
     $('#ticketsLoadErrorMessage').textContent = error.message;
@@ -694,7 +699,10 @@ function renderTickets() {
   const status = $('#ticketStateFilter').value, priority = $('#ticketPriorityFilter').value;
   const cases = state.cases.filter(item => (!term || `${item.ticket.id} ${item.ticket.short_description}`.toLowerCase().includes(term)) &&
     (!status || item.ticket.state === status) && (!priority || item.ticket.priority === priority) &&
-    (!assignee || (assignee === '__unassigned__' ? !item.ticket.assigned_to : item.ticket.assigned_to === assignee)));
+    (assignee === '__mine__'
+      ? (item.ticket.assigned_user_id ? item.ticket.assigned_user_id === state.user?.id : item.ticket.assigned_to === state.user?.name)
+      : assignee === '__unassigned__' ? !item.ticket.assigned_user_id && !item.ticket.assigned_to
+      : !assignee || item.ticket.assigned_to === assignee));
   const key = JSON.stringify([state.user?.id, term, assignee, status, priority, $('#ticketSort').dataset.direction]);
   if (key !== ticketFilterKey) { ticketPage = 1; ticketFilterKey = key; }
   const newest = $('#ticketSort').dataset.direction !== 'oldest';

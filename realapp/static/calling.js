@@ -663,8 +663,12 @@ document.addEventListener('click', async event => {
       if (['transfer', 'finish'].includes(kind)) {
         const dialog = $('#callActionDialog'); dialog.dataset.callId = id; dialog.dataset.action = kind;
         const noun = calling.data?.calls.find(c => c.id === id)?.channel === 'chat' ? 'chat' : 'call';
-        $('#callActionTitle').textContent = kind === 'transfer' ? `Transfer this ${noun}?` : `End this ${noun}?`;
-        $('#callActionDescription').textContent = kind === 'transfer' ? `The ${noun} will return to the support queue for another technician.` : 'The conversation will stop for everyone.';
+        const askResolution = kind === 'finish' && noun === 'chat';
+        $('#confirmCallAction').hidden = askResolution;
+        $('#confirmChatUnresolved').hidden = !askResolution;
+        $('#confirmChatResolved').hidden = !askResolution;
+        $('#callActionTitle').textContent = askResolution ? 'Is the customer’s issue resolved?' : kind === 'transfer' ? `Transfer this ${noun}?` : `End this ${noun}?`;
+        $('#callActionDescription').textContent = askResolution ? 'Choose whether the incident should be resolved before this chat ends.' : kind === 'transfer' ? `The ${noun} will return to the support queue for another technician.` : 'The conversation will stop for everyone.';
         $('#confirmCallAction').textContent = kind === 'transfer' ? `Transfer ${noun}` : `End ${noun}`;
         dialog.showModal(); return;
       }
@@ -703,15 +707,10 @@ document.addEventListener('click', async event => {
     if (event.target.closest('#routeRequestButton')) { $('#requestMessage').textContent = ''; $('#requestModal').showModal(); }
     if (event.target.closest('#retryCalls')) await loadCalling();
     if (event.target.closest('#confirmCallAction')) {
-      const dialog = $('#callActionDialog'), id = dialog.dataset.callId, kind = dialog.dataset.action;
-      dialog.close();
-      const comment = kind === 'finish' ? (calling.noteDrafts[id] ?? $('#callNoteText')?.value ?? '') : '';
-      const result = await api(`/api/calling/${id}/${kind}`, {method:'POST',body:JSON.stringify({technician_comment:comment})});
-      if (kind === 'finish') delete calling.noteDrafts[id];
-      if (['finish','transfer'].includes(kind) && calling.roomCallId === id) { const room=calling.room; calling.room=null; calling.roomCallId=null; await room?.disconnect(); }
-      await loadCalling();
-      if (kind === 'finish' && new URLSearchParams(location.search).get('call') === id) closeCall();   // back to Calls & queue
+      await commitCallAction($('#callActionDialog'));
     }
+    if (event.target.closest('#confirmChatResolved')) await commitCallAction($('#callActionDialog'), true);
+    if (event.target.closest('#confirmChatUnresolved')) await commitCallAction($('#callActionDialog'), false);
     if (event.target.closest('#accountSignOut, [data-sign-out]')) {
       const blockSignOut = () => { window.Shell?.closeDrawer(false); const notice = $('#signOutCallNotice'); notice.hidden = false; notice.focus(); };
       if (calling.user?.current_call_id || calling.roomCallId) { blockSignOut(); return; }
@@ -799,6 +798,20 @@ async function sendTechnicianReply(event) {
   try { await api(`/api/calling/${id}/reply`, {method: 'POST', body: JSON.stringify({text})}); loadCalling(); }
   catch (error) { $('#cfChat').querySelectorAll('[data-pending]').forEach(item => item.remove()); field.value = text; status.className = 'form-status err'; status.textContent = `✕ Not sent: ${error.message}`; }
   field.focus();
+}
+async function commitCallAction(dialog, issueResolved) {
+  const id = dialog.dataset.callId, kind = dialog.dataset.action;
+  const comment = kind === 'finish' ? (calling.noteDrafts[id] ?? $('#callNoteText')?.value ?? '') : '';
+  const payload = {technician_comment: comment};
+  if (issueResolved !== undefined) payload.issue_resolved = issueResolved;
+  await api(`/api/calling/${id}/${kind}`, {method:'POST', body:JSON.stringify(payload)});
+  dialog.close();
+  if (kind === 'finish') delete calling.noteDrafts[id];
+  if (['finish','transfer'].includes(kind) && calling.roomCallId === id) {
+    const room = calling.room; calling.room = null; calling.roomCallId = null; await room?.disconnect();
+  }
+  await loadCalling();
+  if (kind === 'finish' && new URLSearchParams(location.search).get('call') === id) closeCall();
 }
 let techTypingAt = 0;
 document.addEventListener('keydown', event => {

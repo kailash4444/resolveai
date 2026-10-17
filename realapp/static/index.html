@@ -597,9 +597,9 @@
     <div class="row"><button type="button" class="btn btn-soft" data-close>Cancel</button><button type="button" class="btn btn-soft" id="rejectEdit">Correct the fields</button><button type="button" class="btn btn-danger is-confirm" id="rejectResolve">Resolve as raised in error</button></div>
   </dialog>
   <dialog class="dlg" id="endChatDialog" aria-labelledby="endChatTitle" aria-describedby="endChatText">
-    <h2 id="endChatTitle">End this chat?</h2>
-    <p class="sec" id="endChatText">The conversation stops. Your incident stays open on My support, and you can start a new chat at any time.</p>
-    <div class="row"><button type="button" class="btn btn-soft" data-close>Keep chatting</button><button type="button" class="btn btn-danger is-confirm" id="confirmEndChat">End chat</button></div>
+    <h2 id="endChatTitle">Is your issue resolved?</h2>
+    <p class="sec" id="endChatText">Your answer will update the incident before the conversation ends.</p>
+    <div class="row"><button type="button" class="btn btn-soft" data-close>Keep chatting</button><button type="button" class="btn btn-soft" id="endChatUnresolved">No, I still need help</button><button type="button" class="btn btn-primary is-confirm" id="confirmEndChat">Yes, resolve and end chat</button></div>
   </dialog>
   <div class="toasts" id="toastHost" aria-live="polite"></div>
   <dialog class="dlg" id="leaveDialog" aria-labelledby="leaveTitle" aria-describedby="leaveText">
@@ -653,19 +653,19 @@
     </form>
   </dialog>
   <dialog class="dlg" id="deleteUserDialog" aria-labelledby="deleteUserTitle" aria-describedby="deleteUserDescription"><h2 id="deleteUserTitle">Delete technician?</h2><p class="sec" id="deleteUserDescription"></p><p class="err" id="deleteUserError" role="alert" hidden></p><div class="row"><button type="button" class="btn btn-soft" data-close>Cancel</button><button type="button" class="btn btn-danger" id="confirmDeleteUser">Delete technician</button></div></dialog>
-  <dialog class="dlg" id="callActionDialog" aria-labelledby="callActionTitle" aria-describedby="callActionDescription"><h2 id="callActionTitle">Confirm call action</h2><p class="sec" id="callActionDescription"></p><div class="row"><button type="button" class="btn btn-soft" data-close>Cancel</button><button type="button" class="btn btn-danger is-confirm" id="confirmCallAction">Confirm</button></div></dialog>
+  <dialog class="dlg" id="callActionDialog" aria-labelledby="callActionTitle" aria-describedby="callActionDescription"><h2 id="callActionTitle">Confirm call action</h2><p class="sec" id="callActionDescription"></p><div class="row"><button type="button" class="btn btn-soft" data-close>Cancel</button><button type="button" class="btn btn-danger is-confirm" id="confirmCallAction">Confirm</button><button type="button" class="btn btn-soft" id="confirmChatUnresolved" hidden>No, still needs help</button><button type="button" class="btn btn-primary is-confirm" id="confirmChatResolved" hidden>Yes, resolve and end chat</button></div></dialog>
   <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="btn btn-primary resume-audio" type="button" hidden>Turn on call audio</button>
   <script src="/static/resolveai-components.js?v=3"></script>
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=7"></script>
   <script src="/static/shell.js?v=20261017-b1"></script>
   <script src="/static/uploader.js?v=20261015-qa"></script>
-  <script src="/static/app.js?v=20261017-b4"></script>
+  <script src="/static/app.js?v=20261017-b6"></script>
   <script src="/static/auth.js?v=17"></script>
   <script src="/static/landing.js?v=2"></script>
-  <script src="/static/support-hub.js?v=13"></script>
+  <script src="/static/support-hub.js?v=14"></script>
   <script src="/static/resolution-radar.js?v=7"></script>
-  <script src="/static/calling.js?v=20261017-tech9"></script>
+  <script src="/static/calling.js?v=20261017-tech10"></script>
   <script src="/static/transcripts.js?v=20261015-ux"></script>
   <script src="/static/incident-time-machine.js?v=6"></script>
 </body>

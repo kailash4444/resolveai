@@ -538,6 +538,10 @@ def list_view(case: CaseRecord) -> CaseRecord:
 def list_cases(http: Request, ticket_number: str = '', assigned_to: str = ''):
     user = actor(http)
     return [list_view(visible_case(case, user)) for case in store.list_cases() if can_read(case, user)
+            and (user['role'] != 'technician'
+                 or case.ticket.assigned_user_id == user['id']
+                 or (not case.ticket.assigned_user_id and case.ticket.assigned_to == user['name'])
+                 or (not case.ticket.assigned_user_id and not case.ticket.assigned_to))
             and ticket_number.strip().casefold() in case.ticket.id.casefold()
             and (not assigned_to or (not case.ticket.assigned_to if assigned_to == '__unassigned__'
                  else assigned_to.strip().casefold() == case.ticket.assigned_to.casefold()))]

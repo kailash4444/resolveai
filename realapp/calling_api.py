@@ -37,6 +37,11 @@ class TechnicianCallNote(BaseModel):
 
 class FinishCallRequest(BaseModel):
     technician_comment: str = Field(default='', max_length=4000)
+    issue_resolved: bool | None = None
+
+
+class ChatEndRequest(BaseModel):
+    issue_resolved: bool | None = None
 
 
 class TechnicianCallNoteDraft(BaseModel):
@@ -472,11 +477,32 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
     # every route is scoped to the signed-in customer who started the chat.
     def chat_view(call):
         case = service.case_store.get_case(call['case_id']) if call.get('case_id') else None
-        return {key: call.get(key) for key in ('id', 'status', 'technician_name', 'case_id', 'created_at', 'ended_at', 'last_error')} | {
+        return {key: call.get(key) for key in ('id', 'status', 'technician_name', 'case_id', 'created_at', 'ended_at', 'last_error', 'issue_resolved')} | {
             'ticket_number': case.ticket.id if case else '',
             'agent_typing': service.is_typing(call, 'agent'),
             'transcript': [{key: turn.get(key) for key in ('speaker', 'text', 'timestamp')} | {key: turn[key] for key in ('id', 'edited') if turn.get(key)}
                            for turn in call.get('transcript', [])[-100:]]}
+
+    def apply_chat_resolution(call_id, background_tasks, request=None):
+        call = service.get(call_id)
+        resolved = call.get('issue_resolved')
+        if resolved is None or call.get('issue_resolution_applied'):
+            return
+        case_id = call.get('case_id') or call.get('live_case_id')
+        case = service.case_store.get_case(case_id) if case_id else None
+        if not case:
+            return
+        if resolved:
+            actor_name = call.get('resolution_confirmed_by') or 'The customer'
+            note = f'{actor_name} confirmed the issue was resolved at the end of the chat.'
+            resolution = '\n'.join(part for part in (case.ticket.resolution.strip(), note) if part)
+            update = TicketUpdate(state='Resolved', resolution=resolution)
+        elif case.ticket.state == 'Resolved':
+            update = TicketUpdate(state='In Progress', resolution='')
+        else:
+            return
+        update_ticket(case.id, update, background_tasks, request)
+        service.repository.mutate(lambda db: db['calls'][call_id].update(issue_resolution_applied=True), call_ids=(call_id,))
 
     def own_chat(request, chat_id):
         actor = user(request)
@@ -505,7 +531,7 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
             return
         service.add_turn(call_id, 'AI Agent', text)
 
-    def ai_turn(call_id, background_tasks, resolve_on_confirm):
+    def ai_turn(call_id, background_tasks):
         """The assistant's next chat message. Runs after the customer's message has been saved and returned, with a
         typing indicator shown while it is written."""
         try:
@@ -517,10 +543,6 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
             if reply.escalate:
                 service.enqueue(call_id, "AI requested technician assistance")
                 handoff_message(call_id)
-            elif resolve_on_confirm and reply.customer_confirmed_resolved:
-                call = service.get(call_id)
-                update_ticket(call["case_id"], TicketUpdate(state="Resolved", resolution="Customer confirmed the issue was fixed. " + reply.reply), background_tasks)
-                service.finish(call_id)
         except Exception:
             service.enqueue(call_id, "AI assistance is unavailable")
             handoff_message(call_id)
@@ -542,6 +564,9 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
     def first_reply(call_id, background_tasks):
         try:
             call = service.triage(call_id)
+            call = service.get(call_id)
+            if call.get('issue_resolved') is not None and not call.get('issue_resolution_applied'):
+                apply_chat_resolution(call_id, background_tasks)
             service.refresh_knowledge(call_id)
         except Exception:
             # The AI couldn't read the request (for example Gemini is down): hand the chat to a technician instead of
@@ -553,7 +578,7 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
                 handoff_message(call_id)
             return
         if call['status'] == 'AI':
-            ai_turn(call_id, background_tasks, False)
+            ai_turn(call_id, background_tasks)
         else:
             service.repository.mutate(lambda db: db['calls'][call_id].setdefault('typing', {}).update(agent=0), call_ids=(call_id,))
             handoff_message(call_id)
@@ -571,7 +596,7 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
         background_tasks.add_task(service.refresh_knowledge, chat_id)
         if call['status'] == 'AI':
             service.set_typing(chat_id, 'agent', seconds=60)
-            background_tasks.add_task(ai_turn, chat_id, background_tasks, True)
+            background_tasks.add_task(ai_turn, chat_id, background_tasks)
         return chat_view(service.get(chat_id))
 
     @router.post('/api/support/chats/{chat_id}/typing')
@@ -594,8 +619,13 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
         return chat_view(service.edit_turn(chat_id, turn_id, 'Customer', value.text))
 
     @router.post('/api/support/chats/{chat_id}/end')
-    def end_chat(chat_id: str, request: Request):
+    def end_chat(chat_id: str, request: Request, background_tasks: BackgroundTasks, value: ChatEndRequest | None = None):
         own_chat(request, chat_id)
+        if value and value.issue_resolved is not None:
+            service.repository.mutate(lambda db: db['calls'][chat_id].update(
+                issue_resolved=value.issue_resolved,
+                resolution_confirmed_by=user(request)['name']), call_ids=(chat_id,))
+            apply_chat_resolution(chat_id, background_tasks, request)
         return chat_view(service.finish(chat_id))
 
     @router.post("/api/calling/requests", status_code=201)
@@ -696,11 +726,16 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
         return service.decline(call_id, actor["id"])
 
     @router.post("/api/calling/{call_id}/finish")
-    async def finish(call_id: str, request: Request, value: FinishCallRequest | None = None):
+    async def finish(call_id: str, request: Request, background_tasks: BackgroundTasks, value: FinishCallRequest | None = None):
         actor, call = own_call(request, call_id)
         comment = (value.technician_comment if value else '').strip()
         if comment and call['status'] == 'Connected':
             service.add_technician_note(call_id, actor['name'], comment)
+        if call.get('channel') == 'chat' and value and value.issue_resolved is not None:
+            service.repository.mutate(lambda db: db['calls'][call_id].update(
+                issue_resolved=value.issue_resolved,
+                resolution_confirmed_by=actor['name']), call_ids=(call_id,))
+            apply_chat_resolution(call_id, background_tasks, request)
         return await transport.end(call_id) if call["origin"] == "browser" else service.finish(call_id)
 
     @router.post("/api/calling/{call_id}/transfer")

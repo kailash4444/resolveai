@@ -160,7 +160,7 @@
         note.className = 'chat-note';
         note.textContent = endedByMe ? 'You ended the chat' : chat.status === 'Completed' && chat.technician_name ? `${chat.technician_name} ended the chat` : 'The chat has ended';
         $('#chatLog').append(note); $('#chatLog').scrollTop = $('#chatLog').scrollHeight;
-        returnToOptions(chat.ticket_number ? `Chat ended. Incident ${chat.ticket_number} stays on My support.` : 'Chat ended.', endedByMe ? 1500 : 6000);
+        returnToOptions(chat.ticket_number ? `Chat ended. Incident ${chat.ticket_number} ${chat.issue_resolved ? 'was marked resolved' : 'stays open'} on My support.` : 'Chat ended.', endedByMe ? 2500 : 6000);
         endedByMe = false;
       }
       stopPolling();
@@ -225,13 +225,15 @@
     finally { button.disabled = false; }
   });
   $('#chatEnd').addEventListener('click', () => $('#endChatDialog').showModal());
-  $('#confirmEndChat').addEventListener('click', async () => {
+  async function endCustomerChat(issueResolved) {
     $('#endChatDialog').close();
     if (!chat) return;   // nothing to end (no chat started in this tab)
     endedByMe = true;
-    try { chat = await api(`/api/support/chats/${encodeURIComponent(chat.id)}/end`, {method: 'POST', body: '{}'}); renderChat(); refreshAfterSupport(); }
+    try { chat = await api(`/api/support/chats/${encodeURIComponent(chat.id)}/end`, {method: 'POST', body: JSON.stringify({issue_resolved: issueResolved})}); renderChat(); refreshAfterSupport(); }
     catch (error) { setFormStatus($('#chatStatus'), `✕ ${error.message}`, true); }
-  });
+  }
+  $('#confirmEndChat').addEventListener('click', () => endCustomerChat(true));
+  $('#endChatUnresolved').addEventListener('click', () => endCustomerChat(false));
 
   // Called when My support opens: check voice availability and resume a chat left open in this tab.
   window.SupportHub = {
