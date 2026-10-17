@@ -375,7 +375,8 @@ class CallingService:
             call = {"id": f"CALL-{uuid4().hex[:12].upper()}", "caller": caller, "origin": origin, 'customer_id':customer_id,
                     "provider_sid": provider_sid, "language": language, "status": "Triage", "service": "General",
                     "priority": "P3", "summary": "Understanding the customer issue", "reason": "", "case_id": None,
-                    "technician_id": None, "technician_name": "", "created_at": self.now(), "queued_at": None,
+                    "technician_id": None, "technician_name": "", "last_offered_technician_id": None,
+                    "last_offered_technician_name": "", "created_at": self.now(), "queued_at": None,
                     "reserved_until": None, "connected_at": None, "ended_at": None, "transcript": [], "events": [],
                     "technician_notes": [],
                     "attempted_steps": [], "recommended_action": "", "next_question": "",
@@ -698,13 +699,27 @@ class CallingService:
                 tech = offered[0]
                 tech.update(status="Busy", current_call_id=call["id"], last_assigned=now)
                 call.update(status="Ringing", technician_id=tech["id"], technician_name=tech["name"],
+                    last_offered_technician_id=tech["id"], last_offered_technician_name=tech["name"],
                     offered_technician_ids=[candidate['id'] for candidate in offered],
                     reserved_until=now + self.settings.call_reservation_seconds, dispatch_id=uuid4().hex, dispatch_sent=False,
                     pickup_claimed=False, pickup_claimed_at=None)
                 history(call, f"Offered to {', '.join(candidate['name'] for candidate in offered)}")
                 offers.append(call)
             return offers
-        return self.repository.mutate(route)
+        offers = self.repository.mutate(route)
+        # Desk incidents already exist before call dispatch. Give the lead offer recipient ownership
+        # while the call is ringing so a missed offer cannot leave the incident without an assignee.
+        for call in offers:
+            if not call.get('case_id'):
+                continue
+            case = self.case_store.get_case(call['case_id'])
+            if case and not case.ticket.assigned_user_id and call.get('technician_id'):
+                case.ticket.assigned_user_id = call['technician_id']
+                case.ticket.assigned_to = call['technician_name']
+                case.ticket.work_notes.append(WorkNote(id=f"NOTE-{uuid4().hex[:8]}", author="Call routing",
+                    author_type="System", text=f"Assigned to : {call['technician_name']}\nCall offer sent; assignment retained if the offer times out."))
+                self.case_store.save_case(case)
+        return offers
 
     def claim_dispatch(self, call_id, dispatch_id):
         def claim(db):
@@ -717,6 +732,9 @@ class CallingService:
 
     def _release(self, db, call, reason, away=False):
         tech = db["technicians"].get(call["technician_id"])
+        if call.get('technician_id'):
+            call['last_offered_technician_id'] = call['technician_id']
+            call['last_offered_technician_name'] = call.get('technician_name') or ''
         if tech and tech["current_call_id"] == call["id"]:
             call["declined"][tech["id"]] = self.now() + 30
             tech.update(status=public_technician(tech)['availability'], current_call_id=None)
@@ -926,8 +944,11 @@ class CallingService:
                 case.created_by = case.customer_id
                 case.transcript = [TranscriptTurn(**turn) for turn in turns]
                 case.ticket.call_id = call_id
-                case.ticket.assigned_user_id = call['technician_id'] or ''
-                case.ticket.assigned_to = call['technician_name'] or ''
+                assigned_user_id = call.get('technician_id') or call.get('last_offered_technician_id') or ''
+                assigned_to = (call.get('technician_name') if call.get('technician_id')
+                    else call.get('last_offered_technician_name', ''))
+                case.ticket.assigned_user_id = assigned_user_id
+                case.ticket.assigned_to = assigned_to or ''
                 resolved = case.ticket.state == 'Resolved' and bool(case.ticket.resolution.strip()) and call['status'] == 'Completed'
                 if not resolved:
                     # A technician already worked an incident opened during the call, so it stays In Progress.
