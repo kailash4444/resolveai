@@ -19,7 +19,7 @@ def _person_id(name: str, role: str) -> str:
     return f"person:{role}:{sha256(key.encode()).hexdigest()[:10]}"
 
 
-def build_handoff_graph(case, candidates, knowledge_matches):
+def build_handoff_graph(case, candidates, knowledge_matches, technician_profile=None):
     nodes, edges, node_ids, edge_keys = [], [], set(), set()
 
     def node(identifier, kind, label, detail='', **extra):
@@ -58,7 +58,10 @@ def build_handoff_graph(case, candidates, knowledge_matches):
                                       detail or 'Technician recorded in this incident.')
         return staff_by_name[key]
 
-    assignee = staff(case.ticket.assigned_to, 'Current incident assignee.')
+    profile_detail = ('Assigned technician · ' + technician_profile['profile']
+                      if technician_profile and technician_profile.get('technician_id') == case.ticket.assigned_user_id
+                      else 'Current incident assignee.')
+    assignee = staff(case.ticket.assigned_to, profile_detail)
     if assignee:
         edge(assignee, ticket_id, 'assigned', 'currently assigned')
 
@@ -156,6 +159,28 @@ def build_handoff_graph(case, candidates, knowledge_matches):
                 timestamp=turn.timestamp or '', source_label='Transcript from comparable ticket',
                 case_id=similar.id)
             edge(identifier, transcript_id, 'contains_conversation', 'related ticket transcript')
+
+    # Link the assignee's own most relevant solved cases, so both staff and the plan
+    # can inspect the evidence behind the expertise score.
+    if assignee and technician_profile:
+        existing = {item.get('case_id'): item['id'] for item in nodes
+                    if item['kind'] == 'similar_case' and item.get('case_id')}
+        for past in technician_profile.get('similar_resolved', []):
+            case_node = existing.get(past['case_id'])
+            if case_node:
+                edge(assignee, case_node, 'resolved_similar', 'assigned technician resolved this similar incident')
+                continue
+            detail = (f"Resolved by {technician_profile['name']}. Matched issue terms: "
+                      f"{', '.join(past['matched_terms']) or 'service/category'}.\n"
+                      f"Recorded resolution: {past['resolution'] or 'No resolution notes recorded.'}")
+            case_node = node(f"technician-history:{past['case_id']}", 'similar_case', past['ticket_id'], detail,
+                             title=past['title'], state=past['state'], priority=past['priority'],
+                             outcome='resolved_by_assigned_technician',
+                             similarity_terms=past['matched_terms'], created_at=past['created_at'],
+                             case_id=past['case_id'], source_label='Assigned technician history')
+            edge(assignee, case_node, 'resolved_similar', 'assigned technician resolved this similar incident')
+            edge(case_node, ticket_id, 'prior_evidence_for', 'prior resolution may inform this handoff')
+            similar_ids.append(case_node)
 
     return {
         'incident': {'id': case.id, 'ticket_id': case.ticket.id,

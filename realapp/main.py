@@ -32,6 +32,7 @@ from realapp.attachments import (save_attachment, get_attachment_data, find_case
 from realapp.resolution_radar import ResolutionRadar, evidence_digest
 from realapp.incident_time_machine import compare_history, reconstruct as reconstruct_incident
 from realapp.handoff_graph import build_handoff_graph, guidance_context
+from realapp.technician_assignment import build_technician_profiles
 
 
 settings = get_settings()
@@ -751,8 +752,17 @@ def get_incident_time_machine(case_id: str, http: Request):
 
 def _handoff_graph(case: CaseRecord, user: dict, refresh_knowledge: bool = False):
     safe_case = visible_case(case, user)
-    candidates = [item for item in store.list_cases_for_service(case.ticket.service)
-                  if can_read(item, user)]
+    technician_profile = None
+    if case.ticket.assigned_user_id:
+        all_cases = store.list_cases()
+        candidates = [item for item in all_cases if can_read(item, user)]
+        assigned_tech = next((item for item in app.state.calling.snapshot()['technicians']
+                              if item['id'] == case.ticket.assigned_user_id and item['role'] == 'technician'), None)
+        if assigned_tech:
+            technician_profile = build_technician_profiles([assigned_tech], safe_case, all_cases).get(assigned_tech['id'])
+    else:
+        candidates = [item for item in store.list_cases_for_service(case.ticket.service)
+                      if can_read(item, user)]
     matches, warnings = safe_case.knowledge_matches, []
     if refresh_knowledge:
         query = '\n'.join([
@@ -767,7 +777,7 @@ def _handoff_graph(case: CaseRecord, user: dict, refresh_knowledge: bool = False
         except Exception:
             logger.exception('Live handoff knowledge retrieval failed for incident %s', case.id)
             warnings.append('Live knowledge retrieval was unavailable; showing the knowledge matches saved on this incident.')
-    graph = build_handoff_graph(safe_case, candidates, matches)
+    graph = build_handoff_graph(safe_case, candidates, matches, technician_profile)
     graph['incident']['assigned_to_you'] = (user['role'] == 'technician'
         and case.ticket.assigned_user_id == user['id'])
     return graph, warnings

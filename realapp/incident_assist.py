@@ -3,13 +3,13 @@
 Project norm: AI handles low-risk routine issues using approved knowledge only; anything risky, urgent,
 uncertain or unsupported goes to a technician with the full context. Every outcome is recorded on the case.
 """
-import re
 from datetime import datetime, timezone
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
 from realapp.models import AIAssist, WorkNote
+from realapp.technician_assignment import build_technician_profiles, choose_technician
 
 # Identity, access and security changes need a verified human (no action connector exists for AI).
 RISKY_TERMS = ("password", "unlock", "locked", "lockout", "log in", "login", "sign in", "sign-in", "mfa", "credential",
@@ -89,61 +89,37 @@ def assess(case, visual, has_images: bool, engine, settings) -> AIAssist:
                     source=getattr(visual, "analysis_source", "") or settings.llm_provider)
 
 
-def _words(text: str) -> set[str]:
-    return {w for w in re.findall(r"[a-z0-9]+", (text or "").lower()) if len(w) > 3}
-
-
 def experience(tech_id: str, case, cases) -> int:
-    """How many resolved incidents this technician handled that resemble this one."""
-    words, similar = _words(f"{case.ticket.short_description} {case.ticket.description}"), 0
-    for past in cases:
-        t = past.ticket
-        if past is case or t.assigned_user_id != tech_id or t.state not in {"Resolved", "Closed"}:
-            continue
-        same_field = ((t.subcategory not in {"", "Unclassified", "Investigation", "Triage"} and t.subcategory == case.ticket.subcategory)
-                      or (t.category not in {"", "Incident"} and t.category == case.ticket.category)
-                      or (t.service not in {"", "General"} and t.service.lower() == case.ticket.service.lower()))
-        past_words = _words(f"{t.short_description} {t.description}")
-        similar_text = bool(words and past_words) and len(words & past_words) / len(words | past_words) >= 0.2
-        similar += bool(same_field or similar_text)
-    return similar
+    """Number of relevant solved tickets in the derived technician profile."""
+    profile = build_technician_profiles([{"id": tech_id, "role": "technician"}], case, cases).get(tech_id)
+    return profile["similar_resolved_count"] if profile else 0
 
 
 def pick_technician(technicians, cases, case):
-    """Available first, then the most experience with similar incidents, then skill tags, then the lightest workload."""
-    staff = [t for t in technicians if t.get("role") == "technician"]
-    if not staff:
-        return None, ""
-    load = {}
-    for item in cases:
-        if item.ticket.state not in {"Resolved", "Closed"} and item.ticket.assigned_user_id:
-            load[item.ticket.assigned_user_id] = load.get(item.ticket.assigned_user_id, 0) + 1
-    service = (case.ticket.service or "").strip().lower()
-    presence = lambda t: {"Available": 0, "Busy": 1}.get(t.get("status"), 2)
-    scored = [(presence(t), -experience(t["id"], case, cases), service not in [s.lower() for s in t.get("skills", [])],
-               load.get(t["id"], 0), t.get("name", ""), t) for t in staff]
-    rank, neg_exp, no_skill, current, _, tech = min(scored, key=lambda row: row[:5])
-    why = ["available now" if rank == 0 else "busy on a call" if rank == 1 else "not currently available"]
-    if neg_exp:
-        why.append(f"resolved {-neg_exp} similar incident{'s' if neg_exp != -1 else ''}")
-    if not no_skill:
-        why.append(f"{case.ticket.service} skill")
-    why.append(f"{current} open ticket{'s' if current != 1 else ''}")
-    return tech, " · ".join(why)
+    """Compatibility wrapper for the priority-aware technician profile ranker."""
+    tech, rationale, _ = choose_technician(technicians, cases, case)
+    return tech, rationale
 
 
 def escalate(case, reason: str, technicians, cases) -> None:
     """Route to a human with the analysis attached, and auto-assign when a technician exists."""
     case.routing.handler, case.routing.rationale, case.handler_label = "Human", reason, "Human handling"
     case.recommended_action = case.recommended_action or "Review the customer's images and description."
-    tech, why = (None, "") if case.ticket.assigned_user_id else pick_technician(technicians, cases, case)
+    tech, why, profile = (None, "", None) if case.ticket.assigned_user_id else choose_technician(technicians, cases, case)
     lines = [f"AI handover : {reason}"]
     if tech:
         lines.append(f"Assigned to : {tech['name']} was Empty")
         lines.append(f"Chosen because : {why}")
+        if profile:
+            lines.append(f"Technician profile : {profile['profile']}")
+            if profile["similar_resolved"]:
+                lines.append("Relevant resolved evidence : " + ", ".join(item["ticket_id"] for item in profile["similar_resolved"]))
         case.ticket.assigned_user_id, case.ticket.assigned_to = tech["id"], tech["name"]
     elif not case.ticket.assigned_user_id:
-        lines.append("Assigned to : waiting in the Service Desk queue (no technician account available)")
+        has_technicians = any(item.get("role") == "technician" for item in technicians)
+        reason = ("no technician account is configured" if not has_technicians
+                  else "no technician is currently available")
+        lines.append(f"Assigned to : waiting in the Service Desk queue ({reason})")
     lines.append("Context : image analysis, AI suggestions and the customer's answer are on this ticket.")
     case.ticket.work_notes.append(WorkNote(id=f"NOTE-{uuid4().hex[:8].upper()}", author="AI handover", author_type="System", text="\n".join(lines)))
     if case.assist is None or case.assist.status == "offered":
