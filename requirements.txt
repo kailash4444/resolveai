@@ -1,6 +1,1 @@
-fastapi>=0.115,<1
-uvicorn[standard]>=0.30,<1
-pydantic>=2.8,<3
-google-genai>=1.0,<2
-google-cloud-firestore>=2.19,<3
-google-cloud-logging>=3.11,<4
+-r requirements-real.txt
