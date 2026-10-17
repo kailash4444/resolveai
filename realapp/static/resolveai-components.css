@@ -1168,6 +1168,9 @@ th:hover .sort-arrow, .column-sort:hover .sort-arrow, .column-sort:focus-visible
 .call-mic-btn{display:grid;place-items:center;width:38px;height:38px;flex:none;padding:0;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);cursor:pointer}
 .call-mic-btn[aria-checked="true"]{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,var(--border))}
 .call-mic-btn[disabled]{opacity:.55;cursor:not-allowed}
+.call-mic-btn.is-speaking,.call-btn--mic.is-speaking .call-btn__icon{animation:mic-speaking 1s ease-in-out infinite alternate}
+@keyframes mic-speaking{to{box-shadow:0 0 0 5px color-mix(in srgb,var(--ok) 22%,transparent);border-color:var(--ok)}}
+@media(prefers-reduced-motion:reduce){.call-mic-btn.is-speaking,.call-btn--mic.is-speaking .call-btn__icon{animation:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}}
 @media (max-width:860px){
   .call-dock{top:4px;grid-template-columns:minmax(0,1fr);gap:8px;padding:10px 12px}
   .dock-guidance,.dock-scratch,.dock-actions{grid-column:1}

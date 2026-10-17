@@ -1,11 +1,10 @@
 /* Browser voice support: one guided flow with an explicit state for every step and failure. */
 const $ = selector => document.querySelector(selector);
-const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const embedded = new URLSearchParams(location.search).has('embed');
 document.body.classList.toggle('support--embedded', embedded);
 document.querySelectorAll('[data-standalone]').forEach(el => { el.hidden = embedded; });
 
-let room, session, poll, busy = false, callStatus = '', transcriptSnapshot = '', voiceState = 'checking', configured = null;
+let room, session, poll, busy = false, callStatus = '', voiceState = 'checking', configured = null;
 
 // step: 0 microphone, 1 connect, 2 talk, 3 done. show: which controls are visible.
 const STATES = {
@@ -52,6 +51,7 @@ function setState(name, overrides = {}) {
 function updateListeningIndicator() {
   const connected = !!session && room?.state === 'connected';
   const microphoneOn = connected && room.localParticipant.isMicrophoneEnabled;
+  $('#muteSupportCall').classList.toggle('is-speaking', !!microphoneOn && room.localParticipant.isSpeaking);
   const assistantSpeaking = connected && [...room.remoteParticipants.values()].some(p => p.identity.startsWith('agent:') && p.isSpeaking);
   $('#listeningStatus').textContent = !connected ? 'Connecting audio…' : !microphoneOn ? 'Microphone muted' : assistantSpeaking ? 'AI assistant speaking…' : ['Triage', 'AI', 'Connected'].includes(callStatus) ? 'Listening…' : 'Waiting for a technician';
   // One switch for the microphone: on = others can hear you, off = muted.
@@ -99,20 +99,8 @@ async function finish(state = 'ended', overrides = {}, send = true) {
   const previousRoom = room; room = null;
   if (previousRoom) await previousRoom.disconnect();
   if (send && previous) fetch(`/api/support/calls/${previous.call_id}/end`, {method: 'POST', headers: {'X-Support-Token': previous.access_token}, keepalive: true}).catch(() => {});
-  transcriptSnapshot = '';
   $('#startSupportCall').disabled = false; $('#resumeAudioButton').hidden = true;
   setState(state, overrides);
-}
-
-// The call is still transcribed and saved to the incident, but the live transcript isn't shown during the call.
-function renderTranscript(turns) {
-  const snapshot = JSON.stringify(turns), box = $('#supportTranscript');
-  if (!box || snapshot === transcriptSnapshot) return;
-  const atTop = box.scrollTop < 32;   // newest line is on top; stay there unless the customer scrolled down
-  transcriptSnapshot = snapshot;
-  const who = {Customer: 'You', 'AI Agent': 'ResolveAI assistant'};
-  box.innerHTML = turns.length ? turns.slice().reverse().map(turn => `<div class="turn${turn.speaker === 'Customer' ? ' turn--you' : ''}"><span class="turn__who">${escapeHTML(who[turn.speaker] || turn.speaker)}</span><p>${escapeHTML(turn.text)}</p></div>`).join('') : '<p class="help">Your conversation appears here once transcription starts.</p>';
-  if (atTop) box.scrollTop = 0;
 }
 
 async function refresh() {
@@ -121,7 +109,6 @@ async function refresh() {
   try {
     const call = await request(`/api/support/calls/${session.call_id}`);
     callStatus = call.status;
-    renderTranscript(call.transcript || []);
     if (call.status === 'Completed') return await finish('ended', endedBy(call), false);
     if (call.status === 'Callback requested') return await finish('ended', {title: 'No technician was available', text: 'Nobody could take the call right now. Please try again later, or report the issue in writing.', badge: ['badge--high', '◆ No technician available'], show: ['form', 'report']}, false);
     if (call.status === 'Failed') return await finish('error', {text: call.last_error || 'The call was interrupted. Start another call to continue.'}, false);
@@ -168,7 +155,6 @@ $('#supportForm').addEventListener('submit', async event => {
     for (const name of [events.ActiveSpeakersChanged, events.TrackMuted, events.TrackUnmuted, events.ConnectionStateChanged]) room.on(name, updateListeningIndicator);
     room.on(events.Reconnecting, () => setState('reconnecting'));
     room.on(events.Reconnected, () => { voiceState = 'active'; refresh(); });
-    await ResolveAIVoice.microphonePanel(room);
     setState('active'); updateListeningIndicator();
     await refresh(); poll = setInterval(refresh, 1000);
   } catch (error) {

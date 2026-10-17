@@ -142,7 +142,8 @@ const ICON_X = '<svg aria-hidden="true" focusable="false" width="22" height="22"
 const ICON_MIC = '<svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
 const ICON_MIC_OFF = '<svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 9.3V6a3 3 0 0 0-5.7-1.3M9 9v2a3 3 0 0 0 5 2.2M5 11a7 7 0 0 0 11.4 5.4M19 11a7 7 0 0 1-.6 2.8M12 18v3M4 4l16 16"/></svg>';
 function callMicButton(enabled, label) {
-  return `<button type="button" class="icon-btn call-mic-btn" data-call-mic-toggle role="switch" aria-checked="${enabled}" aria-label="${label}" title="${label}" ${$('#micSwitch').disabled ? 'disabled' : ''}>${enabled ? ICON_MIC : ICON_MIC_OFF}</button>`;
+  const speaking = !!calling.room?.localParticipant.isSpeaking && enabled;
+  return `<button type="button" class="icon-btn call-mic-btn${speaking ? ' is-speaking' : ''}" data-call-mic-toggle role="switch" aria-checked="${enabled}" aria-label="${label}" title="${label}" ${$('#micSwitch').disabled ? 'disabled' : ''}>${enabled ? ICON_MIC : ICON_MIC_OFF}</button>`;
 }
 function renderCallOffer(offer) {
   const box = $('#callOffer'), user = calling.user;
@@ -560,6 +561,10 @@ async function acceptBrowserCall(id, connection, microphone) {
       loadCalling();
     }, false);
     calling.room = room; calling.roomCallId = id; calling.joining = null;
+    room.on(LivekitClient.RoomEvent.ActiveSpeakersChanged, speakers => {
+      const speaking = speakers.includes(room.localParticipant) && room.localParticipant.isMicrophoneEnabled;
+      $$('[data-call-mic-toggle]').forEach(button => button.classList.toggle('is-speaking', speaking));
+    });
     room.on(LivekitClient.RoomEvent.Reconnecting, () => { calling.reconnecting = true; renderIndicators(); });
     room.on(LivekitClient.RoomEvent.Reconnected, () => { calling.reconnecting = false; renderIndicators(); });
     await api(`/api/calling/${id}/connected`, {method:'POST',body:'{}'});
@@ -569,8 +574,6 @@ async function acceptBrowserCall(id, connection, microphone) {
     if (capture?.error) throw capture.error;
     if (capture?.track) await room.localParticipant.publishTrack(capture.track, {source: LivekitClient.Track.Source.Microphone});
     else await room.localParticipant.setMicrophoneEnabled(true);
-    // Device enumeration is supplementary and must not delay the connected state.
-    ResolveAIVoice.microphonePanel(room).catch(() => {});
   } catch(error) {
     await room?.disconnect(); calling.room=null;calling.roomCallId=null;calling.joining=null;calling.reconnecting=false;
     try {await api(`/api/calling/${id}/transfer`,{method:'POST',body:'{}'});} catch(_) {}

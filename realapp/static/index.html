@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/resolveai-components.css?v=20261017-tech4">
+  <link rel="stylesheet" href="/static/resolveai-components.css?v=20261017-tech5">
   <script src="/static/theme.js?v=7"></script>
 </head>
 <body data-role="guest" data-shell="public" data-mode="focus">
@@ -369,7 +369,7 @@
         <li><span class="muted">Call</span><span id="activeCallIndicator" class="badge badge--muted">○ No active call</span><p class="help" id="phoneConnection" role="status" aria-live="polite"></p><div class="call-offer" id="callOffer" hidden></div><div><button class="btn btn-soft btn-sm" id="signInButton" type="button" hidden>Log in</button></div></li>
         <li id="chatCard"><span class="muted">Chat</span><span id="chatIndicator" class="badge badge--muted">○ No chats waiting</span><p class="help" id="chatCardText" role="status" aria-live="polite">New chats from customers appear here.</p><div class="call-offer" id="chatOffer" hidden></div><div><button type="button" class="link" id="chatAlertsButton" hidden>Turn on chat alerts</button></div></li>
       </ul>
-      <p id="callAnswerStatus" class="help" role="status" aria-live="polite"></p><div data-live-caption-host></div><section class="mic-panel stack stack--sm section" data-microphone-panel hidden></section>
+      <p id="callAnswerStatus" class="help" role="status" aria-live="polite"></p>
       <section class="card stack section" id="sharedQueuePanel" aria-labelledby="sharedQueueTitle" hidden><h2 class="h3" id="sharedQueueTitle">Waiting for a technician</h2><p class="help" id="answerHint" hidden>Turn the Microphone on to answer browser calls. Chats and desk requests can be answered any time.</p><div class="alert" id="answerError" role="alert" tabindex="-1" hidden><strong>✕ Couldn’t answer.</strong><span class="sec" id="answerErrorMessage"></span></div><ul class="list" id="sharedQueue"></ul></section>
       <div class="calls-grid section">
         <section class="card stack" id="callActivity" aria-labelledby="callActivityTitle">
@@ -657,7 +657,7 @@
   <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="btn btn-primary resume-audio" type="button" hidden>Turn on call audio</button>
   <script src="/static/resolveai-components.js?v=3"></script>
   <script src="/static/vendor/livekit-client.umd.js"></script>
-  <script src="/static/voice-browser.js?v=6"></script>
+  <script src="/static/voice-browser.js?v=7"></script>
   <script src="/static/shell.js?v=20261017-b1"></script>
   <script src="/static/uploader.js?v=20261015-qa"></script>
   <script src="/static/app.js?v=20261017-b4"></script>
@@ -665,7 +665,7 @@
   <script src="/static/landing.js?v=2"></script>
   <script src="/static/support-hub.js?v=13"></script>
   <script src="/static/resolution-radar.js?v=7"></script>
-  <script src="/static/calling.js?v=20261017-tech5"></script>
+  <script src="/static/calling.js?v=20261017-tech6"></script>
   <script src="/static/transcripts.js?v=20261015-ux"></script>
   <script src="/static/incident-time-machine.js?v=6"></script>
 </body>
