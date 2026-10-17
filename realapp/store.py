@@ -120,7 +120,8 @@ def changed_since(changes, cached_version, version):
     cache is too old, or something changed without an id) and the caller must reload everything."""
     if cached_version is None or version < cached_version:
         return None
-    recorded = {v: key for v, key in (changes or []) if cached_version < v <= version}
+    entries = ((e['v'], e['id']) if isinstance(e, dict) else tuple(e) for e in (changes or []))
+    recorded = {v: key for v, key in entries if cached_version < v <= version}
     if len(recorded) != version - cached_version:
         return None
     return list(dict.fromkeys(recorded[v] for v in sorted(recorded)))
@@ -153,7 +154,8 @@ class FirestoreStore:
         # The last few changed incidents, so an instance that is only a little behind fetches just those instead of the
         # whole list. A write without an id (a migration) leaves a gap, which makes everyone reload in full.
         if key == 'cases_version' and changed_id:
-            meta['cases_changes'] = (meta.get('cases_changes') or [])[-(CHANGE_LOG - 1):] + [[meta[key], changed_id]]
+            # Firestore can't store a list inside a list, so each entry is a small map.
+            meta['cases_changes'] = (meta.get('cases_changes') or [])[-(CHANGE_LOG - 1):] + [{'v': meta[key], 'id': changed_id}]
 
     def save_case(self, case: CaseRecord) -> CaseRecord:
         from google.cloud import firestore

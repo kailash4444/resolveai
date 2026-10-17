@@ -34,8 +34,16 @@ def fake_firestore(monkeypatch):
             streams.append(self.name)
             return [Doc(path).get() for path in list(documents) if path.startswith(self.name + '/')]
 
+    def no_nested_arrays(value):
+        # Like Firestore: a list may not contain another list.
+        if isinstance(value, dict):
+            for v in value.values(): no_nested_arrays(v)
+        elif isinstance(value, list):
+            assert not any(isinstance(v, list) for v in value), 'Firestore: nested arrays are not allowed'
+            for v in value: no_nested_arrays(v)
+
     class Transaction:
-        def set(self, ref, body): documents[ref.path] = body
+        def set(self, ref, body): no_nested_arrays(body); documents[ref.path] = body
         def update(self, ref, fields): documents[ref.path] = {**documents[ref.path], **fields}
 
     client = SimpleNamespace(collection=Collection, transaction=Transaction)
@@ -77,9 +85,9 @@ def test_case_list_is_cached_until_any_instance_writes(monkeypatch):
 
 def test_a_gap_in_the_change_log_falls_back_to_a_full_reload(monkeypatch):
     from realapp.store import changed_since
-    assert changed_since([[3, 'A'], [4, 'B'], [5, 'A']], 2, 5) == ['A', 'B']
-    assert changed_since([[4, 'B']], 2, 4) is None          # version 3 changed without an id (for example a migration)
-    assert changed_since([[3, 'A']], None, 3) is None       # nothing cached yet
+    assert changed_since([{'v': 3, 'id': 'A'}, {'v': 4, 'id': 'B'}, {'v': 5, 'id': 'A'}], 2, 5) == ['A', 'B']
+    assert changed_since([{'v': 4, 'id': 'B'}], 2, 4) is None          # version 3 changed without an id (for example a migration)
+    assert changed_since([{'v': 3, 'id': 'A'}], None, 3) is None       # nothing cached yet
     instance, streams = fake_firestore(monkeypatch)
     store = instance()
     store.save_case(sample_case('One'))
