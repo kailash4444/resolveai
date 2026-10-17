@@ -97,7 +97,7 @@ document.addEventListener('keydown', event => {
 function showPendingBubble(box, text, who) { box.append(chatBubble({text}, true, who, true)); box.scrollTop = box.scrollHeight; }
 
 function stateBadge(value) {
-  const states = {Resolved:['✓','badge--ok'],'In Progress':['◐','badge--new'],'On Hold':['○','badge--muted'],New:['●','badge--new'],Closed:['✓','badge--ok']};
+  const states = {Resolved:['✓','badge--ok'],'Pending Customer Confirmation':['●','badge--medium'],'In Progress':['◐','badge--new'],'On Hold':['○','badge--muted'],New:['●','badge--new'],Closed:['✓','badge--ok']};
   const [icon,tone] = states[value] || ['○','badge--muted'];
   return `<span class="badge badge--state ${tone}">${icon} ${esc(value || 'Unknown')}</span>`;
 }
@@ -381,7 +381,11 @@ function toggleTimeSort(button, label) {
 }
 function ticketForm(item, {includeDescription = true, includeShortDescription = true} = {}) {
   const ticket = item.ticket, admin = state.user?.role === 'admin';
-  const states = ticket.state === "Resolved" ? ["New","In Progress","On Hold","Resolved"] : ["New","In Progress","On Hold"];
+  // A customer's incident is resolved by their confirmation; one with no customer account (staff intake) is resolved
+  // here directly.
+  const states = ticket.state === "Resolved" ? ["New","In Progress","On Hold","Pending Customer Confirmation","Resolved"]
+    : ticket.state === "Pending Customer Confirmation" ? ["New","In Progress","On Hold","Pending Customer Confirmation"]
+    : !item.customer_id ? ["New","In Progress","On Hold","Resolved"] : ["New","In Progress","On Hold"];
   const priorities = {P1: '▲ Critical · P1', P2: '◆ High · P2', P3: '● Medium · P3', P4: '▽ Low · P4'};
   return `<form class="stack" id="ticketForm" novalidate>
     <div class="fields">
@@ -429,8 +433,14 @@ function transcriptPanel(item) {
 }
 
 function resolutionPanel(item) {
-  const resolved = item.ticket.state === "Resolved";
-  return `<section class="card stack" aria-labelledby="resolutionPanelTitle"><h2 class="h3" id="resolutionPanelTitle">Resolution</h2><form id="resolutionForm" class="stack stack--sm" novalidate><div class="field field--inline"><label for="resolutionText">Resolution details</label><textarea class="input" id="resolutionText" name="resolution" rows="7" required aria-describedby="resolutionHelp resolutionMessage" placeholder="One step per line, e.g.&#10;Cleared the stuck print queue&#10;Restarted the printer&#10;Customer confirmed a test page printed">${esc(item.ticket.resolution)}</textarea><p class="help" id="resolutionHelp">${resolved ? 'Visible to the customer, and saved as knowledge the AI reuses.' : 'Write each step on its own line. Resolving shows these notes to the customer, starts AI QA, and saves your fix as knowledge so the AI can solve the same problem next time. Don’t include passwords or personal details.'}</p></div><div class="row"><button class="btn btn-primary" type="submit">${resolved ? "Save resolution notes" : "Resolve ticket"}</button><p class="form-status" id="resolutionMessage" data-resolution-message role="status"></p></div></form></section>`;
+  const state = item.ticket.state, resolved = state === 'Resolved', pending = state === 'Pending Customer Confirmation';
+  const eligible = ['In Progress', 'Pending Customer Confirmation', 'Resolved'].includes(state);
+  const action = resolved ? 'Save resolution notes' : pending ? 'Update proposed resolution' : 'Request customer confirmation';
+  const help = resolved ? 'Visible to the customer as the completed resolution.'
+    : pending ? 'The customer has been asked to confirm these steps. Updating them keeps the ticket awaiting confirmation.'
+    : eligible ? 'Write the fix as steps. The ticket will remain open until the customer confirms it worked.'
+      : 'Move the ticket to In Progress before requesting customer confirmation.';
+  return `<section class="card stack" aria-labelledby="resolutionPanelTitle"><h2 class="h3" id="resolutionPanelTitle">Resolution</h2><form id="resolutionForm" class="stack stack--sm" novalidate><div class="field field--inline"><label for="resolutionText">${pending ? 'Proposed resolution steps' : 'Resolution details'}</label><textarea class="input" id="resolutionText" name="resolution" rows="7" required aria-describedby="resolutionHelp resolutionMessage" placeholder="One step per line, e.g.&#10;Cleared the stuck print queue&#10;Restarted the printer&#10;Ask the customer to test a page">${esc(item.ticket.resolution)}</textarea><p class="help" id="resolutionHelp">${help} Don’t include passwords or personal details.</p></div><div class="row"><button class="btn btn-primary" type="submit" ${eligible ? '' : 'disabled'}>${action}</button><p class="form-status" id="resolutionMessage" data-resolution-message role="status"></p></div></form></section>`;
 }
 
 function setFormStatus(box, text, error = false) { box.className = `form-status${error ? ' err' : ''}`; box.textContent = text; }
@@ -447,7 +457,7 @@ async function saveTicket(form) {
   }
   if (form.elements.short_description && !values.short_description?.trim()) { setFormStatus(status, '✕ Short description can’t be empty.', true); form.elements.short_description.setAttribute('aria-invalid', 'true'); form.elements.short_description.focus(); return; }
   if (!form.reportValidity()) return;
-  if (values.state !== "Resolved") values.resolution = "";
+  if (!['In Progress', 'On Hold', 'Pending Customer Confirmation', 'Resolved'].includes(values.state)) delete values.resolution;
   button.disabled = true; button.setAttribute('aria-busy', 'true'); setFormStatus(status, 'Saving…');
   try {
     state.current = await api(`/api/cases/${state.current.id}/ticket`, { method: "PATCH", body: JSON.stringify(values) });
@@ -478,14 +488,16 @@ async function saveResolution(form) {
   const message = form.querySelector("[data-resolution-message]"), button = form.querySelector('[type=submit]');
   const resolution = new FormData(form).get("resolution").trim();
   if (!resolution) { setFormStatus(message, "✕ Add the resolution details before resolving.", true); form.elements.resolution.setAttribute('aria-invalid', 'true'); form.elements.resolution.focus(); return; }
-  button.disabled = true; button.setAttribute('aria-busy', 'true'); setFormStatus(message, "Resolving…");
+  const previousState = state.current.ticket.state;
+  const targetState = previousState === 'Resolved' ? 'Resolved' : 'Pending Customer Confirmation';
+  button.disabled = true; button.setAttribute('aria-busy', 'true'); setFormStatus(message, targetState === 'Resolved' ? 'Saving resolution…' : 'Requesting customer confirmation…');
   try {
-    state.current = await api(`/api/cases/${state.current.id}/ticket`, { method: "PATCH", body: JSON.stringify({ state: "Resolved", resolution }) });
+    state.current = await api(`/api/cases/${state.current.id}/ticket`, { method: "PATCH", body: JSON.stringify({ state: targetState, resolution }) });
     window.ResolveDirty.mark('ticket', false);
     if ($("#view-ticket-detail").classList.contains("active")) await openTicketDetails(state.current.id, {keepScroll: true});
     else renderCase(state.current);
-    toast(`${state.current.ticket.id} resolved. AI QA is running.`);
-  } catch (error) { setFormStatus(message, `✕ Not resolved: ${error.message}`, true); button.disabled = false; button.removeAttribute('aria-busy'); }
+    toast(targetState === 'Resolved' ? `${state.current.ticket.id} resolution saved.` : `${state.current.ticket.id} sent to the customer for confirmation.`);
+  } catch (error) { setFormStatus(message, `✕ Not saved: ${error.message}`, true); button.disabled = false; button.removeAttribute('aria-busy'); }
 }
 
 function visibleAuditChecks(checks) {
@@ -1002,6 +1014,15 @@ async function toggleRecording() {
 }
 
 document.addEventListener("click", event => {
+  const resolutionChoice = event.target.closest('[data-confirm-resolution]');
+  if (resolutionChoice) {
+    if (resolutionChoice.dataset.confirmResolution === 'no') {
+      $('[data-resolution-choice]').hidden = true;
+      $('#customerResolutionNoForm').hidden = false;
+      $('#customerResolutionNote').focus();
+    } else submitCustomerResolutionConfirmation(true, '');
+    return;
+  }
   const ticketLink = event.target.closest('[data-ticket-link]');
   if (ticketLink) {
     if (ticketLink.tagName === 'A' && (event.metaKey || event.ctrlKey || event.shiftKey || event.button)) return;
@@ -1045,6 +1066,7 @@ document.addEventListener("submit", event => {
   if (event.target.id === "ticketForm") { event.preventDefault(); saveTicket(event.target).catch(error => showFeedback(error.message, true)); }
   if (event.target.id === "workNoteForm") { event.preventDefault(); addWorkNote(event.target).catch(error => showFeedback(error.message, true)); }
   if (event.target.id === "resolutionForm") { event.preventDefault(); saveResolution(event.target); }
+  if (event.target.id === "customerResolutionNoForm") { event.preventDefault(); submitCustomerResolutionConfirmation(false, event.target.elements.note.value); }
 });
 document.addEventListener("change", event => {
   const select = event.target.closest("[data-taxonomy-select]");
@@ -1122,22 +1144,24 @@ window.applyAccountRole = user => {
 // Where an incident is now, from the customer's side: 0 Received, 1 Assigned, 2 In progress (or Waiting), 3 Resolved.
 function customerStage(ticket) {
   if (['Resolved','Closed'].includes(ticket.state)) return 3;
-  if (['In Progress','On Hold'].includes(ticket.state)) return 2;
+  if (['In Progress','On Hold','Pending Customer Confirmation'].includes(ticket.state)) return 2;
   return ticket.assigned_to ? 1 : 0;
 }
 // Same marks as staff state badges: ● received, ◐ being worked on, ✓ resolved.
 const STAGE_BADGES = [['badge--new', '● Received'], ['badge--new', '● Assigned'], ['badge--new', '◐ In progress'], ['badge--ok', '✓ Resolved']];
 function customerStageBadge(ticket) {
+  if (ticket.state === 'Pending Customer Confirmation') return '<span class="badge badge--state badge--medium">● Awaiting your confirmation</span>';
   const [tone, label] = ticket.state === 'On Hold' ? ['badge--muted', '○ Waiting for you'] : STAGE_BADGES[customerStage(ticket)];
   return `<span class="badge badge--state ${tone}">${esc(label)}</span>`;
 }
 function progressSteps(ticket) {
   const stage = customerStage(ticket);
-  const names = ['Received', 'Assigned', ticket.state === 'On Hold' ? 'Waiting' : 'In progress', 'Resolved'];
+  const names = ['Received', 'Assigned', ticket.state === 'Pending Customer Confirmation' ? 'Awaiting confirmation' : ticket.state === 'On Hold' ? 'Waiting' : 'In progress', 'Resolved'];
   return `<ol class="steps" aria-label="Incident progress">${names.map((name, index) => `<li${index === stage ? ' aria-current="step"' : ''}>${index <= stage ? '✓' : '○'} ${name}</li>`).join('')}</ol>`;
 }
 function customerNextStep(ticket, assist = null) {
   const who = ticket.assigned_to ? esc(ticket.assigned_to) : 'A technician';
+  if (ticket.state === 'Pending Customer Confirmation') return 'Your technician suggested a fix. Review the steps and confirm whether they solved the issue.';
   if (assist?.status === 'pending') return 'The AI assistant is reviewing your report. This page updates by itself.';
   if (assist?.status === 'offered' && !['Resolved','Closed'].includes(ticket.state)) return 'The AI assistant suggested some steps. Try them, then tell us whether they worked.';
   if (['Resolved','Closed'].includes(ticket.state)) return 'Resolved. Open the incident to read what was done.';
@@ -1279,12 +1303,40 @@ function customerTicketDetails(item) {
   <div class="stack stack--lg">
     ${customerAssist(item)}
     <section class="card${item.assist?.status === 'offered' ? '' : ''} stack" aria-labelledby="progressTitle"><h2 class="h3" id="progressTitle">Progress</h2>${progressSteps(t)}<p class="sec">${customerNextStep(t, item.assist)}</p></section>
-    ${t.resolution ? `<section class="card stack" aria-labelledby="resolutionTitle"><h2 class="h3" id="resolutionTitle">How it was resolved</h2><p class="pre">${esc(t.resolution)}</p></section>` : ''}
+    ${t.state === 'Pending Customer Confirmation' ? `<section class="card stack" aria-labelledby="confirmResolutionTitle"><h2 class="h3" id="confirmResolutionTitle">Does this fix resolve your issue?</h2><p class="sec">Your technician proposed these steps:</p><p class="pre">${esc(t.resolution)}</p><div class="customer-resolution-actions" data-resolution-choice><button class="btn btn-primary" type="button" data-confirm-resolution="yes">Yes, it’s fixed</button><button class="btn btn-soft" type="button" data-confirm-resolution="no">No, I still have the issue</button></div><form id="customerResolutionNoForm" class="stack stack--sm" hidden novalidate><div class="field field--inline"><label for="customerResolutionNote">What is still not working?</label><textarea class="input" id="customerResolutionNote" name="note" rows="3" maxlength="2000" required aria-describedby="customerResolutionHelp customerResolutionMessage"></textarea><p class="help" id="customerResolutionHelp">Your comment will be added to this incident and sent to the technician.</p></div><div class="row"><button class="btn btn-primary" type="submit">Send comment</button><p class="form-status" id="customerResolutionMessage" role="status"></p></div></form><p class="form-status" id="customerResolutionChoiceMessage" role="status"></p></section>` : ''}
+    ${t.resolution && t.state !== 'Pending Customer Confirmation' ? `<section class="card stack" aria-labelledby="resolutionTitle"><h2 class="h3" id="resolutionTitle">How it was resolved</h2><p class="pre">${esc(t.resolution)}</p></section>` : ''}
     <section class="card stack" aria-labelledby="reportedTitle"><h2 class="h3" id="reportedTitle">What you reported</h2><p class="pre sec">${esc(customerWords(item))}</p>
       <dl class="kv"><div><dt>Service</dt><dd>${esc(t.service)}</dd></div><div><dt>Assigned to</dt><dd>${esc(t.assigned_to || 'Awaiting assignment')}</dd></div><div><dt>Reported</dt><dd>${esc(when(item.created_at))}</dd></div></dl></section>
     ${renderAttachments(t.attachments, true, t)}
     ${activityPanel(item)}
   </div>`;
+}
+
+async function submitCustomerResolutionConfirmation(resolved, note) {
+  const form = $('#customerResolutionNoForm');
+  const button = resolved ? $('[data-confirm-resolution="yes"]') : form?.querySelector('[type="submit"]');
+  const message = resolved ? $('#customerResolutionChoiceMessage') : $('#customerResolutionMessage');
+  const cleanNote = (note || '').trim();
+  if (!resolved && !cleanNote) {
+    setFormStatus(message, '✕ Tell the technician what is still not working.', true);
+    $('#customerResolutionNote').setAttribute('aria-invalid', 'true');
+    $('#customerResolutionNote').focus();
+    return;
+  }
+  button.disabled = true; button.setAttribute('aria-busy', 'true');
+  setFormStatus(message, resolved ? 'Confirming resolution…' : 'Sending comment…');
+  try {
+    const caseId = state.current.id;
+    state.current = await api(`/api/cases/${encodeURIComponent(caseId)}/resolution-confirmation`, {
+      method: 'POST', body: JSON.stringify({resolved, note: cleanNote})
+    });
+    await loadCustomerIncidents();
+    await openTicketDetails(caseId, {keepScroll: true});
+    toast(resolved ? 'Incident marked resolved. Thank you for confirming.' : 'Comment sent. The incident is back In Progress.');
+  } catch (error) {
+    setFormStatus(message, `✕ ${error.message}`, true);
+    button.disabled = false; button.removeAttribute('aria-busy');
+  }
 }
 
 window.showCustomerCreateResult = (item, fileCount, {quiet = false} = {}) => {
@@ -1384,6 +1436,26 @@ async function loadCustomerIncidents() {
   target.removeAttribute('aria-busy');
   renderCustomerIncidents();
 }
+// Customers see changes without reloading: when a technician asks them to confirm a fix (or an incident moves on),
+// My support and an open incident update by themselves. Checked every 10 seconds while the tab is visible and as soon
+// as the tab comes back; nothing is redrawn while the customer is typing in a form on the page.
+const customerSignature = items => JSON.stringify((items || []).map(item => [item.id, item.ticket.state, item.ticket.resolution, item.ticket.assigned_to, item.assist?.status]));
+async function refreshCustomerQuietly() {
+  if (state.user?.role !== 'customer' || document.hidden) return;
+  const typing = [...document.querySelectorAll('#view-ticket-detail textarea, #view-customer-home textarea')].some(field => field.value.trim() || field === document.activeElement);
+  try {
+    if (state.currentView === 'customer-home') {
+      const items = await api('/api/cases');
+      if (customerSignature(items) !== customerSignature(customerList.items)) { customerList.items = items; renderCustomerIncidents(); }
+    } else if (state.currentView === 'ticket-detail' && state.current && !typing) {
+      const fresh = await api(`/api/cases/${encodeURIComponent(state.current.id)}`);
+      if (customerSignature([fresh]) !== customerSignature([state.current])) await openTicketDetails(fresh.id, {keepScroll: true});
+    }
+  } catch (_) { /* offline or signed out: the next check tries again */ }
+}
+setInterval(refreshCustomerQuietly, 10000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshCustomerQuietly(); });
+
 function renderCustomerIncidents() {
   const target = $('#customerIncidents'), done = item => ['Resolved','Closed'].includes(item.ticket.state);
   const open = customerList.items.filter(item => !done(item)), resolved = customerList.items.filter(done);
@@ -1393,7 +1465,9 @@ function renderCustomerIncidents() {
     target.innerHTML = '<div class="empty stack"><h3>No incidents yet</h3><p class="sec">Report a problem and follow it here.</p><div><a class="btn btn-primary" href="/portal?view=customer-create" data-view="customer-create">Report an issue</a></div></div>';
     return;
   }
-  const list = (customerList.filter === 'open' ? open : resolved).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const list = (customerList.filter === 'open' ? open : resolved).sort((a, b) =>
+    Number(b.ticket.state === 'Pending Customer Confirmation') - Number(a.ticket.state === 'Pending Customer Confirmation') ||
+    new Date(b.created_at) - new Date(a.created_at));
   if (!list.length) {
     target.innerHTML = `<div class="empty"><p class="sec">${customerList.filter === 'open' ? '✓ Nothing open. Everything you reported has been resolved.' : 'Nothing resolved yet.'}</p></div>`;
     return;
@@ -1402,7 +1476,8 @@ function renderCustomerIncidents() {
   const start = (customerList.page - 1) * CUSTOMER_PAGE;
   const rows = list.slice(start, start + CUSTOMER_PAGE).map(item => {
     const t = item.ticket, href = `/portal?ticket=${encodeURIComponent(item.id)}`;
-    const action = item.assist?.status === 'offered' && !done(item) ? `<a class="btn btn-primary btn-sm" href="${href}" data-ticket-link="${esc(item.id)}"><span>Try the suggested steps<span class="sr"> for ${esc(t.id)}</span></span></a>`
+    const action = t.state === 'Pending Customer Confirmation' ? `<a class="btn btn-primary btn-sm" href="${href}" data-ticket-link="${esc(item.id)}"><span>Review proposed fix<span class="sr"> for ${esc(t.id)}</span></span></a>`
+      : item.assist?.status === 'offered' && !done(item) ? `<a class="btn btn-primary btn-sm" href="${href}" data-ticket-link="${esc(item.id)}"><span>Try the suggested steps<span class="sr"> for ${esc(t.id)}</span></span></a>`
       : t.state === 'On Hold' ? `<a class="btn btn-soft btn-sm" href="${href}" data-ticket-link="${esc(item.id)}" data-focus-comment><span>Add details<span class="sr"> to ${esc(t.id)}</span></span></a>` : '';
     return `<li class="inc-row"><div class="inc-row__main"><a class="inc-row__title" href="${href}" data-ticket-link="${esc(item.id)}">${esc(t.short_description)}</a>
       <p class="help"><span class="mono">${esc(t.id)}</span> · ${esc(t.service)} · ${esc(when(item.created_at))}</p>

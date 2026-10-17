@@ -84,7 +84,10 @@ def test_resolved_incident_becomes_knowledge_and_ai_solves_the_next_one(accounts
 
     fix = 'Cancel all documents in the print queue.\nTurn the printer off and on.\nPrint a test page.'
     assert accounts.tech_1.patch(f"/api/cases/{first['id']}/ticket", json={'state': 'In Progress'}).status_code == 200
-    assert accounts.tech_1.patch(f"/api/cases/{first['id']}/ticket", json={'state': 'Resolved', 'resolution': fix}).status_code == 200
+    # Customer incidents are resolved through the customer's confirmation, not directly by the technician.
+    assert accounts.tech_1.patch(f"/api/cases/{first['id']}/ticket", json={'state': 'Resolved', 'resolution': fix}).status_code == 409
+    assert accounts.tech_1.patch(f"/api/cases/{first['id']}/ticket", json={'state': 'Pending Customer Confirmation', 'resolution': fix}).status_code == 200
+    assert accounts.cust_1.post(f"/api/cases/{first['id']}/resolution-confirmation", json={'resolved': True}).status_code == 200
     learned = [k for k in accounts.store.list_knowledge() if first['ticket']['id'] in k.source_ticket_ids]
     assert len(learned) == 1 and learned[0].steps
     notes = accounts.store.get_case(first['id']).ticket.work_notes

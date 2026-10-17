@@ -517,10 +517,11 @@ details[open] > summary::before{transform:rotate(90deg)}
 .customer-hero{padding:24px 0 32px}
 .customer-hero .lede{margin:12px 0 28px}
 .customer-hero__actions{gap:20px}
-/* My support: "Your incidents" and "Get support" are two cards of the same height. Get support sets the height
-   (height 0 + min-height 100% keeps the incidents card from growing the row); longer incident lists scroll inside. */
+/* My support: keep "Your incidents" and "Get support" the same height on desktop;
+   longer incident lists scroll inside the incidents card. */
 .customer-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(300px,1fr);gap:24px;align-items:stretch}
-.customer-grid__main{height:0;min-height:100%;min-width:0;display:flex;flex-direction:column;gap:14px}
+.customer-grid>*{height:clamp(560px,68vh,820px)}
+.customer-grid__main{min-height:0;min-width:0;overflow:hidden;display:flex;flex-direction:column;gap:14px}
 #customerIncidents{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
 .inc-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;margin-inline:-22px;border-top:1px solid var(--border);scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
 .inc-scroll:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
@@ -529,7 +530,8 @@ details[open] > summary::before{transform:rotate(90deg)}
 .voice-card{display:flex;flex-direction:column;gap:12px;min-width:0}
 @media (max-width:900px){
   .customer-grid{grid-template-columns:1fr}
-  .customer-grid__main{height:auto;min-height:0}
+  .customer-grid>*{height:auto}
+  .customer-grid__main{min-height:0}
   .inc-scroll{max-height:70vh}
 }
 .chat-log{height:min(380px,50vh)}
@@ -973,7 +975,7 @@ button[aria-busy="true"]{cursor:wait}
 .inc-list{list-style:none;margin:0;padding:0;overflow:hidden}
 .inc-row{position:relative;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:16px 22px;border-top:1px solid var(--border);transition:background-color var(--t-fast) var(--ease)}
 .inc-row:first-child{border-top:0}
-.inc-row__main{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
+.inc-row__main{display:flex;flex:1 1 auto;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;max-width:100%}
 .inc-row__main p{margin:0}
 .inc-row__main .sec{font-size:14px}
 .inc-row__main > div{margin-top:6px}
@@ -985,6 +987,9 @@ button[aria-busy="true"]{cursor:wait}
 .inc-row:focus-within{background:var(--surface-2)}
 .chip .count{margin-left:2px;font-variant-numeric:tabular-nums;opacity:.75}
 @media (max-width:520px){.inc-row{flex-direction:column-reverse;gap:8px;padding:14px 16px}}
+.customer-resolution-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.customer-resolution-actions .btn{width:100%;min-width:0;padding-inline:12px;white-space:normal;text-align:center}
+@media (max-width:520px){.customer-resolution-actions{grid-template-columns:1fr}}
 
 /* Microphone buttons (Calls & queue, and the customer's call): one round kit button.
    Off or muted = soft circle with a crossed-out mic; on = solid ink circle with a mic. */

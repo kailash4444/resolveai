@@ -79,7 +79,7 @@ class TicketDraft(BaseModel):
     service: str
     priority: Literal["P1", "P2", "P3", "P4"]
     assignment_group: str
-    state: Literal["New", "In Progress", "On Hold", "Resolved"] = "New"
+    state: Literal["New", "In Progress", "On Hold", "Pending Customer Confirmation", "Resolved"] = "New"
 
     # Services come from one fixed list (see services.py); older records are mapped when they are read.
     _service = field_validator('service')(normalize_service)
@@ -241,6 +241,11 @@ class AssistFeedback(BaseModel):
     note: str = Field(default="", max_length=2000)
 
 
+class CustomerResolutionConfirmation(BaseModel):
+    resolved: bool
+    note: str = Field(default="", max_length=2000)
+
+
 class TicketStateTransition(BaseModel):
     from_state: str
     to_state: str
@@ -381,7 +386,7 @@ class TicketUpdate(BaseModel):
     _service = field_validator('service')(lambda value: None if value is None else normalize_service(value))
     assignment_group: str | None = None
     resolution: str | None = None
-    state: Literal["New", "In Progress", "On Hold", "Resolved"] | None = None
+    state: Literal["New", "In Progress", "On Hold", "Pending Customer Confirmation", "Resolved"] | None = None
 
 
 class CustomerIncidentCreate(BaseModel):

@@ -65,6 +65,29 @@ def test_case_list_is_cached_until_any_instance_writes(monkeypatch):
 
     second.save_case(sample_case('Two'))            # written by the other instance
     assert sorted(c.issue_title for c in first.list_cases()) == ['One', 'Two']
+    assert streams.count('cases') == reads           # only the changed incident was fetched, not the whole list
+
+    # An edit to an existing incident replaces it in place.
+    two = next(c for c in first.list_cases() if c.issue_title == 'Two')
+    two.ticket.state = 'Resolved'
+    second.save_case(two)
+    assert next(c for c in first.list_cases() if c.issue_title == 'Two').ticket.state == 'Resolved'
+    assert streams.count('cases') == reads
+
+
+def test_a_gap_in_the_change_log_falls_back_to_a_full_reload(monkeypatch):
+    from realapp.store import changed_since
+    assert changed_since([[3, 'A'], [4, 'B'], [5, 'A']], 2, 5) == ['A', 'B']
+    assert changed_since([[4, 'B']], 2, 4) is None          # version 3 changed without an id (for example a migration)
+    assert changed_since([[3, 'A']], None, 3) is None       # nothing cached yet
+    instance, streams = fake_firestore(monkeypatch)
+    store = instance()
+    store.save_case(sample_case('One'))
+    store.list_cases()
+    reads = streams.count('cases')
+    meta = store._versions(); meta['cases_version'] += 1     # a write that left no id behind
+    store.client.transaction().set(store.numbers, meta)
+    store.list_cases()
     assert streams.count('cases') == reads + 1
 
 

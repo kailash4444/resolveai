@@ -95,7 +95,7 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
 
     router = APIRouter()
     # Preserve legacy assignments where they identify exactly one existing account.
-    existing = service.snapshot()
+    existing = {'technicians': service.technicians()}
     for case in store.list_cases():
         if not case.ticket.assigned_user_id and case.ticket.assigned_to:
             matches = [u for u in existing['technicians'] if u['role'] in {'admin','technician'} and u['name'] == case.ticket.assigned_to]
@@ -140,7 +140,7 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
                         or path.startswith('/api/support/')
                         or path == '/api/knowledge' and request.method == 'GET'
                         or path.startswith('/api/attachments/') and request.method == 'GET'
-                        or path.startswith('/api/cases/') and (request.method == 'GET' or (path.endswith('/work-notes') or path.endswith('/attachments') or path.endswith('/assist')) and request.method == 'POST'))
+                        or path.startswith('/api/cases/') and (request.method == 'GET' or (path.endswith('/work-notes') or path.endswith('/attachments') or path.endswith('/assist') or path.endswith('/resolution-confirmation')) and request.method == 'POST'))
                     if not allowed:
                         return JSONResponse({'detail':'This feature is available to support staff only.'},status_code=403)
         response = await next_handler(request)
@@ -386,7 +386,7 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
     @router.get('/api/users')
     def list_users(request: Request):
         user(request, admin=True)
-        return service.snapshot()['technicians']
+        return service.technicians()
 
     @router.post('/api/users', status_code=201)
     def create_account(value: TechnicianCreate, request: Request):
@@ -753,7 +753,7 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
                 if current["status"] == "Connected":
                     service._release(db, current, f"Transferred by {actor['name']}", away=True)
                 return current
-            return service.repository.mutate(requeue)
+            return service.repository.mutate(requeue, call_ids=(call_id,))
         updated = service.enqueue(call_id, f"Technician requested by {actor['name']}")
         if call["origin"] == "browser":
             session = transport.sessions.get(call_id)

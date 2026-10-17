@@ -14,9 +14,10 @@ from typing import Literal
 
 from realapp.models import AnalysisRequest, CaseRecord, RoutingDecision, Ticket, TranscriptTurn, Understanding, WorkNote
 from realapp.services import normalize_service, skill_matches
+from realapp.calling_store import ACTIVE_CALLS, FINISHED_STATUSES
 
 
-TERMINAL = {"Completed", "Callback requested", "Failed"}
+TERMINAL = set(FINISHED_STATUSES)
 
 
 USERNAME = r"^[a-zA-Z0-9_.@+-]+$"
@@ -358,6 +359,10 @@ class CallingService:
                                     and (t['voice_ready'] and self.now()-t['last_seen'] <= self.settings.technician_heartbeat_seconds) or t.get('demo_available', False) for t in techs)}}
         return self.repository.read(read)
 
+    def technicians(self):
+        """Staff and customer accounts without loading any calls."""
+        return self.repository.read(lambda db: [public_technician(t) for t in db["technicians"].values()], call_ids=())
+
     def get(self, call_id):
         call = self.repository.get_call(call_id)
         if not call:
@@ -385,7 +390,8 @@ class CallingService:
             history(call, "Browser call received" if origin == "browser" else "Support request received")
             db["calls"][call["id"]] = call
             return call
-        return self.repository.mutate(create)
+        # Browser calls and chats have no provider id to de-duplicate, so they don't need to read every existing call.
+        return self.repository.mutate(create, call_ids=None if provider_sid else ())
 
     def add_turn(self, call_id, speaker, text):
         def append(db):
@@ -593,6 +599,10 @@ class CallingService:
         case.ticket.work_notes.append(WorkNote(id=f"NOTE-{uuid4().hex[:8]}", author="Ticket created", author_type="System",
             text="\n".join(f"{field.replace('_', ' ').capitalize()} : {getattr(case.ticket, field)}" for field in fields)))
         desk = call['origin'] != 'browser'
+        # Save the incident before linking it, so the call never points at an incident that isn't stored yet. If a
+        # technician answered meanwhile (a live incident exists), theirs is kept and this one isn't stored.
+        if desk and not self.get(call_id).get('live_case_id'):
+            self.case_store.save_case(case)
 
         def save(db):
             current = db["calls"][call_id]
@@ -615,10 +625,7 @@ class CallingService:
                     self._set_handoff_brief(current, case.routing.rationale)
                 history(current, f"Routed to {'AI' if ai else 'technician queue'}: {case.routing.rationale}")
             return current
-        linked = self.repository.mutate(save, call_ids=(call_id,))
-        if desk and linked.get('case_id') == case.id:
-            self.case_store.save_case(case)
-        return linked
+        return self.repository.mutate(save, call_ids=(call_id,))
 
     def set_typing(self, call_id, who, seconds=5):
         """Chat typing signals: who is 'customer' or 'agent' (technician or AI). They expire unless renewed."""
@@ -671,6 +678,15 @@ class CallingService:
         """Expire presence/reservations and reserve each worker at most once."""
         now = self.now()
 
+        # Most of the time there is nothing to route. Check with a plain read first: a routing transaction locks the
+        # shared coordinator document, and running one every couple of seconds made log in, log out and heartbeats wait.
+        def pending(db):
+            stale = any(t.get("voice_ready") and now - t["last_seen"] > self.settings.technician_heartbeat_seconds
+                        for t in db["technicians"].values())
+            return stale or any(c["status"] in {"Queued", "Ringing"} for c in db["calls"].values())
+        if not self.repository.read(pending, call_ids=ACTIVE_CALLS):
+            return []
+
         def route(db):
             for tech in db["technicians"].values():
                 if now - tech["last_seen"] > self.settings.technician_heartbeat_seconds:
@@ -706,7 +722,7 @@ class CallingService:
                 history(call, f"Offered to {', '.join(candidate['name'] for candidate in offered)}")
                 offers.append(call)
             return offers
-        offers = self.repository.mutate(route)
+        offers = self.repository.mutate(route, call_ids=ACTIVE_CALLS)
         # Desk incidents already exist before call dispatch. Give the lead offer recipient ownership
         # while the call is ringing so a missed offer cannot leave the incident without an assignee.
         for call in offers:

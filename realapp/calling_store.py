@@ -1,9 +1,20 @@
 """Transactional routing state. Mutations contain no network operations."""
 from copy import deepcopy
 import json
+import time
 from pathlib import Path
 import sqlite3
-from threading import RLock
+from threading import Lock, RLock
+
+
+# Calls that have finished. Everything else (triage, AI, queued, ringing, connected) is still active.
+FINISHED_STATUSES = ("Completed", "Callback requested", "Failed")
+# Pass as call_ids to work on the active calls only (the dispatcher). Stores that hold everything in one place ignore it.
+ACTIVE_CALLS = "active"
+# Each saved call carries the time it was written, so an instance can fetch just the calls changed since it last looked.
+SYNC_FIELD = "_synced_at"
+SYNC_OVERLAP = 15        # seconds re-read on each sync, covering clock differences between instances
+FULL_REFRESH = 600       # a full re-read every 10 minutes as a safety net
 
 
 def empty_state():
@@ -78,31 +89,62 @@ class FirestoreCallingStore:
         self.client = firestore.Client(project=project)
         self.ref = self.client.collection(f"{collection}_routing").document("coordinator")
         self.calls = self.client.collection(f"{collection}_calls")
+        # Every call is cached per instance. Each write stamps the call with the time it was saved, so a read fetches
+        # only the calls saved since this instance last looked (no shared counter that every write would contend on).
+        self._lock = Lock()
+        self._calls_cache = None   # (synced_at, full_at, {call_id: call})
 
     def get_call(self, call_id):
         snapshot = self.calls.document(call_id).get()
         return snapshot.to_dict() if snapshot.exists else None
+
+    def _all_calls(self):
+        from google.cloud.firestore_v1.base_query import FieldFilter
+        now = time.time()
+        with self._lock:
+            cached = self._calls_cache
+        if cached and now - cached[1] < FULL_REFRESH:
+            calls = dict(cached[2])
+            for doc in self.calls.where(filter=FieldFilter(SYNC_FIELD, ">=", cached[0] - SYNC_OVERLAP)).stream():
+                calls[doc.id] = doc.to_dict()
+            fresh = (now, cached[1], calls)
+        else:
+            calls = {doc.id: doc.to_dict() for doc in self.calls.stream()}
+            fresh = (now, now, calls)
+        with self._lock:
+            if not self._calls_cache or self._calls_cache[0] <= now:
+                self._calls_cache = fresh
+        return deepcopy(calls)
 
     def read(self, operation, call_ids=None):
         """Read-only snapshot without a transaction. Firestore transactions lock what they read, so using them for
         lookups (sessions, the calls overview) made every request queue behind heartbeats and call updates."""
         snapshot = self.ref.get()
         data = snapshot.to_dict() if snapshot.exists else empty_state()
-        docs = (self.calls.stream() if call_ids is None else (self.calls.document(cid).get() for cid in call_ids))
-        data["calls"] = {doc.id: doc.to_dict() for doc in docs if doc.exists}
+        if call_ids is None or call_ids == ACTIVE_CALLS:
+            data["calls"] = self._all_calls()
+        else:
+            docs = (self.calls.document(cid).get() for cid in call_ids)
+            data["calls"] = {doc.id: doc.to_dict() for doc in docs if doc.exists}
         return operation(data)
 
     def mutate(self, operation, call_ids=None):
         from google.cloud import firestore
+        from google.cloud.firestore_v1.base_query import FieldFilter
 
         @firestore.transactional
         def apply(transaction):
             snapshot = self.ref.get(transaction=transaction)
             original = snapshot.to_dict() if snapshot.exists else empty_state()
-            # None means a queue-wide operation; an explicit set only reads those
-            # calls. Authentication/heartbeats pass () and never scan call history.
-            docs = (self.calls.stream(transaction=transaction) if call_ids is None else
-                    (self.calls.document(cid).get(transaction=transaction) for cid in call_ids))
+            # None means every call (rare: start-up migrations); ACTIVE_CALLS only the calls still in progress (the
+            # dispatcher, every couple of seconds); an explicit set reads just those. Authentication and heartbeats
+            # pass () and never touch calls.
+            if call_ids is None:
+                docs = self.calls.stream(transaction=transaction)
+            elif call_ids == ACTIVE_CALLS:
+                docs = self.calls.where(filter=FieldFilter("status", "not-in", list(FINISHED_STATUSES))).stream(transaction=transaction)
+            else:
+                docs = (self.calls.document(cid).get(transaction=transaction) for cid in call_ids)
             original["calls"] = {doc.id: doc.to_dict() for doc in docs if doc.exists}
             data = deepcopy(original)
             result = operation(data)
@@ -112,7 +154,7 @@ class FirestoreCallingStore:
                     transaction.set(self.ref, routing)
                 for call_id, call in data["calls"].items():
                     if call != original["calls"].get(call_id):
-                        transaction.set(self.calls.document(call_id), call)
+                        transaction.set(self.calls.document(call_id), {**call, SYNC_FIELD: time.time()})
             return result
 
         return apply(self.client.transaction())

@@ -112,6 +112,20 @@ class MemoryStore:
                     if value.cluster_id == cluster_id]
 
 
+CHANGE_LOG = 200
+
+
+def changed_since(changes, cached_version, version):
+    """Ids written after `cached_version`, or None when the change log doesn't cover every version in between (the
+    cache is too old, or something changed without an id) and the caller must reload everything."""
+    if cached_version is None or version < cached_version:
+        return None
+    recorded = {v: key for v, key in (changes or []) if cached_version < v <= version}
+    if len(recorded) != version - cached_version:
+        return None
+    return list(dict.fromkeys(recorded[v] for v in sorted(recorded)))
+
+
 class FirestoreStore:
     def __init__(self, project: str | None, collection: str) -> None:
         from google.cloud import firestore
@@ -134,8 +148,12 @@ class FirestoreStore:
         return snapshot.to_dict() if snapshot.exists else {}
 
     @staticmethod
-    def _bump(meta, key):
+    def _bump(meta, key, changed_id=None):
         meta[key] = meta.get(key, 0) + 1
+        # The last few changed incidents, so an instance that is only a little behind fetches just those instead of the
+        # whole list. A write without an id (a migration) leaves a gap, which makes everyone reload in full.
+        if key == 'cases_version' and changed_id:
+            meta['cases_changes'] = (meta.get('cases_changes') or [])[-(CHANGE_LOG - 1):] + [[meta[key], changed_id]]
 
     def save_case(self, case: CaseRecord) -> CaseRecord:
         from google.cloud import firestore
@@ -147,7 +165,7 @@ class FirestoreStore:
             meta = counter.to_dict() if counter.exists else {}
             existing = CaseRecord.model_validate(snapshot.to_dict()) if snapshot.exists else None
             saved = assign_case(case,existing,meta)
-            self._bump(meta, 'cases_version')
+            self._bump(meta, 'cases_version', saved.id)
             transaction.set(self.numbers,meta)
             transaction.set(ref,saved.model_dump(mode='json'))
             return saved
@@ -165,7 +183,7 @@ class FirestoreStore:
                 current.qa_checks, current.quality_score = audit.checks, audit.quality_score
                 counter = self.numbers.get(transaction=transaction)
                 meta = counter.to_dict() if counter.exists else {}
-                self._bump(meta, 'cases_version')
+                self._bump(meta, 'cases_version', original.id)
                 transaction.update(ref, {'qa_checks': current.model_dump(mode='json')['qa_checks'], 'quality_score': current.quality_score})
                 transaction.set(self.numbers, meta)
             return current
@@ -177,12 +195,23 @@ class FirestoreStore:
         return CaseRecord.model_validate(snapshot.to_dict()) if snapshot.exists else None
 
     def list_cases(self) -> list[CaseRecord]:
-        version = self._versions().get('cases_version', 0)
+        meta = self._versions()
+        version = meta.get('cases_version', 0)
         with self._cache_lock:
             cached = self._cases_cache
         if cached and cached[0] == version:
             return [case.model_copy(deep=True) for case in cached[1]]
-        cases = sorted((CaseRecord.model_validate(doc.to_dict()) for doc in self.cases.stream()), key=lambda c: c.created_at, reverse=True)
+        changed = changed_since(meta.get('cases_changes'), cached[0] if cached else None, version)
+        if changed is not None:
+            # Only a few incidents changed since this copy was made: fetch just those.
+            by_id = {case.id: case for case in cached[1]}
+            for case_id in changed:
+                snapshot = self.cases.document(case_id).get()
+                if snapshot.exists:
+                    by_id[case_id] = CaseRecord.model_validate(snapshot.to_dict())
+            cases = sorted(by_id.values(), key=lambda c: c.created_at, reverse=True)
+        else:
+            cases = sorted((CaseRecord.model_validate(doc.to_dict()) for doc in self.cases.stream()), key=lambda c: c.created_at, reverse=True)
         with self._cache_lock:
             self._cases_cache = (version, cases)
         return [case.model_copy(deep=True) for case in cases]

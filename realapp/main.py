@@ -21,7 +21,7 @@ from realapp.store import create_store
 from realapp.services import SERVICES
 from realapp.livekit_setup import restore_livekit_settings
 from realapp.incident_context import knowledge_context
-from realapp.models import KnowledgeFromIncidentsRequest, CustomerIncidentCreate, Ticket, TranscriptTurn, Understanding, RoutingDecision, Attachment, VisualAnalysisPayload, AssistFeedback, AIAssist
+from realapp.models import KnowledgeFromIncidentsRequest, CustomerIncidentCreate, CustomerResolutionConfirmation, Ticket, TranscriptTurn, Understanding, RoutingDecision, Attachment, VisualAnalysisPayload, AssistFeedback, AIAssist
 from datetime import datetime, timezone
 from realapp.incident_assist import ai_analysed, assess, escalate
 from realapp.access import actor, can_read, can_report, require_case, visible_case
@@ -401,7 +401,7 @@ def run_incident_assist(case_id: str, attachments_with_content: list[tuple[Attac
         # AI-first help from approved knowledge; otherwise hand the ticket and its analysis to a technician.
         case.assist = assess(case, visual, bool(attachments_with_content), engine, settings)
         if case.assist.status == 'escalated':
-            escalate(case, case.assist.reason, app.state.calling.snapshot()['technicians'], store.list_cases())
+            escalate(case, case.assist.reason, app.state.calling.technicians(), store.list_cases())
         else:
             case.routing.handler, case.handler_label = 'AI', 'AI handling'
             case.routing.rationale = 'AI offered self-help steps from approved knowledge; the customer confirms the fix or asks for a technician.'
@@ -410,7 +410,7 @@ def run_incident_assist(case_id: str, attachments_with_content: list[tuple[Attac
     except Exception:
         logger.exception('AI assistance failed for incident %s', case_id)
         case.assist = AIAssist(status='escalated', reason='The AI assistant ran into a problem, so a technician will help you.')
-        escalate(case, case.assist.reason, app.state.calling.snapshot()['technicians'], store.list_cases())
+        escalate(case, case.assist.reason, app.state.calling.technicians(), store.list_cases())
 
     # Merge onto the latest record so a comment added meanwhile isn't lost.
     fresh = store.get_case(case_id)
@@ -445,9 +445,41 @@ def assist_feedback(case_id: str, value: AssistFeedback, http: Request, backgrou
         case.assist = case.assist.model_copy(update={'customer_response': note or 'The suggested steps did not fix it.'})
         if note:
             case.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8].upper()}', author=user['name'], author_type='Customer', text=note))
-        escalate(case, "The customer said the AI-suggested steps didn't fix the issue.", app.state.calling.snapshot()['technicians'], store.list_cases())
+        escalate(case, "The customer said the AI-suggested steps didn't fix the issue.", app.state.calling.technicians(), store.list_cases())
         store.save_case(case)
     return visible_case(store.get_case(case_id), user)
+
+
+@app.post('/api/cases/{case_id}/resolution-confirmation', response_model=CaseRecord)
+def customer_resolution_confirmation(case_id: str, value: CustomerResolutionConfirmation,
+                                    http: Request, background_tasks: BackgroundTasks):
+    user = actor(http)
+    case = store.get_case(case_id)
+    if not case or user['role'] != 'customer' or case.customer_id != user['id']:
+        raise HTTPException(404, 'Case not found')
+    if case.ticket.state != 'Pending Customer Confirmation':
+        raise HTTPException(409, 'This incident is not waiting for customer confirmation.')
+    note = value.note.strip()
+    if not value.resolved and not note:
+        raise HTTPException(422, 'Tell the technician what is still not working.')
+
+    next_state = 'Resolved' if value.resolved else 'In Progress'
+    # The technician resolved the incident; the customer only confirmed it. "Resolved" is credited to the technician
+    # who asked for confirmation (or, failing that, the assigned technician). A "No" sends it back to In Progress and is
+    # recorded as the customer's, since they reopened it.
+    requested_by = next((t.changed_by for t in reversed(case.state_history) if t.to_state == 'Pending Customer Confirmation'), '')
+    resolver = requested_by if requested_by and requested_by != 'System' else (case.ticket.assigned_to or 'Technician')
+    # This is the only customer-authorized state transition. Keep the ordinary
+    # ticket-edit endpoint restricted to staff, while reusing its history and
+    # resolved-ticket side effects here.
+    update_ticket(case_id, TicketUpdate(state=next_state), background_tasks)
+    fresh = store.get_case(case_id)
+    if fresh.state_history and fresh.state_history[-1].to_state == next_state:
+        fresh.state_history[-1] = fresh.state_history[-1].model_copy(update={'changed_by': resolver if value.resolved else user['name']})
+    comment = note or f'I confirm {resolver}’s resolution fixed the issue.'
+    fresh.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8].upper()}', author=user['name'],
+        author_type='Customer', text=comment))
+    return visible_case(store.save_case(fresh), user)
 
 
 @app.get('/api/attachments/{attachment_id}')
@@ -603,12 +635,18 @@ def update_ticket(case_id: str, update: TicketUpdate, background_tasks: Backgrou
     user = actor(http) if http else None
     if user:
         require_case(case, user)
+        if user['role'] == 'customer':
+            raise HTTPException(status_code=403, detail='Customers can update ticket state only through the resolution confirmation action.')
+        # A customer's incident is resolved by their confirmation. Incidents with no customer account (staff intake)
+        # have nobody to confirm, so staff resolve those directly.
+        if user['role'] in {'admin', 'technician'} and update.state == 'Resolved' and case.ticket.state != 'Resolved' and case.customer_id:
+            raise HTTPException(status_code=409, detail='The customer must confirm the proposed resolution before this ticket can be resolved.')
     if user and (update.assigned_user_id is not None or update.assigned_to is not None):
         if user['role'] != 'admin':
             if update.assigned_user_id not in {None, case.ticket.assigned_user_id} or update.assigned_to not in {None, case.ticket.assigned_to}:
                 raise HTTPException(403, 'Only the administrator can reassign incidents.')
         else:
-            users = app.state.calling.snapshot()['technicians']
+            users = app.state.calling.technicians()
             candidates = [u for u in users if u['role'] in {'admin','technician'} and
                 (u['id'] == update.assigned_user_id if update.assigned_user_id is not None else u['name'] == update.assigned_to)]
             clearing = update.assigned_user_id == '' or update.assigned_user_id is None and update.assigned_to == ''
@@ -628,10 +666,12 @@ def update_ticket(case_id: str, update: TicketUpdate, background_tasks: Backgrou
     before = {field: getattr(case.ticket, field) for field in tracked_fields}
     proposed_state = changes.get("state", case.ticket.state)
     proposed_resolution = changes.get("resolution", case.ticket.resolution).strip()
-    if proposed_state == "Resolved" and not proposed_resolution:
-        raise HTTPException(status_code=422, detail="Resolution notes are required before resolving the ticket.")
-    if proposed_state != "Resolved" and changes.get("resolution", "").strip():
-        raise HTTPException(status_code=422, detail="Resolution notes can be entered only when the ticket is resolved.")
+    if proposed_state == "Pending Customer Confirmation" and case.ticket.state not in {"In Progress", "Pending Customer Confirmation"}:
+        raise HTTPException(status_code=409, detail="Move the ticket to In Progress before requesting customer confirmation.")
+    if proposed_state in {"Pending Customer Confirmation", "Resolved"} and not proposed_resolution:
+        raise HTTPException(status_code=422, detail="Resolution details are required before requesting or completing customer confirmation.")
+    if proposed_state == "New" and changes.get("resolution", "").strip():
+        raise HTTPException(status_code=422, detail="Resolution details cannot be entered while the ticket is New.")
     for field, value in changes.items():
         setattr(case.ticket, field, value)
     if before['state'] != case.ticket.state:
@@ -639,9 +679,10 @@ def update_ticket(case_id: str, update: TicketUpdate, background_tasks: Backgrou
             to_state=case.ticket.state, changed_by=user['name'] if user else 'System'))
     case.status = "Resolved" if case.ticket.state == "Resolved" else "Open"
     if case.ticket.state != "Resolved":
-        case.ticket.resolution = ""
         case.qa_checks = []
         case.quality_score = None
+    if case.ticket.state == "New":
+        case.ticket.resolution = ""
     after = {field: getattr(case.ticket, field) for field in tracked_fields}
     changed_fields = [field for field in tracked_fields if before[field] != after[field]]
     if changed_fields:

@@ -106,8 +106,9 @@ def test_real_workflow_and_qa_rerun():
 
     missing_resolution = client.patch(f"/api/cases/{case['id']}/ticket", json={"state": "Resolved"})
     assert missing_resolution.status_code == 422
-    early_resolution = client.patch(f"/api/cases/{case['id']}/ticket", json={"resolution": "Should not be allowed yet."})
-    assert early_resolution.status_code == 422
+    # While In Progress the technician may draft the resolution steps (before asking the customer to confirm them).
+    draft = client.patch(f"/api/cases/{case['id']}/ticket", json={"resolution": "Draft: verify identity, then unlock."})
+    assert draft.status_code == 200 and draft.json()["ticket"]["state"] == "In Progress"
 
     resolved = client.patch(f"/api/cases/{case['id']}/ticket", json={"state": "Resolved", "resolution": "Identity verified; account unlocked and sign-in confirmed."})
     assert resolved.status_code == 200
