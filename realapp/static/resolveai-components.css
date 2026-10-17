@@ -1138,60 +1138,30 @@ th:hover .sort-arrow, .column-sort:hover .sort-arrow, .column-sort:focus-visible
 .call-btn--answer .call-btn__icon{background:var(--ok);color:var(--canvas);border-color:transparent}
 .call-btn--answer:hover .call-btn__icon{background:color-mix(in srgb,var(--ok) 88%,var(--text))}
 
-/* ---- Live call dock: frosted glass, sticky below the top bar; a bottom sheet on phones ---- */
-.call-dock{position:sticky;top:calc(72px + 12px);z-index:15;display:flex;flex-direction:column;gap:14px;margin-bottom:20px;padding:16px 18px;border-radius:var(--r);color:var(--text);
-  background:linear-gradient(135deg,color-mix(in srgb,var(--surface) 38%,transparent),color-mix(in srgb,var(--surface) 18%,transparent));
-  -webkit-backdrop-filter:blur(9px) saturate(1.7);backdrop-filter:blur(9px) saturate(1.7);
-  border:1px solid color-mix(in srgb,var(--surface) 55%,transparent);border-top:4px solid color-mix(in srgb,var(--edge) 80%,transparent);
-  box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 45%,transparent),0 24px 60px -24px var(--shade);animation:dock-in .45s var(--ease) both}
+/* ---- Compact live call bar: stays visible while the technician browses other pages ---- */
+.call-dock{position:sticky;top:8px;z-index:15;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 18px;margin:0 0 18px;padding:12px 16px;border-radius:var(--r);color:var(--text);
+  background:color-mix(in srgb,var(--surface) 94%,var(--canvas));border:1px solid var(--border);border-top:3px solid var(--edge);
+  box-shadow:0 10px 28px -20px var(--shade);animation:dock-in .25s var(--ease) both}
 .call-dock[hidden]{display:none}
 @keyframes dock-in{from{opacity:0;transform:translateY(-10px) scale(.985)}}
-.dock-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px 12px}
+.dock-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;min-width:0}
 .dock-title{display:flex;align-items:center;flex-wrap:wrap;gap:10px;min-width:0}
 .dock-name{margin:0;font:800 20px/1.2 var(--font);color:var(--text);overflow-wrap:anywhere}
 .live-chip{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;font:800 12px var(--font);letter-spacing:.06em;color:var(--ok);background:color-mix(in srgb,var(--ok) 16%,transparent)}
 .live-chip i{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:dock-blink 1.4s ease-in-out infinite}
 @keyframes dock-blink{50%{opacity:.25}}
-.dock-meta{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 22px;margin:0}
-.dock-meta div{display:inline-flex;align-items:baseline;gap:7px;white-space:nowrap}
-.dock-meta dt{font:700 11px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--text-2)}
-.dock-meta dd{margin:0;font:600 13px var(--font);color:var(--text);font-variant-numeric:tabular-nums}
-.dock-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start}
-.dock-pane{display:flex;flex-direction:column;gap:8px;min-width:0;padding:14px 16px;border-radius:12px;
-  background:color-mix(in srgb,var(--surface) 22%,transparent);border:1px solid color-mix(in srgb,var(--surface) 45%,transparent);
-  box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 25%,transparent)}
-.dock-pane--lead{box-shadow:inset 3px 0 0 var(--edge),inset 0 1px 0 color-mix(in srgb,#fff 25%,transparent)}
+.dock-meta{font:500 12px var(--font);color:var(--text-2);font-variant-numeric:tabular-nums}
+.dock-guidance{grid-column:1/-1;min-width:0;padding-left:2px;font-size:13px;color:var(--text-2)}
+.dock-guidance div{display:flex;gap:8px 14px;flex-wrap:wrap}
+.dock-guidance strong{color:var(--text);font-weight:700}
+.dock-guidance span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dock-label{margin:0;font:700 12px var(--font);letter-spacing:.12em;text-transform:uppercase;color:var(--text)}
-.dock-scroll{display:flex;flex-direction:column;gap:8px;max-height:150px;overflow-y:auto;overscroll-behavior:contain;padding-right:6px;scrollbar-width:thin;font-size:14px;color:var(--text)}
-.dock-scroll p{margin:0}
-.dock-scroll:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
-.dock-question{font-weight:700;font-size:16px;line-height:1.35}
-.dock-note{font-size:13px;color:var(--text)}
-.dock-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-.dock-list li{display:flex;flex-direction:column;gap:2px}
-.dock-msg{padding-bottom:8px;border-bottom:1px solid color-mix(in srgb,var(--text) 12%,transparent);font-size:13px}
-.dock-msg:last-child{border:0;padding:0}
-.dock-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px}
+.dock-actions{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:8px}
 .dock-actions .btn-soft{background:color-mix(in srgb,var(--surface) 55%,transparent);border-color:color-mix(in srgb,var(--surface) 70%,var(--border))}
-/* Desktop: the live-call panel fills most of the window below the top bar; its three sections stretch to the bottom
-   and scroll on their own. The page stays visible through the glass. */
-@media (min-width:861px){
-  .call-dock{height:calc(100vh - 72px - 36px);min-height:420px}
-  .dock-grid{flex:1;min-height:0;align-items:stretch}
-  .dock-pane{min-height:0}
-  .dock-scroll{flex:1;max-height:none;min-height:0}
-}
 @media (max-width:860px){
-  .call-dock{position:fixed;top:auto;bottom:calc(12px + env(safe-area-inset-bottom,0px));left:16px;right:16px;z-index:30;max-height:min(72vh,calc(100vh - 24px));overflow-y:auto;margin:0;padding:12px 14px;gap:10px;animation-name:dock-up}
-  @keyframes dock-up{from{opacity:0;transform:translateY(24px)}}
-  .dock-meta{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 12px}
-  .dock-meta div{display:contents}
-  .dock-grid{grid-template-columns:minmax(0,1fr);gap:8px}
-  .dock-pane{padding:10px 12px;gap:6px}
-  .dock-scroll{max-height:120px}
-  .dock-actions{position:sticky;bottom:-12px;margin:0 -14px -12px;padding:10px 14px;background:color-mix(in srgb,var(--surface) 35%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
-  /* keep the last content clear of the sheet */
-  #view-calls:has(.call-dock:not([hidden])){padding-bottom:45vh}
+  .call-dock{top:4px;gap:8px 12px;padding:10px 12px}
+  .dock-actions{grid-column:1/-1;justify-content:flex-start}
+  .dock-guidance span{white-space:normal}
 }
 /* Customers keep their three links (My support, Report an issue, Help articles) on narrow screens too:
    a second row under the top bar that scrolls sideways if needed. */
@@ -1239,7 +1209,7 @@ th:hover .sort-arrow, .column-sort:hover .sort-arrow, .column-sort:focus-visible
 .kb-item > p,.kb-item > ol{margin:4px 0 8px}
 .steps-list{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;color:var(--text)}
 #cfTranscript > summary,.call-full > details > summary{flex-wrap:wrap}
-.callbar{position:sticky;bottom:0;z-index:5;display:flex;gap:10px;flex-wrap:wrap;padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));background:var(--canvas);border-top:1px solid var(--border)}
+.callbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;padding:0;background:transparent;border:0}
 .callbar[hidden]{display:none}
 @media (max-width:900px){.call-full__grid{grid-template-columns:minmax(0,1fr)}}
 /* A caption line above a transcript box never touches it. */
@@ -1280,43 +1250,58 @@ p + .turns{margin-top:10px}
 .chart-grid .chart__body .tbl :is(th,td){padding:9px 8px;font-size:13px;white-space:normal;overflow-wrap:break-word}
 .chart-grid .chart__body .tbl thead th{white-space:nowrap}
 
-/* ---- Full call page, ordered by importance: fixed-size cards that scroll inside ---- */
+/* ---- Full call page ---- */
 .calls--focused .call-page{width:100%;max-width:1100px;margin-inline:auto}
 .cf-grid{display:grid;gap:16px;align-items:start}
 .cf-grid--chat{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}
-.cf-grid--call{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.cf-grid--call{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr)}
 .cf-col{display:flex;flex-direction:column;gap:16px;min-width:0}
 .cf-card{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden;padding:16px}
-.cf-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:4px;scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
-.cf-body:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
+.cf-card.cf-kb,.cf-card.cf-kb--tall{height:auto;min-height:0;overflow:visible}
 .cf-chat{height:632px}
-.cf-kb{height:240px}.cf-steps{height:176px}.cf-pad{height:184px}
-.cf-steps--main{height:250px}.cf-pad--main{height:330px}.cf-kb--tall{height:596px}
+.cf-pad--main{min-height:250px}.cf-pad--compact{height:auto}
 .cf-chat .chat-window{flex:1;height:auto;min-height:0}
 .cf-chat__actions{display:flex;gap:8px;padding-top:10px;border-top:1px solid var(--border)}
 .cf-chat__actions:empty{display:none}
 .cf-live{color:var(--ok);font-weight:700}
 .cf-kb-hint{margin:0}
-.cf-pad__text{flex:1;min-height:0;resize:none}
-/* AI summary banner: collapses after 10 seconds; a thin bar counts down. */
-.cf-summary{position:relative;display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:hidden;padding:12px 40px 14px 14px;border:1px solid var(--border);border-left:4px solid var(--edge);border-radius:12px;
-  background:color-mix(in srgb,var(--edge) 7%,var(--surface));transition:max-height .35s var(--ease),padding .35s var(--ease),opacity .35s var(--ease),border-width .35s var(--ease)}
-.cf-summary.is-collapsed{max-height:0;padding-block:0;opacity:0;border-width:0}
-.cf-summary__text{margin:0;font-size:16px;line-height:1.45}
-.cf-summary__brief{margin:0;font-size:13px}
-.cf-summary__close{position:absolute;top:6px;right:8px;width:30px;height:30px;border:0;border-radius:8px;background:none;color:var(--text-2);font-size:18px;cursor:pointer}
-.cf-summary__close:hover{background:var(--surface-2);color:var(--text)}
-.cf-summary__close:focus-visible{outline:2px solid var(--focus)}
-.cf-summary__bar{position:absolute;left:0;bottom:0;height:3px;width:100%;background:var(--edge)}
-.cf-summary-chip{align-self:flex-start;min-height:34px;padding:0 12px;font-size:13px;color:var(--link)}
+.cf-pad__text{flex:1;min-height:170px;resize:vertical}
+.cf-question-panel{display:flex;flex-direction:column;gap:8px;padding:14px 18px;border:1px solid var(--border);border-left:3px solid var(--edge);border-radius:14px;background:color-mix(in srgb,var(--edge) 4%,var(--surface))}
+.cf-question-panel__head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.cf-question-panel__head h2{margin:0;font:750 16px/1.25 var(--font);color:var(--text)}
+.cf-question-live{display:inline-flex;align-items:center;gap:6px;color:var(--text-2);font:700 10px var(--font);letter-spacing:.08em;text-transform:uppercase}
+.cf-question-live i{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:cf-live-pulse 1.8s ease-in-out infinite}
+@keyframes cf-live-pulse{50%{opacity:.4;box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 15%,transparent)}}
+.cf-question-panel__status{margin:0;color:var(--text-2);font-size:11px}
+.cf-question-list{display:flex;flex-direction:column;gap:0;margin:0;padding:0;list-style:none}
+.cf-question-item{display:grid;grid-template-columns:28px minmax(0,1fr);align-items:start;gap:10px;padding:9px 2px;border-top:1px solid color-mix(in srgb,var(--border) 75%,transparent);animation:cf-question-in .28s ease both;animation-delay:calc(var(--question-order,0) * 55ms)}
+.cf-question-item:first-child{border-top:0}
+.cf-question-item__number{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:color-mix(in srgb,var(--edge) 12%,var(--surface));color:var(--link);font:750 12px var(--font);font-variant-numeric:tabular-nums}
+.cf-question-item__content{display:flex;flex-direction:column;gap:3px;min-width:0}
+.cf-question-item__text{margin:0;color:var(--text);font:650 14px/1.45 var(--font)}
+.cf-question-item__source{align-self:flex-start;color:var(--text-2);font-size:10px;text-decoration:none}
+.cf-question-item__source:hover{text-decoration:underline;color:var(--link)}
+.cf-question-empty{margin:0;padding:6px 0;color:var(--text-2);font-size:13px}
+@keyframes cf-question-in{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.cf-question-live i,.cf-question-item{animation:none}}
+.cf-handoff-card{display:flex;flex-direction:column;gap:14px;padding:16px;border:1px solid color-mix(in srgb,var(--edge) 24%,var(--border));border-left:4px solid var(--edge);border-radius:14px;background:color-mix(in srgb,var(--edge) 5%,var(--surface))}
+.cf-handoff-card__head{display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid color-mix(in srgb,var(--edge) 18%,var(--border))}
+.cf-summary-icon{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:10px;background:color-mix(in srgb,var(--edge) 14%,var(--surface));color:var(--link);font-size:19px;font-weight:800}
+.cf-handoff-card__head h2{margin:0;font:750 15px/1.25 var(--font);color:var(--text)}
+.cf-handoff-card__head p{margin:3px 0 0;color:var(--text-2);font-size:11px}
+.cf-handoff-card__body{display:flex;flex-direction:column;gap:12px;color:var(--text);font-size:13px;line-height:1.45}
+.cf-handoff-narrative{margin:0;color:var(--text);font-size:14px;line-height:1.65}
+.cf-handoff-card__body section{display:flex;flex-direction:column;gap:4px}
+.cf-handoff-card__body section > span{color:var(--text-2);font:700 10px var(--font);letter-spacing:.08em;text-transform:uppercase}
+.cf-handoff-card__body p,.cf-handoff-card__body ul{margin:0}
+.cf-handoff-card__body ul{padding-left:18px;display:flex;flex-direction:column;gap:3px}
 /* One slim strip for the call's state. */
 .cf-strip{display:flex;align-items:center;gap:10px;height:56px;margin:0;padding:0 14px;overflow:hidden;border:1px solid var(--border);border-left:4px solid var(--high);border-radius:12px;background:var(--surface)}
 .cf-strip strong{white-space:nowrap}
 .cf-strip .sec{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media (prefers-reduced-motion:reduce){.cf-summary,.cf-summary__bar{transition:none!important}}
 @media (max-width:760px){
   .cf-grid--chat,.cf-grid--call{grid-template-columns:minmax(0,1fr)}
-  .cf-grid--call .cf-col--side{order:-1}          /* phones: Knowledge, AI next steps, Scratch pad */
+  .cf-question-panel{padding:12px}
   .cf-strip{height:auto;min-height:56px;padding-block:8px;flex-wrap:wrap}
   .cf-strip .sec{white-space:normal}
 }
@@ -1339,7 +1324,6 @@ p + .turns{margin-top:10px}
 }
 @media (max-width:900px){
   .cf-chat{height:min(632px,calc(100dvh - 140px));min-height:360px}
-  .cf-kb--tall{height:auto;max-height:520px}
   .cf-pad--main{height:240px}
   .chat-composer{flex-wrap:nowrap}
   .chat-composer .btn{flex:none}

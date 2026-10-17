@@ -566,10 +566,11 @@ class BrowserSession:
         call = await asyncio.to_thread(self.service.add_turn, self.call_id, speaker, text)
         if self.closed:
             return
+        if speaker in {'Customer', 'Technician'} and call['status'] in {'Connected', 'Ringing', 'Queued'}:
+            # Refresh the live-call guidance from both sides of the conversation, not only the customer's words.
+            self.request_knowledge()
         if speaker == 'Customer' and call['status'] not in TERMINAL:
             self.interrupt()
-            if call['status'] in {'Connected', 'Ringing', 'Queued'}:
-                self.request_knowledge()
             self.turn_revision += 1
         if speaker != 'Customer' or call['status'] in TERMINAL | {'Connected', 'Ringing', 'Queued'}:
             return
@@ -609,7 +610,11 @@ class BrowserSession:
             # and already has its own response queued by record_text.
             pending = [task for task in self.recognition_tasks if not task.done()]
             if pending:
+                drain_started = time.monotonic()
                 await asyncio.gather(*(asyncio.shield(task) for task in pending), return_exceptions=True)
+                logging.getLogger('uvicorn.error.voice').info(
+                    'Voice recognition drain call=%s revision=%s tasks=%d duration_ms=%.0f',
+                    self.call_id, revision, len(pending), (time.monotonic() - drain_started) * 1000)
             current = await asyncio.to_thread(self.service.get, self.call_id)
             if current['status'] != 'AI' or revision != self.turn_revision:
                 logging.getLogger('uvicorn.error.voice').info('Voice reply superseded call=%s revision=%s', self.call_id, revision)

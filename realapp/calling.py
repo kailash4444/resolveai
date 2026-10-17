@@ -397,7 +397,8 @@ class CallingService:
             call["transcript"] = call["transcript"][-150:]
             if speaker == 'Customer' and call['status'] not in TERMINAL:
                 call.pop('ai_resolution', None)
-            if call.get("handoff_brief"):
+            # Preserve the AI/customer recap once a technician joins; it represents the handoff state, not the live tech conversation.
+            if call.get("handoff_brief") and call['status'] != 'Connected':
                 self._set_handoff_brief(call, call["handoff_brief"].get("handoff_reason"))
             return call
         call = self.repository.mutate(append, call_ids=(call_id,))
@@ -465,7 +466,9 @@ class CallingService:
 
     @staticmethod
     def knowledge_query(call):
-        return '\n'.join(turn['text'] for turn in call['transcript'] if turn['speaker'] == 'Customer')[-4000:]
+        turns = (f"{turn['speaker']}: {turn['text']}" for turn in call['transcript']
+                 if turn['speaker'] in {'Customer', 'Technician'})
+        return '\n'.join(turns)[-4000:]
 
     @staticmethod
     def _handoff_brief(call, reason):
@@ -947,6 +950,7 @@ class CallingService:
         risky = any(word in latest for word in ('password', 'unlock', 'locked', 'admin', 'security', 'breach',
             'outage', 'payment', 'privilege', 'human', 'technician', 'person', 'frustrat'))
         result = fallback
+        summary_update = None
         if not risky and self._explicit_failed_steps(call['transcript']) < 2 and call['ai_turns'] < 6:
             try:
                 started = time.monotonic()
@@ -961,6 +965,9 @@ class CallingService:
                     instruction = (
                         'You are a service desk voice assistant. Route and answer in one turn. Give only one short step or question, '
                         'at most 45 spoken words. Use only relevant supplied KB guidance; ask a concise clarification if needed. '
+                        'Also return summary as a concise, readable narrative of the issue and what the customer and assistant have discussed so far, '
+                        'including guidance offered and any reported result. Update it from the full conversation each turn. Do not quote or reproduce transcript turns, '
+                        'do not use speaker labels or a bullet list, and never say an action was completed unless the customer confirms it. '
                         'If the affected product or browser is unknown, ask which one instead of assuming it. '
                         'safe_guidance is true only for low-risk self-service guidance supported by the KB. '
                         'Escalate missing guidance, risky requests, security/identity changes, or requests for a human. '
@@ -978,6 +985,7 @@ class CallingService:
                         if refreshed.get('knowledge_status') != 'ready':
                             raise RuntimeError('Knowledge refresh unavailable')
                         decision = self.engine.generate_voice(instruction + f'KB: {refreshed.get("knowledge_matches", [])}', VoiceDecision)
+                    summary_update = decision.summary
                     if decision.safe_guidance and decision.confidence >= self.settings.ai_routing_confidence and not decision.escalate:
                         if call['ai_turns'] == 0:
                             decision.customer_confirmed_resolved = False
@@ -991,6 +999,8 @@ class CallingService:
                 return
             current['status'] = 'AI'  # transport plays the answer or transfers on escalate
             current['ai_turns'] += 1
+            if summary_update:
+                current['summary'] = summary_update
             if isinstance(result, VoiceDecision):
                 current.update(service=result.service, summary=result.summary)
         self.repository.mutate(save, call_ids=(call_id,))

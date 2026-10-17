@@ -150,7 +150,7 @@ function renderCallOffer(offer) {
   $('#phoneConnection').textContent = call.summary && call.summary !== 'Understanding the customer issue' ? call.summary : 'A customer asked for a technician.';
   patch(box, `<div class="call-controls"><button type="button" class="call-btn call-btn--answer" data-pickup-call="${esc(call.id)}"><span class="call-btn__icon">${ICON_PHONE}</span>Answer ${call.channel === 'chat' ? 'chat' : 'call'}<span class="sr"> from ${esc(name)}</span></button><button type="button" class="call-btn call-btn--danger" data-reject-call="${esc(call.id)}" data-offered="${mine ? 1 : 0}"><span class="call-btn__icon">${ICON_X}</span>Reject ${call.channel === 'chat' ? 'chat' : 'call'}<span class="sr"> from ${esc(name)}</span></button></div>`);
 }
-document.addEventListener('click', async event => {
+document.addEventListener('click', event => {
   const reject = event.target.closest('[data-reject-call]');
   if (!reject) return;
   const id = reject.dataset.rejectCall;
@@ -212,9 +212,7 @@ $('#chatAlertsButton').addEventListener('click', async () => {
   if (calling.data) renderCalling();
 });
 
-// ---- Live call dock: a frosted panel at the top of Calls & queue while I'm connected to a call ----
-// Header (name, LIVE CALL, queue / call ID / ticket), three always-visible sections that each scroll on their own,
-// and Mute / End call. It isn't shown on the full call page for the same call, which has its own controls.
+// ---- Compact live call bar: shown across the workspace except on this call's full page ----
 const ticketNumbers = {};
 function myLiveCall() {
   const user = calling.user;
@@ -229,44 +227,22 @@ function ticketNumber(call) {
   }
   return ticketNumbers[call.case_id];
 }
-// The customer's conversation with the AI, up to the moment a technician joined.
-function aiConversation(call) {
-  const joined = call.connected_at ? call.connected_at * 1000 : Infinity;
-  return (call.transcript || []).filter(turn => turn.speaker !== 'Technician' && turn.text?.trim()
-    && (!turn.timestamp || new Date(turn.timestamp).getTime() <= joined));
-}
 function renderDock(pageCallId) {
   const dock = $('#callDock'), call = myLiveCall();
   if (!call || pageCallId === call.id) { dock.hidden = true; delete dock.dataset.callId; return; }
-  const fresh = dock.hidden || dock.dataset.callId !== call.id;
   if (dock.dataset.callId !== call.id) {
     dock.dataset.callId = call.id;
-    dock.innerHTML = `<div class="dock-head" id="dockHead"></div><div class="dock-grid">
-      <section class="dock-pane dock-pane--lead" aria-labelledby="dockConvoTitle"><h3 class="dock-label" id="dockConvoTitle">Conversation with AI</h3><div class="dock-scroll" id="dockConvo" tabindex="0"></div></section>
-      <section class="dock-pane" aria-labelledby="dockSummaryTitle"><h3 class="dock-label" id="dockSummaryTitle">AI summary · next steps</h3><div class="dock-scroll" id="dockSummary" tabindex="0"></div></section>
-      <section class="dock-pane" aria-labelledby="dockKnowledgeTitle"><h3 class="dock-label" id="dockKnowledgeTitle">Suggested knowledge articles</h3><div class="dock-scroll" id="dockKnowledge" tabindex="0"></div></section></div>
-      <div class="dock-actions" id="dockActions"></div>`;
+    dock.innerHTML = `<div class="dock-head" id="dockHead"></div><div class="dock-guidance" id="dockGuidance"></div><div class="dock-actions" id="dockActions"></div>`;
   }
   dock.hidden = false;
   const ticket = ticketNumber(call), chat = call.channel === 'chat';
   patch($('#dockHead'), `<div class="dock-title"><h2 class="dock-name">${esc(call.caller)}</h2><span class="live-chip"><i aria-hidden="true"></i>LIVE ${chat ? 'CHAT' : 'CALL'}</span></div>
     <a class="btn btn-soft btn-sm" href="?view=calls&amp;call=${encodeURIComponent(call.id)}" data-call-select="${esc(call.id)}">Open full ${chat ? 'chat' : 'call'}</a>
-    <dl class="dock-meta"><div><dt>Queue</dt><dd>${esc(call.service || 'General')}</dd></div><div><dt>Call ID</dt><dd>${esc(call.id)}</dd></div><div><dt>Ticket</dt><dd>${esc(ticket || 'Creating…')}</dd></div></dl>`);
+    <span class="dock-meta">${esc(call.service || 'General')} · ${esc(call.id)}${ticket ? ` · ${esc(ticket)}` : ''}</span>`);
   const brief = call.handoff_brief || {};
   const summary = [call.summary, brief.issue].find(text => text && text !== 'Understanding the customer issue') || 'The AI is still working out the customer’s issue.';
   const question = call.next_question || brief.next_step || call.recommended_action;
-  const guidance = call.knowledge_matches || [];
-  const steps = [...new Set([question, call.recommended_action, ...(guidance[0]?.steps || [])].filter(Boolean).map(step => step.trim()))].slice(0, 4);
-  patch($('#dockSummary'), `<p>${esc(summary)}</p>${steps.length ? `<ol class="dock-steps">${steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol>` : ''}<p class="dock-note">From the customer’s conversation with the AI.</p>`);
-  const matches = call.knowledge_matches || [];
-  patch($('#dockKnowledge'), matches.length ? `<ul class="dock-list">${matches.map(k => `<li><strong>${esc(k.title)}</strong><span class="dock-note">${esc(k.id)}</span></li>`).join('')}</ul>`
-    : '<p>Related knowledge will appear as the customer describes the issue.</p>');
-  const convo = $('#dockConvo'), before = convo.dataset.html;
-  // Only what the customer and the AI said before a technician joined; the live conversation isn't shown.
-  const aiTurns = aiConversation(call), who = {Customer: call.caller, 'AI Agent': 'AI'};
-  patch(convo, aiTurns.length ? aiTurns.map(turn => `<p class="dock-msg"><b>${esc(who[turn.speaker] || turn.speaker)}:</b> ${esc(turn.text)}</p>`).join('')
-    : '<p>The customer didn’t talk with the AI before you joined.</p>');
-  if (fresh || convo.dataset.html !== before) convo.scrollTop = convo.scrollHeight;   // always open at the newest message
+  patch($('#dockGuidance'), `<div><strong>${esc(question || 'AI is following the conversation')}</strong><span>${esc(summary)}</span></div>`);
   const inRoom = calling.room && calling.roomCallId === call.id, muted = inRoom && !calling.room.localParticipant.isMicrophoneEnabled;
   patch($('#dockActions'), `${inRoom ? `<button type="button" class="btn btn-soft btn-sm" data-dock-mute aria-pressed="${muted}">${muted ? 'Unmute' : 'Mute'}</button>` : ''}<button type="button" class="btn btn-danger btn-sm" data-call-action="finish" data-call-id="${esc(call.id)}">End ${chat ? 'chat' : 'call'}</button>`);
 }
@@ -329,12 +305,8 @@ function announceNewTurns(call, sameCall) {
   $('#callAnnouncer').textContent = latest.slice(0, 500);
 }
 
-// Full call page, ordered by importance. A live chat puts the chat on the left with Knowledge, AI next steps and the
-// scratch pad stacked on the right; any other call (live voice, waiting, ended) shows next steps and the scratch pad on
-// the left with Knowledge as a sidebar. Every card has a fixed size and scrolls inside. The AI summary is a banner that
-// collapses after 10 seconds. Routing history and the transcript are still stored, just not shown here. The frame is
-// built once per call and layout, and each part is refreshed on its own, so polling never clears what you're doing.
-const BOILERPLATE = ['welcome to resolveai','this call is transcribed','please describe the issue','i am connecting you','i’m connecting you','i will connect you','a technician will help','please stay on the call'];
+// Full call page: transcript-and-KB follow-up questions lead. Handoff context and scratch notes stay left; searchable
+// Knowledge stays right. The frame is built once per call and layout so polling doesn't clear user input.
 function kbItem(article, open) {
   const steps = article.steps || [];
   return `<details class="kb-item" data-kb="${esc(article.id)}" ${open ? 'open' : ''}><summary>${esc(article.title)} <span class="help">${esc(article.id)}</span></summary>${article.excerpt || article.symptoms ? `<p class="sec">${esc(article.excerpt || article.symptoms)}</p>` : ''}${steps.length ? `<ol class="plain-steps">${steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol>` : ''}</details>`;
@@ -347,42 +319,80 @@ function renderCallSearch() {
   const articles = query
     ? (state.knowledge || []).filter(article => [article.id, article.title, article.product, article.symptoms, (article.tags || []).join(' '), (article.steps || []).join(' ')].join(' ').toLowerCase().includes(query))
     : (c.knowledge_matches || []);
-  $('#cfKbHint').textContent = query ? 'Search results' : c.knowledge_status === 'searching' ? '● Finding articles for this call…' : 'Suggested for this call · verify before using';
   patch(list, articles.map(article => kbItem(article, open.has(article.id))).join('')
     || `<p class="help">${query ? 'No articles match. Try another word.' : 'Suggestions appear after the customer describes the issue. Search to find any article.'}</p>`);
 }
 document.addEventListener('input', event => { if (event.target.id === 'cfKbSearch') renderCallSearch(); });
 
-// AI summary banner: shows when the call opens, collapses after 10 seconds (paused while the pointer is over it),
-// × hides it at once and "↺ Show AI summary" brings it back for another 10 seconds.
-let summaryTimer = null;
-function showSummary() {
-  const banner = $('#cfSummaryBanner'), bar = $('#cfSummaryBar'); if (!banner) return;
-  clearTimeout(summaryTimer);
-  banner.classList.remove('is-collapsed'); banner.removeAttribute('aria-hidden'); $('#cfSummaryChip').hidden = true;
-  bar.style.transition = 'none'; bar.style.width = '100%';
-  requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transition = 'width 10s linear'; bar.style.width = '0'; }));
-  summaryTimer = setTimeout(hideSummary, 10000);
-}
-function hideSummary() {
-  const banner = $('#cfSummaryBanner'); if (!banner) return;
-  clearTimeout(summaryTimer);
-  banner.classList.add('is-collapsed'); banner.setAttribute('aria-hidden', 'true'); $('#cfSummaryChip').hidden = false;
+// Suggest up to four missing details requested by the relevant KB steps. This stays deterministic and local to the
+// browser: no extra model request is added to the live call, and every prompt links to its supporting article.
+function technicianQuestions(call) {
+  const turns = (call.transcript || []).filter(turn => ['Customer', 'Technician'].includes(turn.speaker));
+  const transcript = turns.map(turn => turn.text || '').join(' ').toLowerCase();
+  const customerTranscript = turns.filter(turn => turn.speaker === 'Customer').map(turn => turn.text || '').join(' ').toLowerCase();
+  const articles = call.knowledge_matches || [];
+  const checks = [
+    {key: 'version', evidence: /\b(version|build|release)\b/i,
+      known: /\b(?:version|build|release)\s*(?:number\s*)?(?:is\s*|:|=)?v?\d[\w.-]*|\b(?:forticlient|anyconnect|globalprotect|openvpn|client|application|app)\s*(?:version\s*)?v?\d+(?:\.\d+)+|\bv\d+(?:\.\d+)+/i,
+      asked: /\b(which|what|tell me|share).{0,50}\b(version|build|release)\b/i,
+      question: 'Which version or build of the client are you using?'},
+    {key: 'error', evidence: /\b(exact error|error code|error message|capture the error)\b/i,
+      known: /\b(?:error|code)\s*[:#-]?\s*[a-z]{1,8}[-_]?[0-9]{2,}\b|\b(?:error|message) (?:says|reads)\b/i,
+      asked: /\b(exact error|error code|error message)\b/i,
+      question: 'What is the exact error message or code you see?'},
+    {key: 'device', evidence: /\b(device|operating system|platform|macos|windows|android|ios)\b/i,
+      known: /\b(windows|macos|macbook|linux|android|iphone|ipad|ios|chromebook)\b/i,
+      asked: /\b(which|what|tell me).{0,40}\b(device|operating system|platform)\b/i,
+      question: 'What device and operating system are you using?'},
+    {key: 'network', evidence: /\b(network|wi-?fi|hotspot|ethernet)\b/i,
+      known: /\b(wi-?fi|hotspot|ethernet|home network|office network|mobile data)\b/i,
+      asked: /\b(which|what|tell me).{0,40}\b(network|wi-?fi|hotspot)\b/i,
+      question: 'Which network are you connected to, and does it happen on another network?'},
+    {key: 'scope', evidence: /\b(scope|affected users|multiple users|who else|business impact)\b/i,
+      known: /\b(only me|only my|other users|teammates|multiple users|everyone|whole team|affected users)\b/i,
+      asked: /\b(only you|other people|who else|how many users)\b/i,
+      question: 'Is this affecting only you, or are other people affected too?'},
+    {key: 'start', evidence: /\b(start time|when it started|when did|recent change)\b/i,
+      known: /\b(yesterday|today|last night|this morning|since \w+|started \w+|began \w+|after (?:the )?(?:update|change|restart))\b/i,
+      asked: /\b(when did (?:it|this) start|what changed|before it began)\b/i,
+      question: 'When did this start, and did anything change just before it began?'},
+    {key: 'mfa', evidence: /\b(mfa|multi-factor|verification prompt|authentication prompt)\b/i,
+      known: /\b(mfa|multi-factor|verification code|authentication prompt)\b/i,
+      asked: /\b(before or after|which step|verification prompt)\b/i,
+      question: 'Does the connection fail before or after the verification prompt?'},
+    {key: 'certificate', evidence: /\b(certificate|cert validity|cert is valid)\b/i,
+      known: /\b(certificate|cert)\b/i,
+      asked: /\b(certificate|cert).{0,40}\b(expired|changed|valid)\b/i,
+      question: 'Has the device certificate expired or changed recently?'},
+    {key: 'attempts', evidence: /\b(retry|retest|troubleshoot|attempt|restart|reinstall|clear the cache)\b/i,
+      known: /\b(i (?:already )?(?:tried|restarted|reinstalled|cleared|reset)|we (?:already )?(?:tried|restarted|reinstalled|cleared|reset)|after (?:restarting|reinstalling|clearing))\b/i,
+      asked: /\bwhat have you tried|what steps have you|what happened when you (?:tried|restarted)\b/i,
+      question: 'What have you already tried, and what happened?'},
+  ];
+  const result = [];
+  for (const article of articles) {
+    const guidance = `${article.title || ''} ${article.excerpt || ''} ${(article.steps || []).join(' ')}`;
+    for (const check of checks) {
+      if (check.evidence.test(guidance) && !check.known.test(customerTranscript) && !check.asked?.test(transcript)
+          && !result.some(item => item.key === check.key)) {
+        result.push({key: check.key, question: check.question, id: article.id, title: article.title});
+      }
+      if (result.length === 4) break;
+    }
+    if (result.length === 4) break;
+  }
+  return result;
 }
 document.addEventListener('click', event => {
-  if (event.target.closest('#cfSummaryClose')) hideSummary();
-  if (event.target.closest('#cfSummaryChip')) showSummary();
-});
-document.addEventListener('mouseover', event => {
-  const banner = event.target.closest?.('#cfSummaryBanner');
-  if (!banner || banner.classList.contains('is-collapsed') || banner.dataset.paused) return;
-  banner.dataset.paused = '1'; clearTimeout(summaryTimer);
-  const bar = $('#cfSummaryBar'); bar.style.transition = 'none'; bar.style.width = '100%';
-});
-document.addEventListener('mouseout', event => {
-  const banner = event.target.closest?.('#cfSummaryBanner');
-  if (!banner || banner.contains(event.relatedTarget) || !banner.dataset.paused) return;
-  delete banner.dataset.paused; showSummary();
+  const source = event.target.closest('[data-open-kb]');
+  if (source) {
+    event.preventDefault();
+    $('#cfKbSearch').value = '';
+    renderCallSearch();
+    const article = [...$('#cfKbList').querySelectorAll('details[data-kb]')].find(item => item.dataset.kb === source.dataset.openKb);
+    if (article) article.open = true;
+    return;
+  }
 });
 
 // Finished calls arrive in the feed as summaries; their conversation and history are fetched once, when opened.
@@ -417,24 +427,25 @@ function renderCallDetail() {
     workspace.dataset.callId = c.id; workspace.dataset.layout = layout;
     const knowledge = size => `<section class="card cf-card ${size}" aria-labelledby="cfKbTitle"><h2 class="dock-label" id="cfKbTitle">Knowledge</h2>
         <input class="input" id="cfKbSearch" type="search" placeholder="Search articles, e.g. VPN, Outlook, printer" aria-label="Search knowledge articles" autocomplete="off">
-        <p class="help cf-kb-hint" id="cfKbHint"></p><div class="cf-body" id="cfKbList" tabindex="0" aria-label="Knowledge articles"></div></section>`;
-    const steps = size => `<section class="card cf-card ${size}" aria-labelledby="cfStepsTitle"><h2 class="dock-label" id="cfStepsTitle">AI next steps</h2><div class="cf-body" id="cfSteps" tabindex="0"></div></section>`;
+        <div id="cfKbList" aria-label="Knowledge articles"></div></section>`;
+    const questions = `<section class="cf-question-panel" aria-labelledby="cfQuestionTitle"><div class="cf-question-panel__head"><h2 id="cfQuestionTitle">Questions to ask</h2><span class="cf-question-live"><i aria-hidden="true"></i>Live</span></div><p class="cf-question-panel__status" id="cfSuggestionStatus" aria-live="polite"></p><div id="cfSteps"></div></section>`;
+    const summary = `<section class="cf-handoff-card" aria-labelledby="cfSummaryTitle"><div class="cf-handoff-card__head"><span class="cf-summary-icon" aria-hidden="true">↗</span><div><h2 id="cfSummaryTitle">Call summary</h2><p>What the customer and AI covered before handoff</p></div></div><div class="cf-handoff-card__body" id="cfSummary" aria-live="polite"></div></section>`;
     const pad = size => `<section class="card cf-card ${size}" id="cfPad"></section>`;
+    const padSize = c.status === 'Connected' && canManage ? 'cf-pad--main' : 'cf-pad--compact';
     workspace.innerHTML = `<header class="call-full__head" id="cfHead"></header><div class="stack" id="cfAlerts"></div>
-      <section class="cf-summary" id="cfSummaryBanner" aria-labelledby="cfSummaryTitle"><button type="button" class="cf-summary__close" id="cfSummaryClose" aria-label="Dismiss AI summary">×</button>
-        <h2 class="dock-label" id="cfSummaryTitle">AI summary · conversation so far</h2><div id="cfSummary"></div><span class="cf-summary__bar" id="cfSummaryBar" aria-hidden="true"></span></section>
-      <button type="button" class="chip cf-summary-chip" id="cfSummaryChip" hidden>↺ Show AI summary</button>
       ${layout === 'chat'
-        ? `<div class="cf-grid cf-grid--chat"><section class="card cf-card cf-chat" aria-labelledby="cfChatTitle"><div class="row row--between"><h2 class="dock-label" id="cfChatTitle">Chat with ${esc(c.caller)}</h2><span class="help cf-live" id="cfChatState"></span></div>
+        ? `${questions}<div class="cf-grid cf-grid--chat"><section class="card cf-card cf-chat" aria-labelledby="cfChatTitle"><div class="row row--between"><h2 class="dock-label" id="cfChatTitle">Chat with ${esc(c.caller)}</h2><span class="help cf-live" id="cfChatState"></span></div>
             <div class="chat-window" id="cfChat" tabindex="0" aria-live="polite" aria-relevant="additions" aria-label="Chat messages"></div>
             <form id="techReplyForm" class="chat-composer" novalidate><label class="sr" for="techReplyText">Reply to ${esc(c.caller)}</label><textarea class="input" id="techReplyText" name="text" rows="1" required maxlength="4000"></textarea><button type="submit" class="btn btn-primary">Send</button></form>
             <p class="form-status" id="techReplyMessage" role="status"></p><div class="cf-chat__actions" id="cfChatActions"></div></section>
-            <div class="cf-col">${knowledge('cf-kb')}${steps('cf-steps')}${pad('cf-pad')}</div></div>`
-        : `<div class="cf-grid cf-grid--call"><div class="cf-col">${steps('cf-steps--main')}${pad('cf-pad--main')}</div><div class="cf-col cf-col--side">${knowledge('cf-kb--tall')}</div></div>
-            <div id="cfReply"></div><div class="callbar" id="cfBar"></div>`}`;
+            <div class="cf-col">${summary}${pad(padSize)}</div><div class="cf-col cf-col--side">${knowledge('cf-kb')}</div></div>`
+        : `${questions}<div class="cf-grid cf-grid--call"><div class="cf-col">${summary}${pad(padSize)}<div class="callbar" id="cfBar"></div></div><div class="cf-col cf-col--side">${knowledge('cf-kb--tall')}</div></div>
+            <div id="cfReply"></div>`}`;
     renderCallSearch();
-    showSummary();
   }
+  const activeScratchpad = c.status === 'Connected' && canManage;
+  $('#cfPad').classList.toggle('cf-pad--main', activeScratchpad);
+  $('#cfPad').classList.toggle('cf-pad--compact', !activeScratchpad);
   const ticket = ticketNumber(c), caseKey = c.case_id || c.live_case_id;
   patch($('#cfHead'), `<div><p class="kicker"><span class="mono">${esc(c.id)}</span></p><h2 class="call-full__title" tabindex="-1">${esc(c.caller)}</h2>
     <p class="sec">${esc(c.service || 'General')} · ${esc(c.priority || 'P3')} · ${esc(c.technician_name || 'No technician yet')}${ticket ? ` · Ticket <a class="mono" href="${window.Shell.home(state.user.role)}?ticket=${encodeURIComponent(caseKey)}" data-ticket-link="${esc(caseKey)}">${esc(ticket)}</a>` : ''}</p></div>${callBadge(c.status)}`);
@@ -454,17 +465,22 @@ function renderCallDetail() {
   }
   patch($('#cfAlerts'), `${c.last_error ? `<div class="alert" role="alert"><strong>✕ Call problem.</strong><span class="sec">${esc(c.last_error)}</span></div>` : ''}${notice}${ringing}`);
 
-  // Summary banner text: the summary, then the transfer brief (shown open).
-  const brief = c.handoff_brief, customerTurns = c.transcript.filter(turn => turn.speaker === 'Customer' && turn.text?.trim());
-  const summary = [c.summary, brief?.issue].find(text => text && text !== 'Understanding the customer issue') || 'The AI is still working out the customer’s issue.';
-  const tried = (brief?.tried || []).filter(item => !BOILERPLATE.some(phrase => item.toLowerCase().includes(phrase)));
-  patch($('#cfSummary'), `<p class="cf-summary__text">${esc(summary)}</p>${brief ? `<p class="sec cf-summary__brief"><strong>Transfer brief:</strong> ${esc(customerTurns[0]?.text || brief.issue || 'No issue described yet')}${tried.length ? ` · Tried: ${tried.map(esc).join('; ')}` : ''} · ${esc(brief.handoff_reason || 'Customer asked for a technician')}</p>` : ''}`);
+  // Show one narrative summary, never the raw transcript. The voice model refreshes this on each AI turn.
+  const summary = c.summary && c.summary !== 'Understanding the customer issue'
+    ? c.summary
+    : c.handoff_brief?.issue && !c.handoff_brief.issue.startsWith('No customer issue was captured')
+      ? `The customer contacted support about an issue that still needs technician investigation. ResolveAI transferred the call for further assistance.`
+      : 'The customer was transferred to a technician, but the issue was not clear from the information captured before handoff.';
+  patch($('#cfSummary'), `<p class="cf-handoff-narrative">${esc(summary)}</p>`);
 
-  // Knowledge suggestions follow the call; next steps from the AI.
+  // Recheck unmatched KB details against both sides of the latest live transcript on every call refresh.
   renderCallSearch();
-  const guidance = c.knowledge_matches || [];
-  const steps = [...new Set([brief?.next_step, c.next_question, c.recommended_action, ...(guidance[0]?.steps || [])].filter(Boolean).map(step => step.trim()))].slice(0, 6);
-  patch($('#cfSteps'), steps.length ? `<ol class="steps-list">${steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol>` : '<p class="help">Next steps appear once the customer describes the issue.</p>');
+  const questions = technicianQuestions(c);
+  $('#cfSuggestionStatus').textContent = c.knowledge_status === 'searching'
+    ? 'Checking the latest conversation against Knowledge…'
+    : questions.length ? 'Updated from the latest customer and technician turns' : 'Listening for details that could narrow the diagnosis';
+  patch($('#cfSteps'), questions.length ? `<ol class="cf-question-list">${questions.map((item, index) => `<li class="cf-question-item" style="--question-order:${index}"><span class="cf-question-item__number" aria-hidden="true">${index + 1}</span><div class="cf-question-item__content"><p class="cf-question-item__text">${esc(item.question)}</p><a class="cf-question-item__source" href="#cfKbList" data-open-kb="${esc(item.id)}">${esc(item.title)}</a></div></li>`).join('')}</ol>`
+    : '<p class="cf-question-empty">No follow-up question is needed yet. New details will appear here as the call continues.</p>');
 
   // Scratch pad: private notes, saved to the incident when the call ends (existing draft saving).
   if (!$('#cfPad').contains(document.activeElement)) patch($('#cfPad'), c.status === 'Connected' && canManage
@@ -568,9 +584,8 @@ async function answerCall(id) {
     const result = await api(`/api/calling/${id}/accept`, {method: 'POST', body: '{}'});
     if (result.token) await acceptBrowserCall(id, result, microphone);
     $('#callAnswerStatus').textContent = call?.channel === 'chat' ? '' : '✓ Call connected.';
-    if (call?.channel === 'chat') history.pushState({view: 'calls', call: id}, '', `${location.pathname}?view=calls&call=${encodeURIComponent(id)}`);
     console.info('Call pickup duration (ms)', Math.round(performance.now() - started));
-    showView('calls');
+    await selectCall(id);
   } catch (failure) {
     const fixes = {'Enable calls before answering.': 'Turn the Microphone switch on above, then choose Answer again.',
                    'Set yourself Available before answering a call.': 'Set Availability to Available above, then choose Answer again.'};
