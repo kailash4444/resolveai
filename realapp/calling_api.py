@@ -143,8 +143,13 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
             response.headers["Cache-Control"] = "no-store"
         return response
 
+    def secure_cookie(request):
+        # Cookies are HTTPS-only, except on a local development server reached over plain http (this Mac, or a phone or
+        # tablet on the same Wi-Fi testing it). Production runs with ENVIRONMENT=production, so this never applies there.
+        return not (local(request) or (settings.environment == 'local' and request.url.scheme == 'http'))
+
     def cookie(response, token, request):
-        response.set_cookie("resolveai_session", token, httponly=True, secure=not local(request), samesite="strict", max_age=43200)
+        response.set_cookie("resolveai_session", token, httponly=True, secure=secure_cookie(request), samesite="strict", max_age=43200)
 
     @router.get("/api/auth/status")
     def auth_status(request: Request):
@@ -185,7 +190,7 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
             db['oauth_states'] = pending
         service.repository.mutate(remember, call_ids=())
         response = RedirectResponse(oauth.authorize_url(settings, provider, oauth_return_url(request, provider), attempt), status_code=303)
-        response.set_cookie(OAUTH_COOKIE, attempt['state'], httponly=True, secure=not local(request), samesite='lax', max_age=600, path=OAUTH_PATH)
+        response.set_cookie(OAUTH_COOKIE, attempt['state'], httponly=True, secure=secure_cookie(request), samesite='lax', max_age=600, path=OAUTH_PATH)
         return response
 
     @router.get('/api/auth/oauth/{provider}/callback')
@@ -382,6 +387,11 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
     def create_account(value: TechnicianCreate, request: Request):
         user(request, admin=True)
         return service.create_technician(value)
+
+    @router.delete('/api/users/{user_id}')
+    def delete_user(user_id: str, request: Request):
+        actor = user(request, admin=True)
+        return service.delete_technician(user_id, actor['id'])
 
     @router.post("/api/technicians", status_code=201)
     def create_technician(value: TechnicianCreate, request: Request):

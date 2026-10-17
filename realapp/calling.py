@@ -207,6 +207,24 @@ class CallingService:
         self.repository.mutate(save, call_ids=())
         return token, self.authenticate(token)
 
+    def delete_technician(self, tech_id, actor_id):
+        """An administrator removes a technician: the account and its sessions go, so they're signed out everywhere at
+        once. Their past tickets and calls are kept. Admin and customer accounts can't be deleted here."""
+        def remove(db):
+            tech = db['technicians'].get(tech_id)
+            if not tech:
+                raise HTTPException(404, 'That user no longer exists.')
+            if tech_id == actor_id:
+                raise HTTPException(409, 'You can’t delete your own account.')
+            if tech['role'] != 'technician':
+                raise HTTPException(409, 'Only technician accounts can be deleted here.')
+            if tech.get('current_call_id'):
+                raise HTTPException(409, f"{tech['name']} is on a call or chat. Try again when it has ended.")
+            del db['technicians'][tech_id]
+            db['sessions'] = {k: v for k, v in db['sessions'].items() if v['technician_id'] != tech_id}
+            return {'id': tech_id, 'name': tech['name']}
+        return self.repository.mutate(remove, call_ids=())
+
     def oauth_account(self, email, name, side, allow_signup):
         """Log in with Google / Microsoft. The provider has already confirmed `email`. An account with that email (or that
         email as its username) logs in; on the customer side a new email gets a new customer account. Staff accounts are

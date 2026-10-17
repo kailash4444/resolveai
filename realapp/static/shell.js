@@ -26,6 +26,9 @@
     }
     setTimeout(syncBack, 0);
   });
+  // Logging in or out starts a fresh trail: the arrow never leads back to a previous session or out to the log-in or
+  // landing page, so on the first page after log in it stays hidden.
+  const resetBack = () => { trail = []; saveDepth(); };
   document.addEventListener('DOMContentLoaded', saveDepth);
   setInterval(syncBack, 600);   // detail pages also open from code (deep links, offers), not only from clicks
   saveDepth();
@@ -33,6 +36,7 @@
   const ICONS = {
     'customer-home': '<path d="M3 11l9-8 9 8v10H3z"/>',
     'customer-create': '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+    'get-support': '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/>',
     overview: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
     tickets: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
     calls: '<path d="M6 3h3l2 5-2 2a15 15 0 0 0 5 5l2-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 4 5a2 2 0 0 1 2-2z"/>',
@@ -46,7 +50,7 @@
   };
   const STAFF = [['overview', 'Overview'], ['tickets', 'Tickets'], ['calls', 'Calls & queue'], ['transcripts', 'Transcripts'], ['analytics', 'Analytics'], ['resolution-radar', 'Resolution debt'], ['knowledge', 'Knowledge'], ['qa', 'Quality audit']];
   const NAV = {
-    customer: [['customer-home', 'My support'], ['customer-create', 'Report an issue'], ['knowledge', 'Help articles']],
+    customer: [['customer-home', 'My support'], ['get-support', 'Get support'], ['customer-create', 'Report an issue'], ['knowledge', 'Help articles']],
     technician: STAFF,
     admin: [...STAFF, ['technicians', 'Users']],
   };
@@ -66,11 +70,12 @@
   function render(user) {
     role = user?.role || 'guest';
     document.body.dataset.role = role;
-    document.body.dataset.shell = role === 'guest' ? 'public' : role === 'customer' ? 'customer' : 'staff';
+    // Customers get the same workspace layout as staff: a sidebar that collapses to icons, and a drawer on phones.
+    document.body.dataset.shell = role === 'guest' ? 'public' : 'staff';
     const items = NAV[role] || [];
     byId('appNav').innerHTML = links(items);
     byId('appNav').setAttribute('aria-label', role === 'customer' ? 'Customer' : role === 'admin' ? 'Admin' : 'Technician');
-    byId('topNav').innerHTML = role === 'customer' ? links(items) : '';
+    byId('topNav').innerHTML = '';
     byId('workspaceLabel').textContent = LABEL[role] || '';
     sidebar.hidden = role === 'guest';
     byId('workspaceTopbar').hidden = role === 'guest';
@@ -191,6 +196,6 @@
   });
   window.addEventListener('beforeunload', event => { if (dirty.size) { event.preventDefault(); event.returnValue = ''; } });
 
-  window.Shell = {render, setCurrent, closeDrawer, requestStarted, requestFinished, sessionExpired, home: r => HOME[r] || '/'};
+  window.Shell = {render, setCurrent, closeDrawer, requestStarted, requestFinished, sessionExpired, resetBack, home: r => HOME[r] || '/'};
   render(null);
 })();

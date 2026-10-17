@@ -286,7 +286,7 @@ function renderUsersTable() {
   const users = (calling.data.users || calling.data.technicians).filter(t => t.role !== 'customer');
   const demoCount = users.filter(t => t.demo_available).length;
   $('#demoAvailabilitySummary').textContent = demoCount ? `${demoCount}/${users.length} staff are always available for the demo. Actual call routing requires a connected technician.` : '';
-  $('#technicianRows').innerHTML = paginateItems(users, userPager, calling.user?.id, '#userPagination').map(t => { const customer = t.role === 'customer'; return `<tr><th scope="row"><span class="stack stack--sm"><strong>${esc(t.name)}</strong><span class="mono help">${esc(t.username)}</span>${t.email && t.email !== t.username ? `<span class="help">${esc(t.email)}</span>` : ''}</span></th><td>${t.role === 'admin' ? 'Administrator' : customer ? 'Customer' : 'Technician'}</td><td class="col-opt">${customer ? '—' : esc(t.skills.join(', '))}</td><td class="col-opt">${esc(t.languages.join(', '))}</td><td>${customer ? '—' : callBadge(t.demo_available ? 'Available' : t.status) + (t.demo_available ? '<span class="help"> · Demo</span>' : '')}</td><td class="col-opt">${customer ? '—' : t.voice_ready ? '<span class="badge badge--ok">✓ Ready</span>' : '<span class="badge badge--muted">○ Not ready</span>'}</td><td>${t.current_call_id ? `<span class="mono">${esc(t.current_call_id)}</span>` : '<span class="help">—</span>'}</td></tr>`; }).join('');
+  $('#technicianRows').innerHTML = paginateItems(users, userPager, calling.user?.id, '#userPagination').map(t => { const customer = t.role === 'customer'; return `<tr><th scope="row"><span class="stack stack--sm"><strong>${esc(t.name)}</strong><span class="mono help">${esc(t.username)}</span>${t.email && t.email !== t.username ? `<span class="help">${esc(t.email)}</span>` : ''}</span></th><td>${t.role === 'admin' ? 'Administrator' : customer ? 'Customer' : 'Technician'}</td><td class="col-opt">${customer ? '—' : esc(t.skills.join(', '))}</td><td class="col-opt">${esc(t.languages.join(', '))}</td><td>${customer ? '—' : callBadge(t.demo_available ? 'Available' : t.status) + (t.demo_available ? '<span class="help"> · Demo</span>' : '')}</td><td class="col-opt">${customer ? '—' : t.voice_ready ? '<span class="badge badge--ok">✓ Ready</span>' : '<span class="badge badge--muted">○ Not ready</span>'}</td><td>${t.current_call_id ? `<span class="mono">${esc(t.current_call_id)}</span>` : '<span class="help">—</span>'}</td><td class="col-actions">${calling.user?.role === 'admin' && t.role === 'technician' ? `<button type="button" class="btn btn-danger btn-sm" data-delete-user="${esc(t.id)}" data-user-name="${esc(t.name)}">Delete<span class="sr"> ${esc(t.name)}</span></button>` : ''}</td></tr>`; }).join('');
   $('#techniciansEmpty').hidden = users.length > 0;
 }
 
@@ -617,6 +617,25 @@ document.addEventListener('click', async event => {
     }
     if (event.target.closest('#resumeAudioButton')) {await calling.room?.startAudio();$('#resumeAudioButton').hidden=true;}
     if (event.target.closest('#signInButton')) location.assign('/?auth=login&as=staff');
+    const remove = event.target.closest('[data-delete-user]');
+    if (remove) {
+      const dialog = $('#deleteUserDialog'); dialog.dataset.userId = remove.dataset.deleteUser; dialog.dataset.userName = remove.dataset.userName;
+      $('#deleteUserDescription').textContent = `${remove.dataset.userName} will be signed out and can no longer log in. Their past tickets and calls stay as they are.`;
+      $('#deleteUserError').hidden = true; $('#confirmDeleteUser').disabled = false;
+      dialog.showModal();
+    }
+    if (event.target.closest('#confirmDeleteUser')) {
+      const dialog = $('#deleteUserDialog'), button = $('#confirmDeleteUser');
+      button.disabled = true;
+      try {
+        await api(`/api/users/${encodeURIComponent(dialog.dataset.userId)}`, {method: 'DELETE'});
+        dialog.close(); window.toast?.(`${dialog.dataset.userName} was deleted.`);
+        api("/api/users").then(users => { state.users = users; }).catch(() => {});
+        await loadCalling();
+      } catch (error) {
+        $('#deleteUserError').textContent = `✕ ${error.message}`; $('#deleteUserError').hidden = false; button.disabled = false;
+      }
+    }
     if (event.target.closest('#addTechnicianButton')) { $('#technicianForm').reset(); $('#technicianMessage').textContent = ''; $('#technicianModal').showModal(); }
     if (event.target.closest('#retryUsers')) await loadCalling();
     if (event.target.closest('#routeRequestButton')) { $('#requestMessage').textContent = ''; $('#requestModal').showModal(); }
@@ -636,7 +655,7 @@ document.addEventListener('click', async event => {
       if (calling.user?.current_call_id || calling.roomCallId) { blockSignOut(); return; }
       try { await api('/api/auth/logout', {method:'POST',body:'{}'}); }
       catch (error) { if (error.status === 409) { blockSignOut(); return; } throw error; }
-      await calling.room?.disconnect(); calling.ready = false; calling.user = null; location.assign('/');
+      await calling.room?.disconnect(); calling.ready = false; calling.user = null; window.Shell?.resetBack(); location.assign('/');
     }
   } catch(error) { showFeedback(error.message, true); loadCalling(); }
 });

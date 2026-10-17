@@ -161,6 +161,13 @@ VIEW_ACCESS.admin = [...VIEW_ACCESS.technician, 'technicians'];
 const VIEW_TITLES = {signin: 'ResolveAI · Less firefighting. More resolution.', 'customer-home': 'My support', 'customer-create': 'Report an issue', overview: 'Operations overview', case: 'Conversation intake', tickets: 'Tickets', 'ticket-detail': 'Ticket details', 'time-machine': 'Incident Time Machine', 'resolution-radar': 'Resolution debt', calls: 'Calls & queue', transcripts: 'Transcripts', analytics: 'Analytics', knowledge: 'Knowledge', qa: 'Quality audit', technicians: 'Users', denied: 'No access', notfound: 'Not found'};
 function homeView(user = state.user) { return !user ? 'signin' : user.role === 'customer' ? 'customer-home' : user.role === 'technician' ? 'calls' : 'overview'; }
 function showView(name) {
+  // Get support is a section of My support: open My support and bring the Get support panel into view.
+  if (name === 'get-support') {
+    showView('customer-home');
+    window.Shell?.setCurrent('get-support');
+    requestAnimationFrame(() => { $('#portalVoice')?.scrollIntoView({block: 'start'}); $('#voiceTitle')?.focus({preventScroll: true}); });
+    return;
+  }
   $('#appLoading').hidden = true;
   if (name === 'configuration') name = homeView();
   if (name === 'call-analytics') {name = 'analytics'; reportTabs.analytics = 'calls';}

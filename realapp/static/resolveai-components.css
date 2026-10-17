@@ -81,7 +81,7 @@ h1,h2,h3,p{margin:0}a{color:inherit}
 .btn--lead{padding-left:7px}
 .btn__bubble{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--btn-fg);color:var(--btn-bg);flex:none}
 /* round icon buttons (theme toggle, sidebar collapse, password eye, remove, call controls) */
-:is(.icon-btn,.call-btn__icon){width:48px;height:48px;padding:0;flex:none;display:inline-grid;place-items:center;border-radius:50%;border:1px solid var(--border);color:var(--text);cursor:pointer;
+:is(.icon-btn,.call-btn__icon){width:48px;height:48px;padding:0;flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid var(--border);color:var(--text);cursor:pointer;
   background:radial-gradient(120% 120% at 30% 20%,var(--surface) 40%,var(--surface-2));box-shadow:inset 0 1px 0 var(--hl),0 8px 18px -10px var(--shade);
   transition:transform var(--t-fast) var(--ease),box-shadow var(--t) var(--ease),border-color var(--t) var(--ease)}
 :is(.icon-btn,.call-btn:hover .call-btn__icon):hover,.call-btn:hover .call-btn__icon{border-color:var(--border-strong)}
@@ -115,8 +115,8 @@ h1,h2,h3,p{margin:0}a{color:inherit}
 /* customer phone shortcut: round "+" Report an issue, always in reach */
 .fab{display:none}
 @media (max-width:768px){
-  body[data-shell="customer"]:not([data-current-view="customer-create"]) .fab{display:inline-grid;position:fixed;z-index:30;right:20px;bottom:calc(20px + env(safe-area-inset-bottom, 0px));width:60px;height:60px}
-  body[data-shell="customer"] .toasts{bottom:calc(96px + env(safe-area-inset-bottom, 0px))}
+  body[data-role="customer"]:not([data-current-view="customer-create"]) .fab{display:inline-grid;position:fixed;z-index:30;right:20px;bottom:calc(20px + env(safe-area-inset-bottom, 0px));width:60px;height:60px}
+  body[data-role="customer"] .toasts{bottom:calc(96px + env(safe-area-inset-bottom, 0px))}
 }
 
 /* CARD + BADGE */
@@ -371,7 +371,7 @@ body[data-shell="public"] .shell__main{max-width:none;padding:0}
 .chip[aria-pressed="true"]::before{content:"✓";content:"✓" / ""}
 .call-controls{display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px 20px}
 @media (max-width:768px){
-  body[data-shell="customer"] .toasts{bottom:calc(96px + env(safe-area-inset-bottom, 0px))}
+  body[data-role="customer"] .toasts{bottom:calc(96px + env(safe-area-inset-bottom, 0px))}
 }
 
 /* ---- Shared content blocks ---- */
@@ -811,7 +811,7 @@ body[data-transcript-page] #transcriptDetail .turns{height:auto;max-height:none}
    Layout: staff pages use the full width (tiles stretch to fit); collapsible sidebar rail.
    ========================================================================== */
 body[data-shell="staff"] :is(.shell__main,.shell__notices){max-width:none}
-body[data-shell="customer"] :is(.shell__main,.shell__notices){max-width:1440px}
+body[data-role="customer"] :is(.shell__main,.shell__notices){max-width:1440px}
 .shell__collapse{margin-left:auto}
 .shell__collapse svg{transition:transform var(--t) var(--ease)}
 .side__label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -821,7 +821,7 @@ body[data-shell="customer"] :is(.shell__main,.shell__notices){max-width:1440px}
   body[data-side-collapsed] .shell__brand{flex-direction:column;gap:14px;padding:0}
   body[data-side-collapsed] .shell__collapse{margin-left:0}
   body[data-side-collapsed] .shell__collapse svg{transform:rotate(180deg)}
-  body[data-side-collapsed] :is(.shell__side .brand__name,.shell__label,.side__label){position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  body[data-side-collapsed] :is(.shell__side .brand__name,.shell__label,.shell__side .side__label){position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   body[data-side-collapsed] .side a{justify-content:center;padding:0}
 }
 @media (max-width:768px){.shell__collapse{display:none}}
@@ -1380,3 +1380,4 @@ p + .turns{margin-top:10px}
 .auth__or::before,.auth__or::after{content:"";flex:1;height:1px;background:var(--border)}
 .auth__providers{display:flex;flex-direction:column;gap:8px}
 .auth__provider{justify-content:center;gap:10px;width:100%}
+#voiceTitle:focus{outline:none}

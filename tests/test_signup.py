@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from realapp import main
 from test_attachments import accounts  # noqa: F401  (fixture)
+from test_calling import webapp  # noqa: F401  (fixture)
 
 NEW = {'name': 'Priya Shah', 'username': 'priya.shah', 'password': 'correct horse battery'}
 
@@ -90,3 +91,36 @@ def test_staff_with_a_work_email_log_in_with_it(accounts):
     assert accounts.admin.post('/api/users', json={**value, 'username': 'ravi.three', 'email': 'tech_1@x.io'}).status_code == 201
     assert accounts.admin.post('/api/users', json={**value, 'username': 'ravi.kumar@contoso.com', 'email': ''}).status_code == 409
     assert accounts.admin.post('/api/users', json={**value, 'username': 'ravi.four', 'email': 'nope'}).status_code == 422
+
+
+def test_only_administrators_see_and_manage_users_and_can_delete_technicians(webapp):
+    from fastapi.testclient import TestClient
+    app, service = webapp
+    admin = TestClient(app)
+    admin.post('/api/auth/setup', json={'name': 'Admin', 'username': 'admin', 'password': 'test-admin-password'})
+    for name in ('tara', 'theo'):
+        assert admin.post('/api/users', json={'role': 'technician', 'name': name.title(), 'username': name, 'password': f'{name}-password-1234',
+                                              'skills': ['general'], 'languages': ['en']}).status_code == 201
+    assert admin.post('/api/users', json={'role': 'customer', 'name': 'Casey', 'username': 'casey', 'password': 'casey-password-1234',
+                                          'skills': ['general'], 'languages': ['en']}).status_code == 201
+    ids = {u['username']: u['id'] for u in admin.get('/api/users').json()}
+    tara = TestClient(app)
+    assert tara.post('/api/auth/login', json={'username': 'tara', 'password': 'tara-password-1234', 'expected_role': 'technician'}).status_code == 200
+
+    # Technicians can't list, add or delete users.
+    assert tara.get('/api/users').status_code == 403
+    assert tara.post('/api/users', json={'role': 'technician', 'name': 'Sneaky', 'username': 'sneaky', 'password': 'sneaky-password-123'}).status_code == 403
+    assert tara.delete(f"/api/users/{ids['theo']}").status_code == 403
+
+    # Admins can't delete themselves, other admins or customers here, nor a technician who is on a call.
+    assert admin.delete(f"/api/users/{ids['admin']}").status_code == 409
+    assert admin.delete(f"/api/users/{ids['casey']}").status_code == 409
+    service.repository.mutate(lambda db: db['technicians'][ids['theo']].update(current_call_id='CALL-1'))
+    assert admin.delete(f"/api/users/{ids['theo']}").status_code == 409
+    assert admin.delete('/api/users/tech_missing').status_code == 404
+
+    # Deleting a technician signs them out at once and they can't log in again.
+    assert admin.delete(f"/api/users/{ids['tara']}").json()['name'] == 'Tara'
+    assert tara.get('/api/calling').status_code == 401
+    assert TestClient(app).post('/api/auth/login', json={'username': 'tara', 'password': 'tara-password-1234', 'expected_role': 'technician'}).status_code == 401
+    assert 'tara' not in {u['username'] for u in admin.get('/api/users').json()}

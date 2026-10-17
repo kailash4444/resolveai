@@ -113,6 +113,7 @@
   // Called by loadApplication when nobody is signed in.
   async function showPublic(status) {
     auth = status;
+    window.Shell?.resetBack();   // signed out: the back arrow starts over at the next log in
     const path = location.pathname, oauthError = OAUTH_ERRORS[params().get('oauth_error')];
     $('#roleSignInChoices').hidden = !!auth.setup_required;
     $('#firstAdminSetup').hidden = !auth.setup_required;
@@ -178,6 +179,7 @@
       const next = mode === 'staff' ? null : nextParam();
       if (next) { location.assign(NEXT[next]); return; }
       history.replaceState(null, '', window.Shell.home(user.role));
+      window.Shell.resetBack();
       // Straight into the workspace: never flash the landing page while it loads.
       $('#authPage').hidden = true; $('#appLoading').hidden = false;
       form.reset();

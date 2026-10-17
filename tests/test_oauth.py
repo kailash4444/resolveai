@@ -166,3 +166,16 @@ def test_a_sign_in_started_on_localhost_moves_to_127_0_0_1(webapp):
     client = TestClient(app, base_url='http://localhost:8095', follow_redirects=False)
     response = client.get('/api/auth/oauth/google/start', params={'side': 'customer'})
     assert response.status_code == 303 and response.headers['location'] == 'http://127.0.0.1:8095/api/auth/oauth/google/start?side=customer'
+
+
+def test_session_cookies_are_https_only_except_on_a_local_http_server(webapp):
+    app, service = webapp
+    TestClient(app).post('/api/auth/setup', json={'name': 'Admin', 'username': 'admin', 'password': 'test-admin-password'})
+    login = {'username': 'admin', 'password': 'test-admin-password', 'expected_role': 'technician'}
+    # A phone on the same Wi-Fi testing the local server over plain http.
+    lan = TestClient(app, base_url='http://192.168.1.4:8095').post('/api/auth/login', json=login)
+    assert 'secure' not in lan.headers['set-cookie'].lower()
+    service.settings.environment = 'production'
+    for base in ('http://192.168.1.4:8095', 'https://calls.example.test'):
+        response = TestClient(app, base_url=base).post('/api/auth/login', json=login)
+        assert 'secure' in response.headers['set-cookie'].lower()

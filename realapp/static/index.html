@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/resolveai-components.css?v=20261016-m6">
+  <link rel="stylesheet" href="/static/resolveai-components.css?v=20261017-b5">
   <script src="/static/theme.js?v=7"></script>
 </head>
 <body data-role="guest" data-shell="public" data-mode="focus">
@@ -197,7 +197,7 @@
           <div id="customerIncidents" class="stack" aria-live="polite"></div>
         </section>
         <aside class="card voice-card" id="portalVoice" aria-labelledby="voiceTitle">
-          <h2 id="voiceTitle">Get support</h2>
+          <h2 id="voiceTitle" tabindex="-1">Get support</h2>
           <form id="supportChooser" class="stack" novalidate>
             <fieldset class="field field--inline">
               <legend class="sec">How would you like to get help?</legend>
@@ -388,9 +388,9 @@
 
     </section>
     <section class="view" id="view-technicians" aria-labelledby="usersTitle">
-      <div class="page-head"><div><p class="kicker">Administration</p><h1 id="usersTitle">Users</h1><p class="help" id="demoAvailabilitySummary"></p><p class="sec">Technicians and administrators who work the support queue. Add technicians here; customers create their own accounts and aren’t listed. Editing, disabling and password resets aren’t available yet.</p></div><button class="btn btn-primary" id="addTechnicianButton" type="button" hidden>Add technician</button></div>
+      <div class="page-head"><div><p class="kicker">Administration</p><h1 id="usersTitle">Users</h1><p class="help" id="demoAvailabilitySummary"></p><p class="sec">Technicians and administrators who work the support queue. Add technicians here; customers create their own accounts and aren’t listed. Delete removes a technician’s access straight away; their past tickets and calls are kept. Editing and password resets aren’t available yet.</p></div><button class="btn btn-primary" id="addTechnicianButton" type="button" hidden>Add technician</button></div>
       <div class="alert" id="usersError" role="alert" hidden><strong>✕ Couldn’t load users.</strong><span class="sec" id="usersErrorMessage"></span><button type="button" class="btn btn-soft btn-sm" id="retryUsers">Retry</button></div>
-      <div class="tbl-wrap" role="region" aria-labelledby="usersTitle" tabindex="0"><table class="tbl"><caption class="sr">User accounts</caption><thead><tr><th scope="col">User</th><th scope="col">Role</th><th scope="col" class="col-opt">Skills</th><th scope="col" class="col-opt">Languages</th><th scope="col">Call status</th><th scope="col" class="col-opt">Microphone</th><th scope="col">Current call</th></tr></thead><tbody id="technicianRows"><tr><td colspan="7"><div class="skeleton" role="status" aria-label="Loading users"></div></td></tr></tbody></table></div><nav id="userPagination" class="pagination" aria-label="User pages" hidden></nav>
+      <div class="tbl-wrap" role="region" aria-labelledby="usersTitle" tabindex="0"><table class="tbl"><caption class="sr">User accounts</caption><thead><tr><th scope="col">User</th><th scope="col">Role</th><th scope="col" class="col-opt">Skills</th><th scope="col" class="col-opt">Languages</th><th scope="col">Call status</th><th scope="col" class="col-opt">Microphone</th><th scope="col">Current call</th><th scope="col" class="col-actions"><span class="sr">Actions</span></th></tr></thead><tbody id="technicianRows"><tr><td colspan="7"><div class="skeleton" role="status" aria-label="Loading users"></div></td></tr></tbody></table></div><nav id="userPagination" class="pagination" aria-label="User pages" hidden></nav>
       <div class="empty section" id="techniciansEmpty" hidden><h2 class="h3">No technicians yet</h2><p class="sec">Add a technician so they can log in and take support work.</p></div>
 
     </section>
@@ -652,19 +652,20 @@
       <div class="row"><button type="button" class="btn btn-soft" data-close data-close-call-modal="livekitModal">Close</button><button type="submit" class="btn btn-primary">Check and save</button></div>
     </form>
   </dialog>
+  <dialog class="dlg" id="deleteUserDialog" aria-labelledby="deleteUserTitle" aria-describedby="deleteUserDescription"><h2 id="deleteUserTitle">Delete technician?</h2><p class="sec" id="deleteUserDescription"></p><p class="err" id="deleteUserError" role="alert" hidden></p><div class="row"><button type="button" class="btn btn-soft" data-close>Cancel</button><button type="button" class="btn btn-danger" id="confirmDeleteUser">Delete technician</button></div></dialog>
   <dialog class="dlg" id="callActionDialog" aria-labelledby="callActionTitle" aria-describedby="callActionDescription"><h2 id="callActionTitle">Confirm call action</h2><p class="sec" id="callActionDescription"></p><div class="row"><button type="button" class="btn btn-soft" data-close>Cancel</button><button type="button" class="btn btn-danger is-confirm" id="confirmCallAction">Confirm</button></div></dialog>
   <div id="remoteAudio" hidden></div><button id="resumeAudioButton" class="btn btn-primary resume-audio" type="button" hidden>Turn on call audio</button>
   <script src="/static/resolveai-components.js?v=3"></script>
   <script src="/static/vendor/livekit-client.umd.js"></script>
   <script src="/static/voice-browser.js?v=6"></script>
-  <script src="/static/shell.js?v=20261016-m2"></script>
+  <script src="/static/shell.js?v=20261017-b1"></script>
   <script src="/static/uploader.js?v=20261015-qa"></script>
-  <script src="/static/app.js?v=20261016-m1"></script>
-  <script src="/static/auth.js?v=16"></script>
+  <script src="/static/app.js?v=20261017-b1"></script>
+  <script src="/static/auth.js?v=17"></script>
   <script src="/static/landing.js?v=2"></script>
   <script src="/static/support-hub.js?v=13"></script>
   <script src="/static/resolution-radar.js?v=7"></script>
-  <script src="/static/calling.js?v=20261016-m4"></script>
+  <script src="/static/calling.js?v=20261017-b1"></script>
   <script src="/static/transcripts.js?v=20261015-ux"></script>
   <script src="/static/incident-time-machine.js?v=6"></script>
 </body>
