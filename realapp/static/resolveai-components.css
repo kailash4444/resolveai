@@ -1100,8 +1100,11 @@ th:hover .sort-arrow, .column-sort:hover .sort-arrow, .column-sort:focus-visible
 .app-loading[hidden]{display:none}
 .app-loading__spin{width:20px;height:20px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--text);animation:spin .8s linear infinite}
 
-/* An open call gets the page to itself; the queue numbers and waiting list come back on "All calls". */
-.calls--focused :is(#callNumbers,#sharedQueuePanel,#technicianIdentity){display:none}
+/* Keep the live waiting queue available while a technician is working in a full call page. */
+.calls--focused :is(#callNumbers,#technicianIdentity){display:none}
+#sharedQueuePanel .list__row{align-items:center;gap:12px}
+#sharedQueuePanel .list__main{min-width:0}
+#sharedQueuePanel .list__row > .btn{flex:0 0 auto}
 /* Phones: queue numbers as a compact two-by-two block so calls show on the first screen. */
 @media (max-width:640px){
   .call-metrics{grid-template-columns:1fr 1fr;gap:10px}
@@ -1290,6 +1293,11 @@ p + .turns{margin-top:10px}
 .cf-question-panel__head h2{margin:0;font:750 16px/1.25 var(--font);color:var(--text)}
 .cf-question-live{display:inline-flex;align-items:center;gap:6px;color:var(--text-2);font:700 10px var(--font);letter-spacing:.08em;text-transform:uppercase}
 .cf-question-live i{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:cf-live-pulse 1.8s ease-in-out infinite}
+.cf-action-suggestion,.dock-action-suggestion{display:flex;flex-direction:column;gap:5px;margin-top:10px;padding:12px 14px;border-left:3px solid var(--ok);border-radius:8px;background:color-mix(in srgb,var(--ok) 7%,var(--surface));}
+.cf-action-suggestion strong,.dock-action-suggestion strong{font:750 12px/1.3 var(--font);color:var(--ok);letter-spacing:.04em}
+.cf-action-suggestion p{margin:0;color:var(--text);font-size:14px;line-height:1.5}
+.cf-action-suggestion .cf-question-item__source{align-self:flex-start}
+.dock-action-suggestion span{color:var(--text-2);font-size:12px;line-height:1.4}
 @keyframes cf-live-pulse{50%{opacity:.4;box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 15%,transparent)}}
 .cf-question-panel__status{margin:0;color:var(--text-2);font-size:11px}
 .cf-question-list{display:flex;flex-direction:column;gap:0;margin:0;padding:0;list-style:none}

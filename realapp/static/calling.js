@@ -7,13 +7,6 @@ window.callBadge = callBadge;
 function setBadge(el, tone, text) { el.className = `badge ${tone}`; el.textContent = text; }
 // Polling re-renders every few seconds; only touch the DOM when content changed so focus and open details survive.
 function patch(el, html) { if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; } }
-// Handoff summary shown with incoming requests: what the customer said, what was tried, what to do next.
-function handoffCard(call) {
-  const tried = call.attempted_steps || [];
-  const next = call.recommended_action || call.next_question || 'Review the transcript and confirm the customer’s impact.';
-  return `<div class="handoff stack stack--sm"><p class="kicker">Technician handoff</p><p><strong>Issue:</strong> ${esc(call.summary || 'Customer issue is still being understood.')}</p>${tried.length ? `<p><strong>Already tried:</strong></p><ul class="plain-steps">${tried.map(step => `<li>${esc(step)}</li>`).join('')}</ul>` : '<p class="help">No troubleshooting steps reported yet.</p>'}<p><strong>Suggested next step:</strong> ${esc(next)}</p></div>`;
-}
-
 window.loadCalling = async () => {
   if (calling.loading || calling.answering) return;
   calling.loading = true;
@@ -113,20 +106,23 @@ function renderCalling() {
   patch($('#callList'), calls.length ? `<ul class="list">${callPage.map(c => { return `<li class="list__row"><span class="list__main"><strong>${esc(c.caller)}</strong><span class="help">${esc(c.service)} · ${(c.origin === 'browser' ? 'Browser call' : c.channel === 'chat' ? 'Chat' : 'Desk request')} · ${esc(c.technician_name || (['AI','Triage'].includes(c.status) ? 'AI assistant' : 'Unassigned'))} · ${esc(when(new Date(c.created_at * 1000).toISOString()))}</span></span>${priorityBadge(c.priority)}${callBadge(c.status)}<a class="link" href="?view=calls&amp;call=${encodeURIComponent(c.id)}" data-call-select="${esc(c.id)}"><span>Open<span class="sr"> call from ${esc(c.caller)}</span></span></a></li>`; }).join('')}</ul>`
     : calling.data.calls.length ? '<p class="sec">No calls match this search.</p>' : '<div class="empty"><h3 class="h4">The queue is empty</h3><p class="sec">Incoming browser calls and routed support requests appear here.</p></div>');
   const incoming = calling.data.incoming_calls || [];
-  $('#sharedQueuePanel').hidden = !incoming.length;
+  const focusedCallId = new URLSearchParams(location.search).get('call');
+  $('#sharedQueuePanel').hidden = !incoming.length && !focusedCallId;
   $('#answerHint').hidden = !incoming.some(call => call.origin === 'browser') || !!calling.user?.voice_ready;
-  patch($('#sharedQueue'), incoming.map(call => `<li class="list__row"><span class="list__main"><strong>${esc(call.origin === 'browser' ? 'Incoming browser call' : call.channel === 'chat' ? 'Incoming chat' : 'Support request')}</strong><span class="help">${esc(call.service)} · Started ${esc(when(new Date(call.created_at * 1000).toISOString()))}</span></span>${priorityBadge(call.priority)}<button type="button" class="btn btn-primary btn-sm" data-pickup-call="${esc(call.id)}"><span>Answer<span class="sr"> ${esc(call.service)} call</span></span></button>${handoffCard(call)}</li>`).join(''));
+  $('#sharedQueueTitle').textContent = `Calls waiting in queue${incoming.length ? ` · ${incoming.length}` : ''}`;
+  patch($('#sharedQueue'), incoming.length ? incoming.map(call => `<li class="list__row"><span class="list__main"><strong>${esc(call.caller || 'Waiting customer')}</strong><span class="help">${esc(call.service)} · ${call.channel === 'chat' ? 'Chat' : call.origin === 'browser' ? 'Browser call' : 'Support request'} · ${esc(call.priority || 'P3')} · Waiting ${esc(elapsed(call.queued_at || call.created_at))}</span></span>${priorityBadge(call.priority)}<button type="button" class="btn btn-primary btn-sm" data-pickup-call="${esc(call.id)}"><span>Answer<span class="sr"> ${esc(call.channel === 'chat' ? 'chat' : 'call')} from ${esc(call.caller || 'customer')}</span></span></button></li>`).join('')
+    : '<li class="list__row"><span class="sec">No other calls are waiting right now.</span></li>');
   if ($('#technicianRows')) renderUsersTable();
-  $('#incomingCallBanner').hidden = !offer;
+  $('#incomingCallBanner').hidden = !offer || focusedCallId === offer.id;
   if (offer) {
-    patch($('#incomingCallBanner'), `<div class="stack stack--sm"><strong>◆ Incoming ${offer.origin === 'browser' ? 'call' : offer.channel === 'chat' ? 'chat' : 'support request'} · ${esc(offer.caller)}</strong><span class="help">${esc(offer.service)} · answer within ${Math.max(0, Math.ceil(offer.reserved_until - Date.now()/1000))} seconds</span></div><button type="button" class="btn btn-primary" data-call-select="${esc(offer.id)}">View request</button>`);
+    patch($('#incomingCallBanner'), `<div class="stack stack--sm"><strong>◆ Incoming ${offer.origin === 'browser' ? 'call' : offer.channel === 'chat' ? 'chat' : 'support request'} · ${esc(offer.caller)}</strong><span class="help">${esc(offer.service)} · answer within ${Math.max(0, Math.ceil(offer.reserved_until - Date.now()/1000))} seconds</span></div><a class="btn btn-primary btn-sm" href="?view=calls&amp;call=${encodeURIComponent(offer.id)}" data-call-select="${esc(offer.id)}">View request</a>`);
   }
   // List or call page, never both, so neither gets squeezed. The address (?call=ID) decides which one shows.
   const pageCall = new URLSearchParams(location.search).get('call');
   if (pageCall) calling.selected = pageCall;
   const open = !!pageCall && calling.data.calls.some(call => call.id === pageCall);
   $('#callActivity').hidden = open; $('#callPage').hidden = !open;
-  // An open call gets the page to itself: queue numbers and the waiting list return with "All calls".
+  // Keep the waiting queue alongside a focused call so technicians can see other customers still waiting.
   $('#view-calls').classList.toggle('calls--focused', open);
   if (!open) $('#view-calls').classList.remove('calls--live');
   if (open) renderCallDetail();
@@ -147,8 +143,8 @@ function callMicButton(enabled, label) {
 }
 function renderCallOffer(offer) {
   const box = $('#callOffer'), user = calling.user;
-  const queued = (calling.data.incoming_calls || []).find(call => call.channel !== 'chat' && !dismissedOffers.has(call.id));
-  const call = calling.roomCallId || myLiveCall() ? null : (offer && offer.channel !== 'chat' && !dismissedOffers.has(offer.id) ? offer : queued);
+  let call = calling.roomCallId || myLiveCall() ? null : (offer && offer.channel !== 'chat' && !dismissedOffers.has(offer.id) ? offer : null);
+  if (call?.id === new URLSearchParams(location.search).get('call')) call = null;
   box.hidden = !call;
   if (!call) { patch(box, ''); return; }
   const name = call.caller || 'Customer', mine = call.technician_id === user.id && call.status === 'Ringing';
@@ -174,8 +170,10 @@ const notifiedChats = new Set();
 function renderChatOffer(offer) {
   const live = myLiveCall(), box = $('#chatOffer');
   const waiting = (calling.data.incoming_calls || []).filter(call => call.channel === 'chat' && !dismissedOffers.has(call.id));
-  const incoming = live ? null : (offer && offer.channel === 'chat' && !dismissedOffers.has(offer.id) ? offer : waiting[0]);
-  box.hidden = !incoming;
+  const assignedOffer = offer && offer.channel === 'chat' && !dismissedOffers.has(offer.id) ? offer : null;
+  const incoming = live ? null : (assignedOffer || waiting[0]);
+  const focused = new URLSearchParams(location.search).get('call');
+  box.hidden = !incoming || (!!assignedOffer && focused === assignedOffer.id);
   if (live?.channel === 'chat') {
     setBadge($('#chatIndicator'), 'badge--ok', `✓ Chatting with ${live.caller}`);
     $('#chatCardText').innerHTML = `<a class="link" href="?view=calls&amp;call=${encodeURIComponent(live.id)}" data-call-select="${esc(live.id)}">Open the chat</a>`;
@@ -183,7 +181,9 @@ function renderChatOffer(offer) {
     const name = incoming.caller || 'Customer', mine = incoming.technician_id === calling.user.id && incoming.status === 'Ringing';
     setBadge($('#chatIndicator'), 'badge--medium', `● Incoming chat · ${name}`);
     $('#chatCardText').textContent = incoming.summary && incoming.summary !== 'Understanding the customer issue' ? incoming.summary : 'A customer is waiting in chat.';
-    patch(box, `<div class="call-controls"><button type="button" class="call-btn call-btn--answer" data-pickup-call="${esc(incoming.id)}"><span class="call-btn__icon">${ICON_CHAT}</span>Accept chat<span class="sr"> from ${esc(name)}</span></button><button type="button" class="call-btn call-btn--danger" data-reject-call="${esc(incoming.id)}" data-offered="${mine ? 1 : 0}"><span class="call-btn__icon">${ICON_X}</span>Reject chat<span class="sr"> from ${esc(name)}</span></button></div>`);
+    patch(box, assignedOffer && !focused
+      ? `<div class="call-controls"><button type="button" class="call-btn call-btn--answer" data-pickup-call="${esc(incoming.id)}"><span class="call-btn__icon">${ICON_CHAT}</span>Accept chat<span class="sr"> from ${esc(name)}</span></button><button type="button" class="call-btn call-btn--danger" data-reject-call="${esc(incoming.id)}" data-offered="1"><span class="call-btn__icon">${ICON_X}</span>Reject chat<span class="sr"> from ${esc(name)}</span></button></div>`
+      : `<p class="help">${waiting.length} chat${waiting.length === 1 ? '' : 's'} waiting in the queue below.</p>`);
   } else {
     setBadge($('#chatIndicator'), 'badge--muted', waiting.length ? `○ ${waiting.length} waiting` : '○ No chats waiting');
     $('#chatCardText').textContent = live ? 'You’re on a call. New chats go to other technicians.' : 'New chats from customers appear here.';
@@ -245,10 +245,10 @@ function renderDock(pageCallId) {
   patch($('#dockHead'), `<div class="dock-title"><h2 class="dock-name">${esc(call.caller)}</h2><span class="live-chip"><i aria-hidden="true"></i>LIVE ${chat ? 'CHAT' : 'CALL'}</span></div>
     <a class="btn btn-soft btn-sm" href="?view=calls&amp;call=${encodeURIComponent(call.id)}" data-call-select="${esc(call.id)}">Open full ${chat ? 'chat' : 'call'}</a>
     <span class="dock-meta">${esc(call.service || 'General')} · ${esc(call.id)}${ticket ? ` · ${esc(ticket)}` : ''}</span>`);
-  const questions = technicianQuestions(call);
+  const questions = technicianQuestions(call), action = technicianAction(call);
   patch($('#dockGuidance'), `<strong class="dock-guidance__title">Questions to ask</strong>${questions.length
     ? `<ol class="dock-question-list">${questions.map(item => `<li>${esc(item.question)}</li>`).join('')}</ol>`
-    : '<p class="dock-question-empty">No follow-up question is needed yet. New details will appear here as the call continues.</p>'}`);
+    : '<p class="dock-question-empty">Listening for useful details in the conversation.</p>'}${action ? `<div class="dock-action-suggestion"><strong>Possible next step</strong><span>${esc(action.step)}</span></div>` : ''}`);
   if (!$('#dockScratch').contains(document.activeElement)) {
     const note = calling.noteDrafts[call.id] ?? call.technician_note_draft ?? '';
     patch($('#dockScratch'), `<label class="dock-scratch__label" for="dockCallNoteText">Scratch pad</label><textarea class="input dock-scratch__text" id="dockCallNoteText" data-call-id="${esc(call.id)}" maxlength="4000" rows="2" aria-label="Scratch pad" placeholder="Private notes for this ${chat ? 'chat' : 'call'}… Saved to the incident when it ends.">${esc(note)}</textarea>`);
@@ -324,6 +324,14 @@ function kbItem(article, open) {
 // One Knowledge card: the AI's suggestions for this call while the search box is empty, search results once you type.
 function renderCallSearch() {
   const list = $('#cfKbList'), c = calling.pageCall; if (!list || !c) return;
+  const status = $('#cfKbStatus');
+  if (status) {
+    const updated = c.knowledge_updated_at ? new Date(c.knowledge_updated_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : '';
+    status.textContent = c.knowledge_status === 'searching' ? 'Updating article matches from the latest conversation…'
+      : c.knowledge_status === 'error' ? (c.knowledge_error || 'Could not refresh article matches. Search the knowledge base instead.')
+      : updated ? `Suggested articles updated from the conversation · ${updated}`
+      : 'Suggested articles update as the customer and technician share details.';
+  }
   const open = new Set([...list.querySelectorAll('details[open]')].map(item => item.dataset.kb));
   const query = ($('#cfKbSearch')?.value || '').trim().toLowerCase();
   const articles = query
@@ -334,8 +342,7 @@ function renderCallSearch() {
 }
 document.addEventListener('input', event => { if (event.target.id === 'cfKbSearch') renderCallSearch(); });
 
-// Suggest up to three missing details requested by the relevant KB steps. This stays deterministic and local to the
-// browser: no extra model request is added to the live call, and every prompt links to its supporting article.
+// Suggest up to two missing details from current KB matches. The retrieved article also supplies a safe next step.
 function technicianQuestions(call) {
   const turns = (call.transcript || []).filter(turn => ['Customer', 'Technician'].includes(turn.speaker));
   const transcript = turns.map(turn => turn.text || '').join(' ').toLowerCase();
@@ -387,11 +394,36 @@ function technicianQuestions(call) {
           && !result.some(item => item.key === check.key)) {
         result.push({key: check.key, question: check.question, id: article.id, title: article.title});
       }
-      if (result.length === 3) break;
+      if (result.length === 2) break;
     }
-    if (result.length === 3) break;
+    if (result.length === 2) break;
   }
   return result;
+}
+function technicianAction(call) {
+  const transcript = (call.transcript || []).filter(turn => ['Customer', 'Technician'].includes(turn.speaker))
+    .map(turn => turn.text || '').join(' ').toLowerCase();
+  const safeAction = /^(?:step\s*)?\d*[.)\s-]*(restart|reboot|refresh|reconnect|clear|check|verify|test|retry|confirm|capture|review|inspect)\b/i;
+  const sensitive = /\b(password|unlock|delete|disable|credential|admin|wipe|format|install|uninstall|reset account|security setting|verification code)\b/i;
+  const completionByVerb = {restart: /\b(restarted|rebooted|power.?cycled)\b/i, reboot: /\b(rebooted|restarted|power.?cycled)\b/i,
+    refresh: /\b(refreshed|refresh(ed|ing) the connection)\b/i, reconnect: /\b(reconnected|connected again)\b/i,
+    clear: /\b(cleared|removed from the cache)\b/i, check: /\b(checked|verified|confirmed)\b/i,
+    verify: /\b(verified|checked|confirmed)\b/i, test: /\b(tested|tried|retested)\b/i,
+    retry: /\b(retried|tried again)\b/i, confirm: /\b(confirmed|checked|verified)\b/i,
+    capture: /\b(captured|copied|recorded)\b/i, review: /\b(reviewed|checked)\b/i, inspect: /\b(inspected|checked)\b/i};
+  for (const article of call.knowledge_matches || []) {
+    for (const rawStep of article.steps || []) {
+      const step = rawStep.replace(/^\s*\d+[.)]\s*/, '').trim();
+      const verb = step.match(safeAction)?.[1]?.toLowerCase();
+      const subject = step.toLowerCase().replace(safeAction, '').replace(/[^a-z0-9 ]/g, ' ').trim();
+      const subjectWords = subject.split(/\s+/).filter(word => word.length > 3 && !['this', 'that', 'with', 'from', 'your', 'then', 'before', 'after', 'user'].includes(word));
+      const completedInContext = verb && completionByVerb[verb]?.test(transcript)
+        && (subjectWords.length === 0 || subjectWords.some(word => transcript.includes(word)));
+      if (!safeAction.test(step) || sensitive.test(step) || transcript.includes(step.toLowerCase()) || completedInContext) continue;
+      return {step, id: article.id, title: article.title};
+    }
+  }
+  return null;
 }
 document.addEventListener('click', event => {
   const source = event.target.closest('[data-open-kb]');
@@ -436,10 +468,10 @@ function renderCallDetail() {
   if (!sameCall || workspace.dataset.layout !== layout) {
     workspace.dataset.callId = c.id; workspace.dataset.layout = layout;
     const knowledge = size => `<section class="card cf-card ${size}" aria-labelledby="cfKbTitle"><h2 class="dock-label" id="cfKbTitle">Knowledge</h2>
-        <input class="input" id="cfKbSearch" type="search" placeholder="Search articles, e.g. VPN, Outlook, printer" aria-label="Search knowledge articles" autocomplete="off">
+        <input class="input" id="cfKbSearch" type="search" placeholder="Search articles, e.g. VPN, Outlook, printer" aria-label="Search knowledge articles" autocomplete="off"><p class="help cf-kb-hint" id="cfKbStatus" aria-live="polite"></p>
         <div id="cfKbList" aria-label="Knowledge articles"></div></section>`;
     const questions = `<section class="cf-question-panel" aria-labelledby="cfQuestionTitle"><div class="cf-question-panel__head"><h2 id="cfQuestionTitle">Questions to ask</h2><span class="cf-question-live"><i aria-hidden="true"></i>Live</span></div><p class="cf-question-panel__status" id="cfSuggestionStatus" aria-live="polite"></p><div id="cfSteps"></div></section>`;
-    const summary = `<section class="cf-handoff-card" aria-labelledby="cfSummaryTitle"><div class="cf-handoff-card__head"><span class="cf-summary-icon" aria-hidden="true">↗</span><div><h2 id="cfSummaryTitle">Call summary</h2><p>What the customer and AI covered before handoff</p></div></div><div class="cf-handoff-card__body" id="cfSummary" aria-live="polite"></div></section>`;
+    const summary = `<section class="cf-handoff-card" aria-labelledby="cfSummaryTitle"><div class="cf-handoff-card__head"><span class="cf-summary-icon" aria-hidden="true">↗</span><div><h2 id="cfSummaryTitle">AI Handover Brief</h2><p>What the customer and AI covered before handoff</p></div></div><div class="cf-handoff-card__body" id="cfSummary" aria-live="polite"></div></section>`;
     const pad = size => `<section class="card cf-card ${size}" id="cfPad"></section>`;
     const padSize = (c.status === 'Connected' || ended) && canManage ? 'cf-pad--main' : 'cf-pad--compact';
     workspace.innerHTML = `<header class="call-full__head" id="cfHead"></header><div class="stack" id="cfAlerts"></div>
@@ -486,11 +518,12 @@ function renderCallDetail() {
   // Recheck unmatched KB details against both sides of the latest live transcript on every call refresh.
   renderCallSearch();
   const questions = technicianQuestions(c);
+  const action = technicianAction(c);
   $('#cfSuggestionStatus').textContent = c.knowledge_status === 'searching'
-    ? 'Checking the latest conversation against Knowledge…'
-    : questions.length ? 'Updated from the latest customer and technician turns' : 'Listening for details that could narrow the diagnosis';
-  patch($('#cfSteps'), questions.length ? `<ol class="cf-question-list">${questions.map((item, index) => `<li class="cf-question-item" style="--question-order:${index}"><span class="cf-question-item__number" aria-hidden="true">${index + 1}</span><div class="cf-question-item__content"><p class="cf-question-item__text">${esc(item.question)}</p><a class="cf-question-item__source" href="#cfKbList" data-open-kb="${esc(item.id)}">${esc(item.title)}</a></div></li>`).join('')}</ol>`
-    : '<p class="cf-question-empty">No follow-up question is needed yet. New details will appear here as the call continues.</p>');
+    ? 'Refreshing articles from the live conversation…'
+    : questions.length ? 'Based on the latest customer and technician turns' : 'Listening for details that could narrow the diagnosis';
+  patch($('#cfSteps'), `${questions.length ? `<ol class="cf-question-list">${questions.map((item, index) => `<li class="cf-question-item" style="--question-order:${index}"><span class="cf-question-item__number" aria-hidden="true">${index + 1}</span><div class="cf-question-item__content"><p class="cf-question-item__text">${esc(item.question)}</p><a class="cf-question-item__source" href="#cfKbList" data-open-kb="${esc(item.id)}">${esc(item.title)}</a></div></li>`).join('')}</ol>`
+    : '<p class="cf-question-empty">Listening for details that could narrow the diagnosis. New questions will appear as the conversation develops.</p>'}${action ? `<div class="cf-action-suggestion"><div><strong>Possible next step</strong><p>${esc(action.step)}</p></div><a class="cf-question-item__source" href="#cfKbList" data-open-kb="${esc(action.id)}">${esc(action.title)}</a></div>` : ''}`);
 
   // The pad stays editable after hangup; terminal-call edits autosave to its incident.
   const savedNotes = c.technician_notes || [];
