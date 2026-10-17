@@ -232,7 +232,7 @@ function renderDock(pageCallId) {
   if (!call || pageCallId === call.id) { dock.hidden = true; delete dock.dataset.callId; return; }
   if (dock.dataset.callId !== call.id) {
     dock.dataset.callId = call.id;
-    dock.innerHTML = `<div class="dock-head" id="dockHead"></div><div class="dock-guidance" id="dockGuidance"></div><div class="dock-actions" id="dockActions"></div>`;
+    dock.innerHTML = `<div class="dock-head" id="dockHead"></div><div class="dock-guidance" id="dockGuidance"></div><div class="dock-scratch" id="dockScratch"></div><div class="dock-actions" id="dockActions"></div>`;
   }
   dock.hidden = false;
   const ticket = ticketNumber(call), chat = call.channel === 'chat';
@@ -242,7 +242,11 @@ function renderDock(pageCallId) {
   const brief = call.handoff_brief || {};
   const summary = [call.summary, brief.issue].find(text => text && text !== 'Understanding the customer issue') || 'The AI is still working out the customer’s issue.';
   const question = call.next_question || brief.next_step || call.recommended_action;
-  patch($('#dockGuidance'), `<div><strong>${esc(question || 'AI is following the conversation')}</strong><span>${esc(summary)}</span></div>`);
+  patch($('#dockGuidance'), `<strong class="dock-guidance__title">AI suggestions</strong><div><strong>${esc(question || 'AI is following the conversation')}</strong><span>${esc(summary)}</span></div>`);
+  if (!$('#dockScratch').contains(document.activeElement)) {
+    const note = calling.noteDrafts[call.id] ?? call.technician_note_draft ?? '';
+    patch($('#dockScratch'), `<label class="dock-scratch__label" for="dockCallNoteText">Scratch pad</label><textarea class="input dock-scratch__text" id="dockCallNoteText" data-call-id="${esc(call.id)}" maxlength="4000" rows="2" aria-label="Scratch pad" placeholder="Private notes for this ${chat ? 'chat' : 'call'}… Saved to the incident when it ends.">${esc(note)}</textarea>`);
+  }
   const inRoom = calling.room && calling.roomCallId === call.id, muted = inRoom && !calling.room.localParticipant.isMicrophoneEnabled;
   patch($('#dockActions'), `${inRoom ? `<button type="button" class="btn btn-soft btn-sm" data-dock-mute aria-pressed="${muted}">${muted ? 'Unmute' : 'Mute'}</button>` : ''}<button type="button" class="btn btn-danger btn-sm" data-call-action="finish" data-call-id="${esc(call.id)}">End ${chat ? 'chat' : 'call'}</button>`);
 }
@@ -484,7 +488,7 @@ function renderCallDetail() {
 
   // Scratch pad: private notes, saved to the incident when the call ends (existing draft saving).
   if (!$('#cfPad').contains(document.activeElement)) patch($('#cfPad'), c.status === 'Connected' && canManage
-    ? `<label class="dock-label" for="callNoteText">Scratch pad</label><textarea class="input cf-pad__text" id="callNoteText" data-call-id="${esc(c.id)}" maxlength="4000" aria-label="Scratch pad" placeholder="Private notes for this ${c.channel === 'chat' ? 'chat' : 'call'}. Saved to the incident when the ${c.channel === 'chat' ? 'chat' : 'call'} ends.">${esc(calling.noteDrafts[c.id] || '')}</textarea>`
+    ? `<label class="dock-label" for="callNoteText">Scratch pad</label><textarea class="input cf-pad__text" id="callNoteText" data-call-id="${esc(c.id)}" maxlength="4000" aria-label="Scratch pad" placeholder="Private notes for this ${c.channel === 'chat' ? 'chat' : 'call'}. Saved to the incident when the ${c.channel === 'chat' ? 'chat' : 'call'} ends.">${esc(calling.noteDrafts[c.id] ?? c.technician_note_draft ?? '')}</textarea>`
     : `<h2 class="dock-label">Scratch pad</h2><p class="help">${ended ? `Notes were saved to the incident when the ${c.channel === 'chat' ? 'chat' : 'call'} ended.` : `Available while you’re connected to the ${c.channel === 'chat' ? 'chat' : 'call'}.`}</p>`);
 
   if (layout === 'chat') {
@@ -676,7 +680,7 @@ document.addEventListener('click', async event => {
 });
 
 document.addEventListener('input', event => {
-  const note = event.target.closest('#callNoteText');
+  const note = event.target.closest('#callNoteText, #dockCallNoteText');
   if (!note?.dataset.callId) return;
   const callId = note.dataset.callId, text = note.value;
   calling.noteDrafts[callId] = text;
