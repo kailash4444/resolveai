@@ -123,8 +123,12 @@ def _suggestion_feedback_from_comment(case: CaseRecord, note: WorkNote) -> None:
         return
     text = note.text.strip()
     lower = text.casefold()
+    normalized = re.sub(r'[^a-z0-9 ]+', '', lower).strip()
     worked = ('it worked', 'that worked', 'works now', 'working now', 'fixed now', 'issue is fixed',
               'problem is fixed', 'resolved now', 'that fixed it', 'this fixed it')
+    done_confirmation = normalized in {'done', 'its done', 'it is done', 'thats done', 'that is done',
+                                       'all done', 'all good', 'completed', 'completed successfully',
+                                       'fixed', 'resolved', 'issue resolved', 'problem resolved'}
     failed = ("didn't work", 'did not work', 'does not work', "doesn't work", 'still not working',
               'still broken', 'issue remains', 'problem remains', 'did not fix', "didn't fix",
               'not fixed', 'not working yet', 'still fails')
@@ -144,7 +148,7 @@ def _suggestion_feedback_from_comment(case: CaseRecord, note: WorkNote) -> None:
             case.status = 'Open'
     elif any(phrase in lower for phrase in uncertain):
         pending.status = 'customer_feedback_unclear'
-    elif any(phrase in lower for phrase in worked):
+    elif done_confirmation or any(phrase in lower for phrase in worked):
         pending.status = 'customer_says_worked'
         if case.ticket.state != 'Resolved':
             previous = case.ticket.state

@@ -418,7 +418,7 @@ function activityPanel(item) {
   const notes = item.ticket.work_notes.filter(note => !customer || note.author_type !== 'System').slice().sort((left, right) => new Date(right.created_at) - new Date(left.created_at)).map(note => `<li class="note"><div class="note__head"><strong>${esc(note.author)}</strong><span class="badge ${tone[note.author_type] || 'badge--low'}">${esc(note.author_type)}</span><time class="help" datetime="${esc(note.created_at)}">${esc(when(note.created_at))}</time></div><p class="pre">${note.author_type === "System" ? formatActivityFields(note.text) : esc(note.text)}</p></li>`).join("");
   const title = customer ? 'Comments' : 'Activity and work notes';
   return `<section class="card stack" aria-labelledby="activityTitle"><h2 class="h3" id="activityTitle">${title}</h2>
-    <form id="workNoteForm" class="stack stack--sm" novalidate><div class="field field--inline"><label for="workNoteText">${customer ? 'Add a comment' : 'Add a work note'}</label><textarea class="input" id="workNoteText" name="text" rows="3" maxlength="4000" required aria-describedby="workNoteHelp workNoteMessage" placeholder="${customer ? 'Add details, answer a question, or tell us what changed' : 'Progress, troubleshooting steps, or customer feedback'}"></textarea><p class="help" id="workNoteHelp">${customer ? 'Your technician sees this on the incident.' : 'Visible to the customer and the service team.'}</p></div>
+    <form id="workNoteForm" class="stack stack--sm" novalidate><div class="field field--inline"><label for="workNoteText">${customer ? 'Add a comment' : 'Add a work note'}</label><textarea class="input" id="workNoteText" name="text" rows="3" maxlength="4000" required aria-describedby="workNoteHelp workNoteMessage" placeholder="${customer ? 'Tell us what happened, or whether the issue is fixed' : 'Progress, troubleshooting steps, or customer feedback'}"></textarea><p class="help" id="workNoteHelp">${customer ? 'Your technician sees this. If you say the issue is fixed, we’ll update the incident automatically.' : 'Visible to the customer and the service team.'}</p></div>
     <div class="row"><button class="btn ${customer ? 'btn-primary' : 'btn-soft'}" type="submit">${customer ? 'Add comment' : 'Add work note'}</button><p class="form-status" id="workNoteMessage" data-activity-message role="status"></p></div></form>
     ${notes ? `<ol class="notes" aria-label="${title}, newest first">${notes}</ol>` : `<p class="sec">${customer ? 'No comments yet.' : 'No activity yet.'}</p>`}</section>`;
 }
@@ -1090,23 +1090,6 @@ document.addEventListener("submit", event => {
   if (event.target.id === "resolutionForm") { event.preventDefault(); saveResolution(event.target); }
   if (event.target.id === "customerResolutionNoForm") { event.preventDefault(); submitCustomerResolutionConfirmation(false, event.target.elements.note.value); }
 });
-document.addEventListener('click', async event => {
-  const button = event.target.closest('[data-suggestion-outcome]');
-  if (!button || !state.current) return;
-  const panel = button.closest('.suggestion-feedback-list'), status = panel?.querySelector('[data-suggestion-feedback-status]');
-  panel?.querySelectorAll('button').forEach(item => item.disabled = true);
-  if (status) status.textContent = 'Saving your update…';
-  try {
-    state.current = await api(`/api/cases/${encodeURIComponent(state.current.id)}/time-machine/suggestions/${encodeURIComponent(button.dataset.suggestionId)}/feedback`, {
-      method: 'POST', body: JSON.stringify({outcome: button.dataset.suggestionOutcome})
-    });
-    await openTicketDetails(state.current.id, {keepScroll: true});
-    toast(button.dataset.suggestionOutcome === 'worked' ? 'Thanks — the incident is resolved.' : 'Thanks — your technician has been notified to continue troubleshooting.');
-  } catch (error) {
-    if (status) status.textContent = `Could not save your response: ${error.message}`;
-    panel?.querySelectorAll('button').forEach(item => item.disabled = false);
-  }
-});
 document.addEventListener("change", event => {
   const select = event.target.closest("[data-taxonomy-select]");
   if (!select) return;
@@ -1343,7 +1326,6 @@ function customerTicketDetails(item) {
   const t = item.ticket;
   return `<div class="page-head"><div><p class="kicker"><span class="mono">${esc(t.id)}</span></p><h1 id="ticketDetailTitle" tabindex="-1">${esc(t.short_description)}</h1></div>${customerStageBadge(t)}</div>
   <div class="stack stack--lg">
-    ${customerSuggestionFeedback(item)}
     ${customerAssist(item)}
     <section class="card${item.assist?.status === 'offered' ? '' : ''} stack" aria-labelledby="progressTitle"><h2 class="h3" id="progressTitle">Progress</h2>${progressSteps(t)}<p class="sec">${customerNextStep(t, item.assist)}</p></section>
     ${t.state === 'Pending Customer Confirmation' ? `<section class="card stack" aria-labelledby="confirmResolutionTitle"><h2 class="h3" id="confirmResolutionTitle">Does this fix resolve your issue?</h2><p class="sec">Your technician proposed these steps:</p><p class="pre">${esc(t.resolution)}</p><div class="customer-resolution-actions" data-resolution-choice><button class="btn btn-primary" type="button" data-confirm-resolution="yes">Yes, it’s fixed</button><button class="btn btn-soft" type="button" data-confirm-resolution="no">No, I still have the issue</button></div><form id="customerResolutionNoForm" class="stack stack--sm" hidden novalidate><div class="field field--inline"><label for="customerResolutionNote">What is still not working?</label><textarea class="input" id="customerResolutionNote" name="note" rows="3" maxlength="2000" required aria-describedby="customerResolutionHelp customerResolutionMessage"></textarea><p class="help" id="customerResolutionHelp">Your comment will be added to this incident and sent to the technician.</p></div><div class="row"><button class="btn btn-primary" type="submit">Send comment</button><p class="form-status" id="customerResolutionMessage" role="status"></p></div></form><p class="form-status" id="customerResolutionChoiceMessage" role="status"></p></section>` : ''}
@@ -1380,19 +1362,6 @@ async function submitCustomerResolutionConfirmation(resolved, note) {
     setFormStatus(message, `✕ ${error.message}`, true);
     button.disabled = false; button.removeAttribute('aria-busy');
   }
-}
-
-function customerSuggestionFeedback(item) {
-  const suggestions = item.time_machine_suggestions || [];
-  const active = suggestions.filter(suggestion => ['sent_to_customer','customer_feedback_unclear','resolved_unconfirmed'].includes(suggestion.status));
-  const recent = suggestions.filter(suggestion => ['customer_says_worked','customer_says_not_worked'].includes(suggestion.status)).slice(-2);
-  if (!active.length && !recent.length) return '';
-  const cards = [...active, ...recent].map(suggestion => {
-    const labels = {sent_to_customer:'The technician suggested this step',customer_feedback_unclear:'Thanks — the technician is reviewing your update',resolved_unconfirmed:'Ticket resolved · confirmation still needed',customer_says_worked:'You confirmed this step worked',customer_says_not_worked:'You reported that this step did not work'};
-    const waiting = ['sent_to_customer','customer_feedback_unclear','resolved_unconfirmed'].includes(suggestion.status);
-    return `<article class="suggestion-feedback" data-suggestion="${esc(suggestion.id)}"><p class="kicker">${esc(labels[suggestion.status] || 'Technician suggestion')}</p><h3 class="h4">${esc(suggestion.action)}</h3><p class="sec">${esc(waiting ? suggestion.verify : suggestion.customer_feedback || 'Your response was recorded.')}</p>${waiting ? `<div class="row row--sm"><button class="btn btn-primary btn-sm" type="button" data-suggestion-outcome="worked" data-suggestion-id="${esc(suggestion.id)}">This fixed it</button><button class="btn btn-soft btn-sm" type="button" data-suggestion-outcome="did_not_work" data-suggestion-id="${esc(suggestion.id)}">Still not fixed</button></div>` : ''}</article>`;
-  }).join('');
-  return `<section class="card stack suggestion-feedback-list" aria-label="Technician suggestion feedback"><h2 class="h3">Suggested by your technician</h2><p class="help">Your response updates the incident and helps the technician choose the next step.</p>${cards}<p class="form-status" data-suggestion-feedback-status role="status"></p></section>`;
 }
 
 window.showCustomerCreateResult = (item, fileCount, {quiet = false} = {}) => {
