@@ -140,9 +140,17 @@ def build_handoff_graph(case, candidates, knowledge_matches, technician_profile=
         detail = f"Observed outcome: {match['outcome'].replace('_', ' ')}. Shared terms: {', '.join(match['similarity_terms'])}."
         if similar.ticket.resolution.strip():
             detail += f"\nRecorded resolution: {similar.ticket.resolution[:440]}"
+        suggestion_outcomes = [item for item in getattr(similar, 'time_machine_suggestions', [])
+                               if item.status in {'customer_says_worked', 'customer_says_not_worked'}]
+        if suggestion_outcomes:
+            detail += "\nCustomer-verified recommendation outcomes: " + "; ".join(
+                f"{item.action[:180]} — {item.status.replace('_', ' ')}"
+                for item in suggestion_outcomes[-4:])
         identifier = node(f"similar:{similar.id}", 'similar_case', match['ticket_id'], detail,
                           title=similar.ticket.short_description, state=match['state'], priority=match['priority'],
                           outcome=match['outcome'], similarity_terms=match['similarity_terms'],
+                          recommendation_outcomes=[{'action': item.action, 'outcome': item.status,
+                              'customer_feedback': item.customer_feedback[:240]} for item in suggestion_outcomes[-4:]],
                           created_at=match['created_at'], demo_dataset=match['demo_dataset'],
                           case_id=similar.id, source_label='Historical incident')
         edge(ticket_id, identifier, 'similar_to', f"same service · {', '.join(match['similarity_terms'][:4])}")

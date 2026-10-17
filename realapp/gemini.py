@@ -484,7 +484,7 @@ class GeminiEngine:
             "changes. Cite only node IDs supplied in the graph; every next action must cite at least one source. Separate "
             "observed facts from proposed actions. Do not invent root causes, completed actions, success probabilities, "
             "time savings, or customer confirmations. If evidence is thin, ask a focused question or recommend collecting "
-            "a diagnostic signal.\n\nEVIDENCE GRAPH (JSON):\n" + context
+            "a diagnostic signal. When an action is to contact the customer to gather details or follow up after a dropped call, phrase it as the concise question the technician should ask the customer, not as an instruction to attempt contact. Keep technical troubleshooting actions as clear technician steps.\n\nEVIDENCE GRAPH (JSON):\n" + context
         )
         return self._generate(prompt, HandoffGuidance)
 

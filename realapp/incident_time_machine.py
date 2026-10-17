@@ -117,6 +117,16 @@ def reconstruct(case, assessment=None):
             "Explicit failure recorded in note." if failed else "Outcome not explicitly recorded.",
         ))
 
+    for suggestion in getattr(case, 'time_machine_suggestions', []):
+        for index, update in enumerate(suggestion.events):
+            events.append(_event(
+                f"suggestion-{suggestion.id}-{index}", "ai_recommendation",
+                update.actor or "ResolveAI", f"Suggestion · {update.kind.replace('_', ' ')}",
+                f"{suggestion.action}\n{update.detail}", "time_machine_suggestion",
+                suggestion.id, update.created_at,
+                f"Current suggestion status: {suggestion.status.replace('_', ' ')}.",
+            ))
+
     for attachment in case.ticket.attachments:
         events.append(_event(
             f"attachment-{attachment.id}", "evidence_added", case.caller,
@@ -168,6 +178,7 @@ def reconstruct(case, assessment=None):
             "created_at": created.isoformat() if created else None,
         },
         "knowledge_matches": [match.model_dump(mode="json") for match in case.knowledge_matches],
+        "time_machine_suggestions": [item.model_dump(mode="json") for item in getattr(case, 'time_machine_suggestions', [])],
         "events": events,
         "dated_count": possible_times,
         "undated_count": len(undated),

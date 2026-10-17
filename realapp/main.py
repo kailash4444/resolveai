@@ -1,6 +1,7 @@
 from collections import Counter
 from datetime import datetime, timezone
 import logging
+import re
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
@@ -16,7 +17,8 @@ from realapp.engine import create_engine
 from realapp.local_secrets import load_local_openai_key, save_local_openai_key
 from realapp.local_secrets import load_local_gemini_key, save_local_gemini_key
 from realapp.models import (AnalysisRequest, CaseRecord, EngineeringBrief, EngineeringFollowup,
-    KnowledgeArticle, KnowledgeArticleInput, TicketStateTransition, TicketUpdate, WorkNote, WorkNoteCreate)
+    KnowledgeArticle, KnowledgeArticleInput, TicketStateTransition, TicketUpdate, WorkNote, WorkNoteCreate,
+    TimeMachineSuggestion, TimeMachineSuggestionEvent, TimeMachineSuggestionFeedback)
 from realapp.store import create_store
 from realapp.services import SERVICES
 from realapp.livekit_setup import restore_livekit_settings
@@ -47,6 +49,13 @@ engine = create_engine(settings, store.list_knowledge)
 resolution_radar = ResolutionRadar(store, engine)
 static_dir = Path(__file__).parent / "static"
 logger = logging.getLogger(__name__)
+
+
+def _customer_facing_followup(action: str) -> str:
+    """Turn internal outreach instructions into a useful question for the customer."""
+    if re.search(r'attempt to contact the customer|contact the customer via|follow up on the dropped call|gather details regarding their request', action, re.I):
+        return 'Could you tell us a little more about the issue and what you were trying to do when the call dropped?'
+    return action
 
 app = FastAPI(title="ResolveAI API", version="2.0.0")
 # Compress text responses (HTML, CSS, JS, JSON); the page and its scripts are about 1 MB uncompressed.
@@ -104,6 +113,56 @@ class CounterfactualRequest(BaseModel):
         'escalate_earlier', 'collect_diagnostic', 'avoid_repeat',
         'follow_documented', 'verify_before_resolve', 'wait_for_evidence',
     ]
+
+
+def _suggestion_feedback_from_comment(case: CaseRecord, note: WorkNote) -> None:
+    """Attach customer comments to the latest suggestion awaiting feedback; classify only explicit outcomes."""
+    pending = next((item for item in reversed(case.time_machine_suggestions)
+                   if item.status in {'sent_to_customer', 'customer_feedback_unclear', 'resolved_unconfirmed'}), None)
+    if not pending:
+        return
+    text = note.text.strip()
+    lower = text.casefold()
+    worked = ('it worked', 'that worked', 'works now', 'working now', 'fixed now', 'issue is fixed',
+              'problem is fixed', 'resolved now', 'that fixed it', 'this fixed it')
+    failed = ("didn't work", 'did not work', 'does not work', "doesn't work", 'still not working',
+              'still broken', 'issue remains', 'problem remains', 'did not fix', "didn't fix",
+              'not fixed', 'not working yet', 'still fails')
+    uncertain = ('not sure', 'unsure', 'maybe', 'might work', 'might be working', 'cannot tell', "can't tell")
+    if any(phrase in lower for phrase in failed):
+        pending.status = 'customer_says_not_worked'
+        if case.ticket.state in {'Pending With Customer', 'On Hold', 'Resolved'}:
+            previous = case.ticket.state
+            case.ticket.state = 'In Progress'
+            case.ticket.resolution = ''
+            case.qa_checks = []
+            case.quality_score = None
+            case.state_history.append(TicketStateTransition(from_state=previous, to_state='In Progress',
+                changed_by=note.author, changed_at=note.created_at))
+            case.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8].upper()}', author='Ticket history',
+                author_type='System', text=f'State : In Progress was {previous}', created_at=note.created_at))
+            case.status = 'Open'
+    elif any(phrase in lower for phrase in uncertain):
+        pending.status = 'customer_feedback_unclear'
+    elif any(phrase in lower for phrase in worked):
+        pending.status = 'customer_says_worked'
+        if case.ticket.state != 'Resolved':
+            previous = case.ticket.state
+            case.ticket.state = 'Resolved'
+            case.ticket.resolution = f"Customer confirmed the recommended troubleshooting step fixed the issue: {pending.action}"
+            case.state_history.append(TicketStateTransition(from_state=previous, to_state='Resolved',
+                changed_by=note.author, changed_at=note.created_at))
+            case.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8].upper()}', author='Ticket history',
+                author_type='System', text=f'State : Resolved was {previous}', created_at=note.created_at))
+            case.status = 'Resolved'
+    else:
+        pending.status = 'customer_feedback_unclear'
+    pending.customer_feedback = text[:1200]
+    pending.outcome_at = note.created_at
+    pending.events.append(TimeMachineSuggestionEvent(
+        kind='customer_comment', actor=note.author,
+        detail=f"Comment received; outcome classified as {pending.status.replace('_', ' ')}. {text[:900]}"))
+    pending.events = pending.events[-30:]
 
 
 @app.get("/", include_in_schema=False)
@@ -677,6 +736,14 @@ def update_ticket(case_id: str, update: TicketUpdate, background_tasks: Backgrou
     if before['state'] != case.ticket.state:
         case.state_history.append(TicketStateTransition(from_state=before['state'],
             to_state=case.ticket.state, changed_by=user['name'] if user else 'System'))
+        for suggestion in case.time_machine_suggestions:
+            if suggestion.status == 'sent_to_customer' and case.ticket.state == 'Resolved':
+                suggestion.status = 'resolved_unconfirmed'
+            if suggestion.status in {'sent_to_customer', 'customer_feedback_unclear', 'resolved_unconfirmed'}:
+                suggestion.events.append(TimeMachineSuggestionEvent(
+                    kind='state_changed', actor=user['name'] if user else 'System',
+                    detail=f"Ticket state changed from {before['state']} to {case.ticket.state}; this alone does not confirm the suggestion worked."))
+                suggestion.events = suggestion.events[-30:]
     case.status = "Resolved" if case.ticket.state == "Resolved" else "Open"
     if case.ticket.state != "Resolved":
         case.qa_checks = []
@@ -712,16 +779,25 @@ def update_ticket(case_id: str, update: TicketUpdate, background_tasks: Backgrou
 
 
 @app.post("/api/cases/{case_id}/work-notes", response_model=CaseRecord)
-def add_work_note(case_id: str, note: WorkNoteCreate, http: Request):
+def add_work_note(case_id: str, note: WorkNoteCreate, http: Request, background_tasks: BackgroundTasks):
     case = store.get_case(case_id)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     # Work notes and customer comments are allowed in every state, as in a normal service desk.
     user = actor(http)
     require_case(case, user)
-    case.ticket.work_notes.append(WorkNote(id=f"NOTE-{uuid4().hex[:8].upper()}", author=user['name'],
-        author_type='Customer' if user['role'] == 'customer' else 'Technician', text=note.text))
-    return visible_case(store.save_case(case), user)
+    was_resolved = case.ticket.state == 'Resolved'
+    created_note = WorkNote(id=f"NOTE-{uuid4().hex[:8].upper()}", author=user['name'],
+        author_type='Customer' if user['role'] == 'customer' else 'Technician', text=note.text)
+    case.ticket.work_notes.append(created_note)
+    if created_note.author_type == 'Customer':
+        _suggestion_feedback_from_comment(case, created_note)
+    saved = store.save_case(case)
+    if not was_resolved and case.ticket.state == 'Resolved':
+        background_tasks.add_task(run_background_qa, case.id)
+        background_tasks.add_task(run_background_knowledge, case.id)
+        background_tasks.add_task(run_background_radar, case.id)
+    return visible_case(saved, user)
 
 
 @app.get('/api/qa/rerun-all')
@@ -821,6 +897,8 @@ def _handoff_graph(case: CaseRecord, user: dict, refresh_knowledge: bool = False
     graph = build_handoff_graph(safe_case, candidates, matches, technician_profile)
     graph['incident']['assigned_to_you'] = (user['role'] == 'technician'
         and case.ticket.assigned_user_id == user['id'])
+    graph['incident']['can_send_suggestions'] = (
+        case.ticket.state != 'Resolved' and can_report(case, user))
     return graph, warnings
 
 
@@ -853,9 +931,137 @@ def generate_handoff_guidance(case_id: str, http: Request):
         logger.exception('Evidence-backed handoff guidance failed for incident %s', case.id)
         warnings.append('Could not generate a cited next-step plan. The evidence graph is still available for manual review.')
     cfg = engine.settings
+    recommendation_ids = []
+    if guidance:
+        # Reload after the model call so customer comments and state changes made during generation survive.
+        case = store.get_case(case_id) or case
+        source_labels = {item['id']: item['label'] for item in graph['nodes']}
+        now = datetime.now(timezone.utc)
+        for action in guidance.next_actions:
+            customer_action = _customer_facing_followup(action.action)
+            suggestion = TimeMachineSuggestion(
+                id=f"TM-{uuid4().hex[:12].upper()}", action=customer_action,
+                rationale=action.rationale, verify=action.verify,
+                evidence_ids=action.evidence_ids,
+                evidence_labels=[source_labels[item] for item in action.evidence_ids if item in source_labels],
+                created_at=now,
+                events=[TimeMachineSuggestionEvent(kind='suggested', actor=user['name'],
+                    detail='Evidence-linked recommendation generated for this incident.', created_at=now)],
+            )
+            case.time_machine_suggestions.append(suggestion)
+            recommendation_ids.append(suggestion.id)
+        case.time_machine_suggestions = case.time_machine_suggestions[-100:]
+        store.save_case(case)
     return {'graph': graph, 'guidance': guidance.model_dump(mode='json') if guidance else None,
+            'recommendation_ids': recommendation_ids,
             'provider': cfg.llm_provider, 'model': cfg.openai_model if cfg.llm_provider in {'openai', 'mock'} else cfg.gemini_model,
             'warnings': warnings}
+
+
+@app.post('/api/cases/{case_id}/time-machine/suggestions/{suggestion_id}/use', response_model=CaseRecord)
+def send_time_machine_suggestion(case_id: str, suggestion_id: str, http: Request):
+    user = _require_radar_user(http)
+    case = require_case(store.get_case(case_id), user)
+    if not can_report(case, user):
+        raise HTTPException(403, 'Only the assigned technician or an administrator can send this suggestion.')
+    suggestion = next((item for item in case.time_machine_suggestions if item.id == suggestion_id), None)
+    if not suggestion:
+        raise HTTPException(404, 'Suggestion not found.')
+    if case.ticket.state == 'Resolved':
+        raise HTTPException(409, 'This incident is already resolved.')
+    if suggestion.status in {'customer_says_worked', 'customer_says_not_worked'}:
+        raise HTTPException(409, 'This suggestion already has a customer outcome.')
+    if suggestion.status == 'sent_to_customer':
+        raise HTTPException(409, 'This suggestion was already sent to the customer.')
+    now = datetime.now(timezone.utc)
+    for previous_suggestion in case.time_machine_suggestions:
+        if previous_suggestion.id != suggestion.id and previous_suggestion.status in {'sent_to_customer', 'customer_feedback_unclear'}:
+            previous_suggestion.status = 'superseded'
+            previous_suggestion.events.append(TimeMachineSuggestionEvent(
+                kind='state_changed', actor=user['name'],
+                detail=f"Superseded by a newer suggestion ({suggestion.id}).", created_at=now))
+            previous_suggestion.events = previous_suggestion.events[-30:]
+    suggestion.status = 'sent_to_customer'
+    suggestion.sent_at = now
+    suggestion.technician_id, suggestion.technician_name = user['id'], user['name']
+    suggestion.events.append(TimeMachineSuggestionEvent(kind='sent_to_customer', actor=user['name'],
+        detail='Technician marked this recommendation as used and shared it with the customer.', created_at=now))
+    case.ticket.work_notes.append(WorkNote(
+        id=f'NOTE-{uuid4().hex[:8].upper()}', author=user['name'], author_type='Technician',
+        text=f"Suggested troubleshooting step: {suggestion.action}\nPlease try this step and reply with what happened. The technician will verify the result."))
+    before = case.ticket.state
+    if before != 'Resolved':
+        case.ticket.state = 'Pending With Customer'
+        case.ticket.resolution = ''
+        case.state_history.append(TicketStateTransition(from_state=before, to_state=case.ticket.state,
+            changed_by=user['name'], changed_at=now))
+        case.ticket.work_notes.append(WorkNote(
+            id=f'NOTE-{uuid4().hex[:8].upper()}', author='Ticket history', author_type='System',
+            text=f'State : Pending With Customer was {before}', created_at=now))
+    case.status = 'Open'
+    suggestion.events = suggestion.events[-30:]
+    return visible_case(store.save_case(case), user)
+
+
+@app.post('/api/cases/{case_id}/time-machine/suggestions/{suggestion_id}/feedback', response_model=CaseRecord)
+def time_machine_suggestion_feedback(case_id: str, suggestion_id: str,
+                                     feedback: TimeMachineSuggestionFeedback,
+                                     http: Request, background_tasks: BackgroundTasks):
+    user = actor(http)
+    case = require_case(store.get_case(case_id), user)
+    if user['role'] != 'customer' or case.customer_id != user['id']:
+        raise HTTPException(403, 'Only the customer on this incident can report the result.')
+    suggestion = next((item for item in case.time_machine_suggestions if item.id == suggestion_id), None)
+    if not suggestion or suggestion.status not in {'sent_to_customer', 'customer_feedback_unclear', 'resolved_unconfirmed'}:
+        raise HTTPException(409, 'There is no active suggestion awaiting your feedback.')
+    note = feedback.note.strip()
+    now = datetime.now(timezone.utc)
+    if feedback.outcome == 'worked':
+        suggestion.status = 'customer_says_worked'
+        detail = note or 'Customer confirmed this suggested step fixed the issue.'
+        case.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8].upper()}', author=user['name'],
+            author_type='Customer', text=detail, created_at=now))
+        if case.ticket.state != 'Resolved':
+            previous = case.ticket.state
+            case.ticket.state = 'Resolved'
+            case.ticket.resolution = f"Customer confirmed the recommended troubleshooting step fixed the issue: {suggestion.action}"
+            case.state_history.append(TicketStateTransition(from_state=previous, to_state='Resolved',
+                changed_by=user['name'], changed_at=now))
+            case.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8].upper()}', author='Ticket history',
+                author_type='System', text=f'State : Resolved was {previous}', created_at=now))
+        case.status = 'Resolved'
+    elif feedback.outcome == 'did_not_work':
+        suggestion.status = 'customer_says_not_worked'
+        detail = note or 'Customer reported that the suggested step did not fix the issue.'
+        case.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8].upper()}', author=user['name'],
+            author_type='Customer', text=detail, created_at=now))
+        if case.ticket.state in {'Pending With Customer', 'Resolved'}:
+            previous = case.ticket.state
+            case.ticket.state = 'In Progress'
+            case.ticket.resolution = ''
+            case.state_history.append(TicketStateTransition(from_state=previous, to_state='In Progress',
+                changed_by=user['name'], changed_at=now))
+            case.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8].upper()}', author='Ticket history',
+                author_type='System', text=f'State : In Progress was {previous}', created_at=now))
+        case.status = 'Open'
+        detail += ' Ticket returned to In Progress for further troubleshooting.'
+    else:
+        suggestion.status = 'customer_feedback_unclear'
+        detail = note or 'Customer is unsure whether the suggested step helped.'
+        case.ticket.work_notes.append(WorkNote(id=f'NOTE-{uuid4().hex[:8].upper()}', author=user['name'],
+            author_type='Customer', text=detail, created_at=now))
+    suggestion.customer_feedback = detail[:1200]
+    suggestion.outcome_at = now
+    event_kind = {'worked': 'customer_confirmed_worked', 'did_not_work': 'customer_confirmed_not_worked',
+                  'unclear': 'customer_comment'}[feedback.outcome]
+    suggestion.events.append(TimeMachineSuggestionEvent(kind=event_kind, actor=user['name'], detail=detail, created_at=now))
+    suggestion.events = suggestion.events[-30:]
+    saved = store.save_case(case)
+    if feedback.outcome == 'worked':
+        background_tasks.add_task(run_background_qa, case.id)
+        background_tasks.add_task(run_background_knowledge, case.id)
+        background_tasks.add_task(run_background_radar, case.id)
+    return visible_case(saved, user)
 
 
 @app.post('/api/cases/{case_id}/time-machine/counterfactual')

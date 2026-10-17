@@ -79,7 +79,7 @@ class TicketDraft(BaseModel):
     service: str
     priority: Literal["P1", "P2", "P3", "P4"]
     assignment_group: str
-    state: Literal["New", "In Progress", "On Hold", "Pending Customer Confirmation", "Resolved"] = "New"
+    state: Literal["New", "In Progress", "Pending With Customer", "On Hold", "Pending Customer Confirmation", "Resolved"] = "New"
 
     # Services come from one fixed list (see services.py); older records are mapped when they are read.
     _service = field_validator('service')(normalize_service)
@@ -98,6 +98,38 @@ class WorkNoteCreate(BaseModel):
     author: str = Field(default='', max_length=100)
     author_type: Literal["Technician", "Customer"] = 'Technician'
     text: str = Field(min_length=1, max_length=4000)
+
+
+class TimeMachineSuggestionEvent(BaseModel):
+    kind: Literal['suggested', 'sent_to_customer', 'customer_comment', 'customer_confirmed_worked',
+                  'customer_confirmed_not_worked', 'state_changed']
+    actor: str = ''
+    detail: str = Field(default='', max_length=1200)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class TimeMachineSuggestion(BaseModel):
+    id: str
+    action: str = Field(min_length=3, max_length=300)
+    rationale: str = Field(min_length=3, max_length=700)
+    verify: str = Field(min_length=3, max_length=400)
+    evidence_ids: list[str] = Field(default_factory=list, max_length=8)
+    evidence_labels: list[str] = Field(default_factory=list, max_length=8)
+    status: Literal['suggested', 'sent_to_customer', 'superseded', 'customer_says_worked',
+                    'customer_says_not_worked', 'customer_feedback_unclear',
+                    'resolved_unconfirmed'] = 'suggested'
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    sent_at: datetime | None = None
+    outcome_at: datetime | None = None
+    customer_feedback: str = ''
+    technician_id: str = ''
+    technician_name: str = ''
+    events: list[TimeMachineSuggestionEvent] = Field(default_factory=list, max_length=30)
+
+
+class TimeMachineSuggestionFeedback(BaseModel):
+    outcome: Literal['worked', 'did_not_work', 'unclear']
+    note: str = Field(default='', max_length=1200)
 
 
 class Attachment(BaseModel):
@@ -276,6 +308,7 @@ class CaseRecord(BaseModel):
     assist: AIAssist | None = None
     attempted_steps: list[str] = Field(default_factory=list, max_length=6)
     state_history: list[TicketStateTransition] = Field(default_factory=list)
+    time_machine_suggestions: list[TimeMachineSuggestion] = Field(default_factory=list)
 
 
 class ResolutionApproach(BaseModel):
@@ -386,7 +419,7 @@ class TicketUpdate(BaseModel):
     _service = field_validator('service')(lambda value: None if value is None else normalize_service(value))
     assignment_group: str | None = None
     resolution: str | None = None
-    state: Literal["New", "In Progress", "On Hold", "Pending Customer Confirmation", "Resolved"] | None = None
+    state: Literal["New", "In Progress", "Pending With Customer", "On Hold", "Pending Customer Confirmation", "Resolved"] | None = None
 
 
 class CustomerIncidentCreate(BaseModel):

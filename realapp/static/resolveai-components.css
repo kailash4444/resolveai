@@ -1397,3 +1397,33 @@ p + .turns{margin-top:10px}
 .auth__providers{display:flex;flex-direction:column;gap:8px}
 .auth__provider{justify-content:center;gap:10px;width:100%}
 #voiceTitle:focus{outline:none}
+
+/* Time Machine recommendation feedback loop */
+.tm-suggestion-use{margin-top:12px;white-space:normal}
+.tm-suggestion-ledger{display:grid;gap:10px;margin-top:18px;padding-top:16px;border-top:1px solid var(--border)}
+.tm-suggestion-ledger>h4{margin:0}
+.tm-suggestion-ledger article{padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2)}
+.tm-suggestion-ledger article>div{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.tm-suggestion-ledger article>p{margin:8px 0;color:var(--text-2)}
+.tm-suggestion-ledger article>small{color:var(--text-3)}
+.tm-suggestion-ledger ol{margin:10px 0 0;padding-left:20px;color:var(--text-2);font-size:.9em}
+.tm-suggestion-ledger ol p{margin:4px 0 8px;white-space:pre-wrap}
+.suggestion-feedback-list{border-inline-start:4px solid var(--ok)}
+.suggestion-feedback{padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2)}
+.suggestion-feedback h3{margin:4px 0 8px}
+.suggestion-feedback .kicker{margin:0;color:var(--ok)}
+.tm-feedback-update{padding:10px 12px;border-radius:var(--r-sm);background:var(--surface-2);color:var(--text-2)}
+.tm-feedback-link-note{margin:10px 0 0;color:var(--text-2);font-size:.92em}
+/* Handoff review uses the full canvas for the evidence map and keeps audit metadata tucked away. */
+#view-time-machine .handoff-layout{grid-template-columns:minmax(0,1fr)}
+#view-time-machine .handoff-side{grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);align-items:start}
+#tmSuggestionHistory{min-width:0;margin-top:16px}
+.handoff-source-details,.tm-suggestion-ledger details{margin-top:10px;border-top:1px solid var(--border);padding-top:9px}
+.handoff-source-details summary,.tm-suggestion-ledger details summary{color:var(--text-2);font-size:13px;font-weight:700;cursor:pointer}
+.handoff-source-details[open] summary,.tm-suggestion-ledger details[open] summary{margin-bottom:8px}
+.handoff-action-card>div:first-child,.tm-suggestion-ledger article>div{flex-wrap:wrap}
+.handoff-action-card>div:first-child>b,.tm-suggestion-ledger article>div>b{flex:1 1 240px;min-width:0;overflow-wrap:anywhere}
+.tm-suggestion-ledger article{min-width:0}
+.tm-suggestion-ledger article>p,.tm-suggestion-ledger article>details{overflow-wrap:anywhere}
+.tm-suggestion-ledger article>details ol{padding-inline-start:20px}
+@media (max-width:900px){#view-time-machine .handoff-side{grid-template-columns:1fr}}

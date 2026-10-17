@@ -2,7 +2,7 @@
   const $ = selector => document.querySelector(selector);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const byId = id => document.getElementById(id);
-  const state = { caseId: null, data: null, graph: null, guidance: null, provider: '', selectedGraphNode: null, dated: [], undated: [], cursor: 0, activeEvent: null, compare: [], categories: new Set(), zoom: 1, playing: false, timer: null, nodePositions: new Map() };
+  const state = { caseId: null, data: null, graph: null, guidance: null, guidanceStale: false, recommendationIds: [], provider: '', selectedGraphNode: null, dated: [], undated: [], cursor: 0, activeEvent: null, compare: [], categories: new Set(), zoom: 1, playing: false, timer: null, feedbackTimer: null, nodePositions: new Map() };
   // Category colours come from the theme tokens, so the timeline follows light and dark.
   const palette = { ticket_created:'var(--ok)', customer_observation:'var(--high)', conversation:'var(--low)', troubleshooting:'var(--medium)', technician_action:'var(--edge)', failed_attempt:'var(--critical)', status_change:'var(--link)', evidence_added:'var(--low)', qa_result:'var(--text-3)', durability_assessment:'var(--medium)', customer_comment:'var(--high)', system_record:'var(--text-3)', ai_diagnosis:'var(--low)', ai_recommendation:'var(--link)' };
   const groups = { customer_observation:'Customer', conversation:'Conversation', customer_comment:'Customer', technician_action:'Technician', failed_attempt:'Failed steps', troubleshooting:'Reported steps', status_change:'State changes', ticket_created:'Incident', evidence_added:'Attachments', qa_result:'QA', durability_assessment:'Durability', system_record:'System', ai_diagnosis:'AI records', ai_recommendation:'AI records' };
@@ -29,7 +29,8 @@
 
   window.enterIncidentTimeMachine = async caseId => {
     stopPlayback();
-    state.caseId = caseId; state.data = null; state.graph = null; state.guidance = null; state.provider = ''; state.selectedGraphNode = null; state.activeEvent = null; state.compare = []; state.nodePositions.clear();
+    clearInterval(state.feedbackTimer);
+    state.caseId = caseId; state.data = null; state.graph = null; state.guidance = null; state.guidanceStale = false; state.recommendationIds = []; state.provider = ''; state.selectedGraphNode = null; state.activeEvent = null; state.compare = []; state.nodePositions.clear();
     openView('time-machine');
     byId('tmWorkspace').hidden = true; message('Reconstructing the incident from recorded source evidence…');
     try {
@@ -49,7 +50,7 @@
       state.undated = state.data.events.filter(item => !item.occurred_at);
       state.cursor = Math.max(0, state.dated.length - 1);
       state.categories = new Set(allCategories);
-      state.zoom = 1; byId('tmZoomLabel').textContent = '100%'; message(''); render();
+      state.zoom = 1; byId('tmZoomLabel').textContent = '100%'; message(''); render(); watchSuggestionFeedback(caseId);
     } catch (error) { message(error.message, true); }
   };
 
@@ -67,6 +68,28 @@
     warnings.hidden = !state.data.warnings.length;
     warnings.innerHTML = state.data.warnings.map(item => `<p>${esc(item)}</p>`).join('');
     renderFilters(); renderTimeline(); renderInspector(); renderKnowledge(); renderHandoffGraph();
+  }
+
+  function suggestionSnapshot(data) {
+    return JSON.stringify([data.incident.state, data.events.length,
+      (data.time_machine_suggestions||[]).map(item=>[item.id,item.status,item.customer_feedback])]);
+  }
+  function watchSuggestionFeedback(caseId) {
+    clearInterval(state.feedbackTimer);
+    let snapshot=suggestionSnapshot(state.data), busy=false;
+    state.feedbackTimer=setInterval(async()=>{
+      if(busy||document.visibilityState==='hidden'||state.caseId!==caseId||!document.querySelector('#view-time-machine.active'))return;
+      busy=true;
+      try{
+        const fresh=await request(`/api/cases/${encodeURIComponent(caseId)}/time-machine`);
+        const next=suggestionSnapshot(fresh);
+        if(next!==snapshot){
+          snapshot=next;state.guidanceStale=!!state.guidance;state.data=fresh;
+          state.dated=fresh.events.filter(item=>item.occurred_at);state.undated=fresh.events.filter(item=>!item.occurred_at);
+          state.cursor=Math.max(0,state.dated.length-1);state.activeEvent=state.dated.at(-1)?.id||null;render();
+        }
+      }catch(_){}finally{busy=false;}
+    },8000);
   }
 
   const graphKindLabel = {ticket:'Incident',customer:'Customer',technician:'Technician',transcript:'Transcript',action:'Reported action',work_note:'Work note',failed_action:'Failed step',knowledge:'Knowledge',similar_case:'Similar ticket'};
@@ -132,7 +155,7 @@
     byId('tmGuideEyebrow').textContent=graph.incident.assigned_to_you?'YOUR HANDOFF · PICK UP HERE':graph.incident.assigned_to==='Unassigned'?'TECHNICIAN HANDOFF · UNASSIGNED':`TECHNICIAN HANDOFF · ${graph.incident.assigned_to}`;
     const empty=byId('tmGraphEmpty'); empty.hidden=graph.edges.length>2 || counts.transcript_and_actions>0;
     empty.textContent='This ticket has little linked history yet. Add work notes and knowledge articles to build a richer evidence map.';
-    renderGraphInspector(); renderGuidance();
+    renderGraphInspector(); renderGuidance(); renderSuggestionLedgerHost();
   }
   function renderGraphInspector() {
     const panel=byId('tmGraphInspector'), graph=state.graph;
@@ -143,26 +166,57 @@
     if(item.state)meta.push(item.state);if(item.priority)meta.push(item.priority);if(item.outcome)meta.push(item.outcome.replaceAll('_',' '));if(Number.isFinite(item.score))meta.push(`${Math.round(item.score*100)}% match`);if(item.similarity_terms?.length)meta.push(`matched: ${item.similarity_terms.join(', ')}`);if(item.timestamp)meta.push(when(item.timestamp));if(item.created_at)meta.push(when(item.created_at));
     const steps=item.steps?.length?`<div class="handoff-inspector-detail"><b>Documented steps</b><ol>${item.steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol></div>`:'';
     const open=item.case_id?`<button class="text-button handoff-open-case" type="button" data-hg-open-case="${esc(item.case_id)}">Open source ticket →</button>`:'';
-    panel.innerHTML=`<span class="handoff-chip">${esc(graphKindLabel[item.kind]||'Evidence')}</span><h3>${esc(item.label)}</h3>${meta.length?`<div class="handoff-source-meta">${meta.map(value=>`<span class="handoff-chip">${esc(value)}</span>`).join('')}</div>`:''}<div class="handoff-inspector-detail">${esc(item.detail||'No additional source detail is recorded.')}</div>${steps}${open}`;
+    panel.innerHTML=`<span class="handoff-chip">${esc(graphKindLabel[item.kind]||'Evidence')}</span><h3>${esc(item.label)}</h3>${item.detail?`<div class="handoff-inspector-detail">${esc(item.detail)}</div>`:''}${steps}${meta.length?`<details class="handoff-source-details"><summary>Source details</summary><div class="handoff-source-meta">${meta.map(value=>`<span class="handoff-chip">${esc(value)}</span>`).join('')}</div></details>`:''}${open}`;
+  }
+  function customerFacingFollowup(text, feedback='') {
+    const action=String(text||'');
+    if(!/attempt to contact the customer|contact the customer via|follow up on the dropped call|gather details regarding their request/i.test(action))return action;
+    return feedback
+      ? 'Could you tell us what happened when you tried that, and share any error message or other details about the issue?'
+      : 'Could you tell us a little more about the issue and what you were trying to do when the call dropped?';
   }
   function renderGuidance() {
     const host=byId('tmGuideContent'), guide=state.guidance;
     if(!guide){host.innerHTML='<p class="helper">Generate a cited plan from this ticket, its conversation, current knowledge, and similar incidents. This makes one live AI request.</p>';byId('tmGuideBadge').textContent=state.provider==='mock'?'DEMO MODE':'EVIDENCE-LED';return;}
     const providerLabel={vertex:'Vertex AI',google_ai:'Gemini API',openai:'OpenAI',mock:'Demo mode'}[state.provider]||String(state.provider||'AI');
     byId('tmGuideBadge').textContent=state.provider==='mock'?'Demo mode':`${providerLabel} · sourced`;
-    const actions=guide.next_actions.map((item,index)=>`<li class="handoff-action-card"><div><span class="handoff-step-number">${index+1}</span><b>${esc(item.action)}</b></div><p>${esc(item.rationale)}</p><small><b>Verify:</b> ${esc(item.verify)}</small><div class="handoff-citations">${item.evidence_ids.map(id=>{const source=state.graph.nodes.find(node=>node.id===id);return source?`<button class="handoff-citation" data-hg-citation="${esc(id)}">↗ ${esc(source.label)}</button>`:''}).join('')}</div></li>`).join('');
-    host.innerHTML=`<p class="handoff-guide-summary">${esc(guide.summary)}</p><ol class="handoff-action-list">${actions}</ol>${guide.questions_for_customer?.length?`<div class="handoff-subsection"><h4>Ask the customer</h4><ul>${guide.questions_for_customer.map(item=>`<li>${esc(item)}</li>`).join('')}</ul></div>`:''}${guide.avoid_repeating?.length?`<div class="handoff-subsection"><h4>Avoid repeating</h4><ul>${guide.avoid_repeating.map(item=>`<li>${esc(item)}</li>`).join('')}</ul></div>`:''}${guide.unknowns?.length?`<div class="handoff-subsection"><h4>Still unknown</h4><ul>${guide.unknowns.map(item=>`<li>${esc(item)}</li>`).join('')}</ul></div>`:''}`;
+    const actions=guide.next_actions.map((item,index)=>{const id=state.recommendationIds[index],record=(state.data.time_machine_suggestions||[]).find(entry=>entry.id===id),sent=record?.status==='sent_to_customer',resolved=state.graph?.incident?.state==='Resolved',canSend=state.graph?.incident?.can_send_suggestions;return `<li class="handoff-action-card"><div><span class="handoff-step-number">${index+1}</span><b>${esc(customerFacingFollowup(item.action,record?.customer_feedback))}</b></div><p>${esc(item.rationale)}</p><small><b>Verify:</b> ${esc(item.verify)}</small><div class="handoff-citations">${item.evidence_ids.map(id=>{const source=state.graph.nodes.find(node=>node.id===id);return source?`<button class="handoff-citation" data-hg-citation="${esc(id)}">↗ ${esc(source.label)}</button>`:''}).join('')}</div>${id?`<button class="secondary small tm-suggestion-use" type="button" data-tm-use-suggestion="${esc(id)}" ${sent||resolved||!canSend?'disabled':''}>${sent?'Sent to customer · awaiting feedback':resolved?'Incident resolved · reopen to send':canSend?'Use this step & send to customer':'Only the assigned technician can send this step'}</button>`:'<p class="tm-feedback-link-note">Refresh this plan to track this step and collect customer feedback.</p>'}</li>`}).join('');
+    const questions=guide.questions_for_customer?.length?`<div class="handoff-subsection"><h4>Ask the customer</h4><ul>${guide.questions_for_customer.map(item=>`<li>${esc(item)}</li>`).join('')}</ul></div>`:'';
+    const avoid=guide.avoid_repeating?.length?`<div class="handoff-subsection"><h4>Avoid repeating</h4><ul>${guide.avoid_repeating.map(item=>`<li>${esc(item)}</li>`).join('')}</ul></div>`:'';
+    const unknowns=guide.unknowns?.length?`<div class="handoff-subsection"><h4>Still unknown</h4><ul>${guide.unknowns.map(item=>`<li>${esc(item)}</li>`).join('')}</ul></div>`:'';
+    host.innerHTML=`${state.guidanceStale?'<p class="tm-feedback-update" role="status">New ticket activity arrived. Refresh the plan to include the customer’s latest update.</p>':''}<p class="handoff-guide-summary">${esc(guide.summary)}</p><ol class="handoff-action-list">${actions}</ol>${questions}${avoid}${unknowns}`;
+  }
+  function renderSuggestionLedgerHost() {
+    const host=byId('tmSuggestionHistory');if(host)host.innerHTML=renderSuggestionLedger();
+  }
+  function renderSuggestionLedger() {
+    const suggestions=state.data?.time_machine_suggestions||[];
+    if(!suggestions.length)return '<section class="tm-suggestion-ledger" aria-label="Suggestion feedback history"><h4>Suggestion history</h4><p class="tm-feedback-link-note">No tracked suggestions yet. Generate or refresh the plan to save its steps here and enable customer feedback.</p></section>';
+    const labels={suggested:'Suggested',sent_to_customer:'Sent · awaiting customer',customer_says_worked:'Customer confirmed it worked',customer_says_not_worked:'Customer said it did not work',customer_feedback_unclear:'Customer comment · outcome unclear',resolved_unconfirmed:'Resolved · outcome not confirmed'};
+    const entries=suggestions.slice(-8).reverse();
+    const card=item=>`<article><div><b>${esc(customerFacingFollowup(item.action,item.customer_feedback))}</b><span class="badge badge--muted">${esc(labels[item.status]||item.status)}</span></div>${item.customer_feedback?`<p>${esc(item.customer_feedback)}</p>`:''}<details><summary>Evidence and activity</summary><p>${esc(item.verify||'')}</p><small>${esc((item.evidence_labels||[]).join(' · ')||'No source labels recorded')} · ${esc(when(item.created_at))}</small>${item.events?.length?`<ol>${item.events.slice(-4).map(update=>`<li><b>${esc(update.kind.replaceAll('_',' '))}</b> · ${esc(when(update.created_at))}${update.detail?`<p>${esc(update.detail)}</p>`:''}</li>`).join('')}</ol>`:''}</details></article>`;
+    return `<section class="tm-suggestion-ledger" aria-label="Suggestion feedback history"><h4>Suggestion history</h4>${card(entries[0])}${entries.length>1?`<details class="tm-older-suggestions"><summary>Previous suggestions (${entries.length-1})</summary>${entries.slice(1).map(card).join('')}</details>`:''}</section>`;
   }
   async function generateHandoffGuide() {
     const button=byId('tmGenerateGuide'); if(!state.caseId||button.disabled)return;
     button.disabled=true;button.textContent='Reading evidence…';state.guidance=null;renderGuidance();
     try {
       const result=await request(`/api/cases/${encodeURIComponent(state.caseId)}/handoff-guidance`,{method:'POST'});
-      state.graph=result.graph;state.guidance=result.guidance;state.provider=result.provider||'';showGraphWarnings(result.warnings);renderHandoffGraph();
+      state.graph=result.graph;state.guidance=result.guidance;state.guidanceStale=false;state.recommendationIds=result.recommendation_ids||[];state.provider=result.provider||'';state.data=await request(`/api/cases/${encodeURIComponent(state.caseId)}/time-machine`);showGraphWarnings(result.warnings);render();
     } catch(error){showGraphWarnings([error.message]);}
     finally{button.disabled=false;button.textContent=state.guidance?'Refresh plan':'Generate next steps';}
   }
   byId('tmGenerateGuide').addEventListener('click',generateHandoffGuide);
+  document.addEventListener('click', async event=>{
+    const button=event.target.closest('[data-tm-use-suggestion]');if(!button)return;
+    button.disabled=true;button.textContent='Sharing with customer…';
+    try{
+      await request(`/api/cases/${encodeURIComponent(state.caseId)}/time-machine/suggestions/${encodeURIComponent(button.dataset.tmUseSuggestion)}/use`,{method:'POST'});
+      state.data=await request(`/api/cases/${encodeURIComponent(state.caseId)}/time-machine`);
+      button.textContent='Sent to customer · awaiting feedback';
+      render();
+    }catch(error){button.disabled=false;button.textContent='Use this step & send to customer';showGraphWarnings([error.message]);}
+  });
 
   function visibleDatedEvents() {
     if (byId('tmRetrospective').checked || !current()) return state.dated;

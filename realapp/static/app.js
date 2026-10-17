@@ -97,7 +97,7 @@ document.addEventListener('keydown', event => {
 function showPendingBubble(box, text, who) { box.append(chatBubble({text}, true, who, true)); box.scrollTop = box.scrollHeight; }
 
 function stateBadge(value) {
-  const states = {Resolved:['✓','badge--ok'],'Pending Customer Confirmation':['●','badge--medium'],'In Progress':['◐','badge--new'],'On Hold':['○','badge--muted'],New:['●','badge--new'],Closed:['✓','badge--ok']};
+  const states = {Resolved:['✓','badge--ok'],'Pending Customer Confirmation':['●','badge--medium'],'Pending With Customer':['○','badge--muted'],'In Progress':['◐','badge--new'],'On Hold':['○','badge--muted'],New:['●','badge--new'],Closed:['✓','badge--ok']};
   const [icon,tone] = states[value] || ['○','badge--muted'];
   return `<span class="badge badge--state ${tone}">${icon} ${esc(value || 'Unknown')}</span>`;
 }
@@ -381,11 +381,10 @@ function toggleTimeSort(button, label) {
 }
 function ticketForm(item, {includeDescription = true, includeShortDescription = true} = {}) {
   const ticket = item.ticket, admin = state.user?.role === 'admin';
-  // A customer's incident is resolved by their confirmation; one with no customer account (staff intake) is resolved
-  // here directly.
-  const states = ticket.state === "Resolved" ? ["New","In Progress","On Hold","Pending Customer Confirmation","Resolved"]
-    : ticket.state === "Pending Customer Confirmation" ? ["New","In Progress","On Hold","Pending Customer Confirmation"]
-    : !item.customer_id ? ["New","In Progress","On Hold","Resolved"] : ["New","In Progress","On Hold"];
+  // A customer's incident is resolved by their confirmation; Time Machine can separately wait for a customer to try a step.
+  const states = ticket.state === "Resolved"
+    ? ["New","In Progress","Pending With Customer","On Hold","Pending Customer Confirmation","Resolved"]
+    : ["New","In Progress","Pending With Customer","On Hold", ...(ticket.state === "In Progress" || ticket.state === "Pending Customer Confirmation" ? ["Pending Customer Confirmation"] : [])];
   const priorities = {P1: '▲ Critical · P1', P2: '◆ High · P2', P3: '● Medium · P3', P4: '▽ Low · P4'};
   return `<form class="stack" id="ticketForm" novalidate>
     <div class="fields">
@@ -457,7 +456,7 @@ async function saveTicket(form) {
   }
   if (form.elements.short_description && !values.short_description?.trim()) { setFormStatus(status, '✕ Short description can’t be empty.', true); form.elements.short_description.setAttribute('aria-invalid', 'true'); form.elements.short_description.focus(); return; }
   if (!form.reportValidity()) return;
-  if (!['In Progress', 'On Hold', 'Pending Customer Confirmation', 'Resolved'].includes(values.state)) delete values.resolution;
+  if (!['In Progress', 'Pending With Customer', 'On Hold', 'Pending Customer Confirmation', 'Resolved'].includes(values.state)) delete values.resolution;
   button.disabled = true; button.setAttribute('aria-busy', 'true'); setFormStatus(status, 'Saving…');
   try {
     state.current = await api(`/api/cases/${state.current.id}/ticket`, { method: "PATCH", body: JSON.stringify(values) });
@@ -764,6 +763,7 @@ function staffTicketDetails(item) {
 }
 
 async function openTicketDetails(caseId, {keepScroll = false} = {}) {
+  clearInterval(ticketMonitorTimer);
   const customer = state.user?.role === 'customer';
   try {
     if (state.user?.role === 'admin') state.users = await api('/api/users');
@@ -783,9 +783,31 @@ async function openTicketDetails(caseId, {keepScroll = false} = {}) {
   document.title = `${state.current.ticket.id} · ResolveAI`;
   if (!keepScroll) { window.scrollTo({top: 0}); $('#ticketDetailTitle')?.focus({preventScroll: true}); }
   watchAssist(state.current, fresh => { if ($('#view-ticket-detail').classList.contains('active') && state.current?.id === fresh.id && !window.ResolveDirty?.isDirty?.()) openTicketDetails(fresh.id, {keepScroll: true}); });
+  if (customer) monitorCustomerTicket(state.current);
   // Resolution durability (from main's Resolution Debt Radar) is staff-only.
   $('#ticketDurability').hidden = customer;
   if (!customer) window.loadCaseResolutionRadar?.(state.current.id);
+}
+
+let ticketMonitorTimer, ticketMonitorBusy = false;
+function ticketFeedbackVersion(item) {
+  return JSON.stringify([item.ticket.state, item.ticket.resolution, item.ticket.work_notes.length,
+    (item.time_machine_suggestions||[]).map(suggestion=>[suggestion.id,suggestion.status,suggestion.customer_feedback])]);
+}
+function monitorCustomerTicket(item) {
+  clearInterval(ticketMonitorTimer);
+  const caseId=item.id;let version=ticketFeedbackVersion(item);
+  ticketMonitorTimer=setInterval(async()=>{
+    if(ticketMonitorBusy||state.user?.role!=='customer'||state.current?.id!==caseId||!$('#view-ticket-detail').classList.contains('active'))return;
+    ticketMonitorBusy=true;
+    try{
+      const fresh=await api(`/api/cases/${encodeURIComponent(caseId)}`);
+      if(state.current?.id===caseId&&ticketFeedbackVersion(fresh)!==version&&!window.ResolveDirty?.isDirty?.()){
+        version=ticketFeedbackVersion(fresh);state.current=fresh;await openTicketDetails(caseId,{keepScroll:true});
+        loadCustomerIncidents().catch(()=>{});
+      }
+    }catch(_){}finally{ticketMonitorBusy=false;}
+  },8000);
 }
 
 async function openCase(caseId, target = "case") {
@@ -1068,6 +1090,23 @@ document.addEventListener("submit", event => {
   if (event.target.id === "resolutionForm") { event.preventDefault(); saveResolution(event.target); }
   if (event.target.id === "customerResolutionNoForm") { event.preventDefault(); submitCustomerResolutionConfirmation(false, event.target.elements.note.value); }
 });
+document.addEventListener('click', async event => {
+  const button = event.target.closest('[data-suggestion-outcome]');
+  if (!button || !state.current) return;
+  const panel = button.closest('.suggestion-feedback-list'), status = panel?.querySelector('[data-suggestion-feedback-status]');
+  panel?.querySelectorAll('button').forEach(item => item.disabled = true);
+  if (status) status.textContent = 'Saving your update…';
+  try {
+    state.current = await api(`/api/cases/${encodeURIComponent(state.current.id)}/time-machine/suggestions/${encodeURIComponent(button.dataset.suggestionId)}/feedback`, {
+      method: 'POST', body: JSON.stringify({outcome: button.dataset.suggestionOutcome})
+    });
+    await openTicketDetails(state.current.id, {keepScroll: true});
+    toast(button.dataset.suggestionOutcome === 'worked' ? 'Thanks — the incident is resolved.' : 'Thanks — your technician has been notified to continue troubleshooting.');
+  } catch (error) {
+    if (status) status.textContent = `Could not save your response: ${error.message}`;
+    panel?.querySelectorAll('button').forEach(item => item.disabled = false);
+  }
+});
 document.addEventListener("change", event => {
   const select = event.target.closest("[data-taxonomy-select]");
   if (!select) return;
@@ -1144,19 +1183,22 @@ window.applyAccountRole = user => {
 // Where an incident is now, from the customer's side: 0 Received, 1 Assigned, 2 In progress (or Waiting), 3 Resolved.
 function customerStage(ticket) {
   if (['Resolved','Closed'].includes(ticket.state)) return 3;
-  if (['In Progress','On Hold','Pending Customer Confirmation'].includes(ticket.state)) return 2;
+  if (['In Progress','On Hold','Pending Customer Confirmation','Pending With Customer'].includes(ticket.state)) return 2;
   return ticket.assigned_to ? 1 : 0;
 }
 // Same marks as staff state badges: ● received, ◐ being worked on, ✓ resolved.
 const STAGE_BADGES = [['badge--new', '● Received'], ['badge--new', '● Assigned'], ['badge--new', '◐ In progress'], ['badge--ok', '✓ Resolved']];
 function customerStageBadge(ticket) {
   if (ticket.state === 'Pending Customer Confirmation') return '<span class="badge badge--state badge--medium">● Awaiting your confirmation</span>';
-  const [tone, label] = ticket.state === 'On Hold' ? ['badge--muted', '○ Waiting for you'] : STAGE_BADGES[customerStage(ticket)];
+  const [tone, label] = ticket.state === 'Pending With Customer' ? ['badge--muted', '○ Pending with you']
+    : ticket.state === 'On Hold' ? ['badge--muted', '○ Waiting for you'] : STAGE_BADGES[customerStage(ticket)];
   return `<span class="badge badge--state ${tone}">${esc(label)}</span>`;
 }
 function progressSteps(ticket) {
   const stage = customerStage(ticket);
-  const names = ['Received', 'Assigned', ticket.state === 'Pending Customer Confirmation' ? 'Awaiting confirmation' : ticket.state === 'On Hold' ? 'Waiting' : 'In progress', 'Resolved'];
+  const progressLabel = ticket.state === 'Pending Customer Confirmation' ? 'Awaiting confirmation'
+    : ticket.state === 'Pending With Customer' ? 'Waiting for you' : ticket.state === 'On Hold' ? 'Waiting' : 'In progress';
+  const names = ['Received', 'Assigned', progressLabel, 'Resolved'];
   return `<ol class="steps" aria-label="Incident progress">${names.map((name, index) => `<li${index === stage ? ' aria-current="step"' : ''}>${index <= stage ? '✓' : '○'} ${name}</li>`).join('')}</ol>`;
 }
 function customerNextStep(ticket, assist = null) {
@@ -1165,7 +1207,7 @@ function customerNextStep(ticket, assist = null) {
   if (assist?.status === 'pending') return 'The AI assistant is reviewing your report. This page updates by itself.';
   if (assist?.status === 'offered' && !['Resolved','Closed'].includes(ticket.state)) return 'The AI assistant suggested some steps. Try them, then tell us whether they worked.';
   if (['Resolved','Closed'].includes(ticket.state)) return 'Resolved. Open the incident to read what was done.';
-  if (ticket.state === 'On Hold') return `Waiting on more information. Open the incident to see the latest comments and reply.`;
+  if (['Pending With Customer','On Hold'].includes(ticket.state)) return `The technician is waiting for your update. Open the incident to see the latest comments and reply.`;
   if (ticket.state === 'In Progress') return `${who} is working on it. Updates will appear here.`;
   return ticket.assigned_to ? `${who} has your case. Next: they’ll start work and update you here.` : 'We’ve received your report. Next: a technician will be assigned.';
 }
@@ -1301,6 +1343,7 @@ function customerTicketDetails(item) {
   const t = item.ticket;
   return `<div class="page-head"><div><p class="kicker"><span class="mono">${esc(t.id)}</span></p><h1 id="ticketDetailTitle" tabindex="-1">${esc(t.short_description)}</h1></div>${customerStageBadge(t)}</div>
   <div class="stack stack--lg">
+    ${customerSuggestionFeedback(item)}
     ${customerAssist(item)}
     <section class="card${item.assist?.status === 'offered' ? '' : ''} stack" aria-labelledby="progressTitle"><h2 class="h3" id="progressTitle">Progress</h2>${progressSteps(t)}<p class="sec">${customerNextStep(t, item.assist)}</p></section>
     ${t.state === 'Pending Customer Confirmation' ? `<section class="card stack" aria-labelledby="confirmResolutionTitle"><h2 class="h3" id="confirmResolutionTitle">Does this fix resolve your issue?</h2><p class="sec">Your technician proposed these steps:</p><p class="pre">${esc(t.resolution)}</p><div class="customer-resolution-actions" data-resolution-choice><button class="btn btn-primary" type="button" data-confirm-resolution="yes">Yes, it’s fixed</button><button class="btn btn-soft" type="button" data-confirm-resolution="no">No, I still have the issue</button></div><form id="customerResolutionNoForm" class="stack stack--sm" hidden novalidate><div class="field field--inline"><label for="customerResolutionNote">What is still not working?</label><textarea class="input" id="customerResolutionNote" name="note" rows="3" maxlength="2000" required aria-describedby="customerResolutionHelp customerResolutionMessage"></textarea><p class="help" id="customerResolutionHelp">Your comment will be added to this incident and sent to the technician.</p></div><div class="row"><button class="btn btn-primary" type="submit">Send comment</button><p class="form-status" id="customerResolutionMessage" role="status"></p></div></form><p class="form-status" id="customerResolutionChoiceMessage" role="status"></p></section>` : ''}
@@ -1337,6 +1380,19 @@ async function submitCustomerResolutionConfirmation(resolved, note) {
     setFormStatus(message, `✕ ${error.message}`, true);
     button.disabled = false; button.removeAttribute('aria-busy');
   }
+}
+
+function customerSuggestionFeedback(item) {
+  const suggestions = item.time_machine_suggestions || [];
+  const active = suggestions.filter(suggestion => ['sent_to_customer','customer_feedback_unclear','resolved_unconfirmed'].includes(suggestion.status));
+  const recent = suggestions.filter(suggestion => ['customer_says_worked','customer_says_not_worked'].includes(suggestion.status)).slice(-2);
+  if (!active.length && !recent.length) return '';
+  const cards = [...active, ...recent].map(suggestion => {
+    const labels = {sent_to_customer:'The technician suggested this step',customer_feedback_unclear:'Thanks — the technician is reviewing your update',resolved_unconfirmed:'Ticket resolved · confirmation still needed',customer_says_worked:'You confirmed this step worked',customer_says_not_worked:'You reported that this step did not work'};
+    const waiting = ['sent_to_customer','customer_feedback_unclear','resolved_unconfirmed'].includes(suggestion.status);
+    return `<article class="suggestion-feedback" data-suggestion="${esc(suggestion.id)}"><p class="kicker">${esc(labels[suggestion.status] || 'Technician suggestion')}</p><h3 class="h4">${esc(suggestion.action)}</h3><p class="sec">${esc(waiting ? suggestion.verify : suggestion.customer_feedback || 'Your response was recorded.')}</p>${waiting ? `<div class="row row--sm"><button class="btn btn-primary btn-sm" type="button" data-suggestion-outcome="worked" data-suggestion-id="${esc(suggestion.id)}">This fixed it</button><button class="btn btn-soft btn-sm" type="button" data-suggestion-outcome="did_not_work" data-suggestion-id="${esc(suggestion.id)}">Still not fixed</button></div>` : ''}</article>`;
+  }).join('');
+  return `<section class="card stack suggestion-feedback-list" aria-label="Technician suggestion feedback"><h2 class="h3">Suggested by your technician</h2><p class="help">Your response updates the incident and helps the technician choose the next step.</p>${cards}<p class="form-status" data-suggestion-feedback-status role="status"></p></section>`;
 }
 
 window.showCustomerCreateResult = (item, fileCount, {quiet = false} = {}) => {
@@ -1466,7 +1522,7 @@ function renderCustomerIncidents() {
     return;
   }
   const list = (customerList.filter === 'open' ? open : resolved).sort((a, b) =>
-    Number(b.ticket.state === 'Pending Customer Confirmation') - Number(a.ticket.state === 'Pending Customer Confirmation') ||
+    Number(['Pending Customer Confirmation','Pending With Customer'].includes(b.ticket.state)) - Number(['Pending Customer Confirmation','Pending With Customer'].includes(a.ticket.state)) ||
     new Date(b.created_at) - new Date(a.created_at));
   if (!list.length) {
     target.innerHTML = `<div class="empty"><p class="sec">${customerList.filter === 'open' ? '✓ Nothing open. Everything you reported has been resolved.' : 'Nothing resolved yet.'}</p></div>`;
@@ -1478,7 +1534,7 @@ function renderCustomerIncidents() {
     const t = item.ticket, href = `/portal?ticket=${encodeURIComponent(item.id)}`;
     const action = t.state === 'Pending Customer Confirmation' ? `<a class="btn btn-primary btn-sm" href="${href}" data-ticket-link="${esc(item.id)}"><span>Review proposed fix<span class="sr"> for ${esc(t.id)}</span></span></a>`
       : item.assist?.status === 'offered' && !done(item) ? `<a class="btn btn-primary btn-sm" href="${href}" data-ticket-link="${esc(item.id)}"><span>Try the suggested steps<span class="sr"> for ${esc(t.id)}</span></span></a>`
-      : t.state === 'On Hold' ? `<a class="btn btn-soft btn-sm" href="${href}" data-ticket-link="${esc(item.id)}" data-focus-comment><span>Add details<span class="sr"> to ${esc(t.id)}</span></span></a>` : '';
+      : ['Pending With Customer','On Hold'].includes(t.state) ? `<a class="btn btn-soft btn-sm" href="${href}" data-ticket-link="${esc(item.id)}" data-focus-comment><span>Add details<span class="sr"> to ${esc(t.id)}</span></span></a>` : '';
     return `<li class="inc-row"><div class="inc-row__main"><a class="inc-row__title" href="${href}" data-ticket-link="${esc(item.id)}">${esc(t.short_description)}</a>
       <p class="help"><span class="mono">${esc(t.id)}</span> · ${esc(t.service)} · ${esc(when(item.created_at))}</p>
       ${done(item) ? '' : `<p class="sec">${customerNextStep(t, item.assist)}</p>`}${action ? `<div>${action}</div>` : ''}</div>${customerStageBadge(t)}</li>`;

@@ -29,6 +29,9 @@ def can_report(case, user):
 
 def visible_case(case, user):
     value = case.model_copy(deep=True)
+    if user['role'] == 'customer':
+        value.time_machine_suggestions = [item for item in value.time_machine_suggestions
+            if item.status not in {'suggested', 'superseded'}]
     if not can_report(case, user):
         value.qa_checks = []
         value.quality_score = None
