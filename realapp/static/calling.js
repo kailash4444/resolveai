@@ -322,28 +322,38 @@ function announceNewTurns(call, sameCall) {
 
 // Full call page: transcript-and-KB follow-up questions lead. Handoff context and scratch notes stay left; searchable
 // Knowledge stays right. The frame is built once per call and layout so polling doesn't clear user input.
-function kbItem(article, open) {
+function kbItem(article, open, retained = false) {
   const steps = article.steps || [];
-  return `<details class="kb-item" data-kb="${esc(article.id)}" ${open ? 'open' : ''}><summary>${esc(article.title)} <span class="help">${esc(article.id)}</span></summary>${article.excerpt || article.symptoms ? `<p class="sec">${esc(article.excerpt || article.symptoms)}</p>` : ''}${steps.length ? `<ol class="plain-steps">${steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol>` : ''}</details>`;
+  return `<details class="kb-item" data-kb="${esc(article.id)}" ${open ? 'open' : ''}><summary>${esc(article.title)} <span class="help">${esc(article.id)}</span></summary>${retained ? '<p class="help">Open article · outside the current top five. Close it to dismiss.</p>' : ''}${article.excerpt || article.symptoms ? `<p class="sec">${esc(article.excerpt || article.symptoms)}</p>` : ''}${steps.length ? `<ol class="plain-steps">${steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol>` : ''}</details>`;
+}
+function knowledgeHint(call) {
+  const through = call.knowledge_through_at;
+  const time = through ? new Date(through).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'}) : '';
+  const evidence = time ? `Updated through ${time} · ` : '';
+  if (call.knowledge_status === 'error') return `${evidence}Couldn’t refresh suggestions. Previous results are retained.`;
+  if (['searching', 'updating'].includes(call.knowledge_status)) return `${evidence}● Updating from the conversation…`;
+  return `${evidence}Top 5 suggestions · verify before using`;
 }
 // One Knowledge card: the AI's suggestions for this call while the search box is empty, search results once you type.
 function renderCallSearch() {
   const list = $('#cfKbList'), c = calling.pageCall; if (!list || !c) return;
+  if (calling.knowledgePanel?.id !== c.id) calling.knowledgePanel = {id: c.id, articles: new Map()};
   const status = $('#cfKbStatus');
-  if (status) {
-    const updated = c.knowledge_updated_at ? new Date(c.knowledge_updated_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : '';
-    status.textContent = c.knowledge_status === 'searching' ? 'Updating article matches from the latest conversation…'
-      : c.knowledge_status === 'error' ? (c.knowledge_error || 'Could not refresh article matches. Search the knowledge base instead.')
-      : updated ? `Suggested articles updated from the conversation · ${updated}`
-      : 'Suggested articles update as the customer and technician share details.';
-  }
+  if (status) status.textContent = knowledgeHint(c);
   const open = new Set([...list.querySelectorAll('details[open]')].map(item => item.dataset.kb));
+  const previous = calling.knowledgePanel.articles;
+  const focusId = list.contains(document.activeElement) ? document.activeElement.closest('details')?.dataset.kb : null;
+  const scrollTop = list.scrollTop;
   const query = ($('#cfKbSearch')?.value || '').trim().toLowerCase();
   const articles = query
     ? (state.knowledge || []).filter(article => [article.id, article.title, article.product, article.symptoms, (article.tags || []).join(' '), (article.steps || []).join(' ')].join(' ').toLowerCase().includes(query))
-    : (c.knowledge_matches || []);
-  patch(list, articles.map(article => kbItem(article, open.has(article.id))).join('')
+    : (c.knowledge_matches || []).slice(0, 5);
+  const retained = query ? [] : [...open].filter(id => !articles.some(article => article.id === id)).map(id => previous.get(id)).filter(Boolean);
+  calling.knowledgePanel.articles = new Map([...articles, ...retained].map(article => [article.id, article]));
+  patch(list, retained.map(article => kbItem(article, true, true)).join('') + articles.map(article => kbItem(article, open.has(article.id))).join('')
     || `<p class="help">${query ? 'No articles match. Try another word.' : 'Suggestions appear after the customer describes the issue. Search to find any article.'}</p>`);
+  if (focusId) list.querySelector(`[data-kb="${CSS.escape(focusId)}"] summary`)?.focus({preventScroll: true});
+  list.scrollTop = scrollTop;
 }
 document.addEventListener('input', event => { if (event.target.id === 'cfKbSearch') renderCallSearch(); });
 

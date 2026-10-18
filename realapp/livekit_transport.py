@@ -312,7 +312,7 @@ class BrowserSession:
     async def refresh_knowledge(self):
         # Coalesce speech bursts; embeddings must never delay transcription or voice replies.
         while self.knowledge_pending and not self.closed:
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(1)
             self.knowledge_pending = False
             await asyncio.to_thread(self.service.refresh_knowledge, self.call_id)
 
