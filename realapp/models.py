@@ -53,6 +53,7 @@ class KnowledgeCoverage(BaseModel):
 class KnowledgeArticleInput(KnowledgeContent):
     id: str | None = None
     source_ticket_ids: list[str] = Field(default_factory=list, max_length=20)
+    source_trace_ids: list[str] = Field(default_factory=list, max_length=20)
 
 
 class KnowledgeFromIncidentsRequest(BaseModel):
@@ -180,6 +181,7 @@ class Ticket(TicketDraft):
     assigned_to: str = ""
     assigned_user_id: str = ""
     call_id: str = ""
+    trace_id: str = ""
     resolution: str = ""
     work_notes: list[WorkNote] = Field(default_factory=list)
     attachments: list[Attachment] = Field(default_factory=list)

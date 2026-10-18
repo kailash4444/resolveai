@@ -4,6 +4,7 @@ import time
 import hmac
 import hashlib
 import json
+import re
 from contextlib import asynccontextmanager
 from pydantic import BaseModel, Field
 
@@ -19,6 +20,7 @@ from realapp.models import TicketUpdate
 from realapp.livekit_transport import LiveKitTransport
 from realapp.livekit_setup import LiveKitSetup, LiveKitCredentials, check_connection
 from realapp import oauth
+from realapp.tracing import new_trace_id, reset_trace_id, set_trace_id, trace_log, valid_trace_id
 
 
 class ChatStart(BaseModel):
@@ -143,9 +145,58 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
                         or path.startswith('/api/cases/') and (request.method == 'GET' or (path.endswith('/work-notes') or path.endswith('/attachments') or path.endswith('/assist') or path.endswith('/resolution-confirmation')) and request.method == 'POST'))
                     if not allowed:
                         return JSONResponse({'detail':'This feature is available to support staff only.'},status_code=403)
+                # Recover a call/ticket's original journey trace only after the API guard authenticates the caller.
+                # This keeps unauthenticated requests from triggering extra Firestore reads.
+                if request.method not in {'GET', 'HEAD', 'OPTIONS'}:
+                    call_match = (re.match(r'^/api/support/(?:chats|calls)/([^/]+)', path) or
+                                  re.match(r'^/api/calling/(?:calls/)?([^/]+)', path))
+                    case_match = re.match(r'^/api/cases/(CASE-[^/]+)', path)
+                    try:
+                        if call_match and call_match.group(1).startswith('CALL-'):
+                            saved_call = service.repository.get_call(call_match.group(1))
+                            linked_trace_id = valid_trace_id((saved_call or {}).get('trace_id'))
+                        elif case_match:
+                            saved_case = store.get_case(case_match.group(1))
+                            linked_trace_id = valid_trace_id(saved_case.ticket.trace_id if saved_case else '')
+                        else:
+                            linked_trace_id = ''
+                        if linked_trace_id:
+                            request.state.trace_id = linked_trace_id
+                            set_trace_id(linked_trace_id)
+                    except Exception:
+                        # Correlation must never make a support request fail if the extra lookup is unavailable.
+                        pass
         response = await next_handler(request)
         if path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.middleware("http")
+    async def trace_support_journey(request, next_handler):
+        request_id = new_trace_id()
+        request.state.trace_id = request_id
+        path = request.url.path
+        token = set_trace_id(request_id)
+        started = time.monotonic()
+        trace_path = (path.startswith(('/api/support/', '/api/calling/', '/api/cases/')) or
+                      path in {'/api/analyze', '/api/customer/incidents'})
+        try:
+            response = await next_handler(request)
+        except Exception as error:
+            if trace_path:
+                failed_trace_id = valid_trace_id(getattr(request.state, 'trace_id', '')) or request_id
+                trace_log('support.http.failed', failed_trace_id, request_id=request_id,
+                          method=request.method, path=path, error_type=type(error).__name__)
+            raise
+        finally:
+            reset_trace_id(token)
+        root_trace_id = valid_trace_id(getattr(request.state, 'trace_id', '')) or request_id
+        response.headers['X-Trace-ID'] = root_trace_id
+        response.headers['X-Request-ID'] = request_id
+        if trace_path and (request.method not in {'GET', 'HEAD', 'OPTIONS'} or response.status_code >= 400):
+            trace_log('support.http.completed', root_trace_id, request_id=request_id,
+                      method=request.method, path=path, status=response.status_code,
+                      duration_ms=round((time.monotonic() - started) * 1000))
         return response
 
     def secure_cookie(request):
@@ -296,7 +347,7 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
     # finished call's conversation and history once, from the route below.
     HEAVY = {'transcript', 'events', 'knowledge_matches', 'handoff_brief', 'attempted_steps', 'technician_notes', 'technician_note_draft'}
     def call_view(call, full=True):
-        view = {k: v for k, v in call.items() if k not in {"customer_token_hash", "draft_case", "typing"} and (full or k not in HEAVY)}
+        view = {k: v for k, v in call.items() if k not in {"customer_token_hash", "draft_case", "typing", "routing_wait_logged"} and (full or k not in HEAVY)}
         if call.get('channel') == 'chat':
             view['customer_typing'] = service.is_typing(call, 'customer')
         if not full:
@@ -477,7 +528,7 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
     # every route is scoped to the signed-in customer who started the chat.
     def chat_view(call):
         case = service.case_store.get_case(call['case_id']) if call.get('case_id') else None
-        return {key: call.get(key) for key in ('id', 'status', 'technician_name', 'case_id', 'created_at', 'ended_at', 'last_error', 'issue_resolved')} | {
+        return {key: call.get(key) for key in ('id', 'trace_id', 'routing_category', 'status', 'technician_name', 'case_id', 'created_at', 'ended_at', 'last_error', 'issue_resolved')} | {
             'ticket_number': case.ticket.id if case else '',
             'agent_typing': service.is_typing(call, 'agent'),
             'transcript': [{key: turn.get(key) for key in ('speaker', 'text', 'timestamp')} | {key: turn[key] for key in ('id', 'edited') if turn.get(key)}
@@ -537,13 +588,21 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
         try:
             service.set_typing(call_id, 'agent', seconds=60)
             reply = service.reply(call_id)
-            if service.get(call_id)['status'] != 'AI':   # a technician took over, or the chat ended, meanwhile
+            current = service.get(call_id)
+            if current['status'] != 'AI':   # a technician took over, or the chat ended, meanwhile
+                trace_log('support.ai.response.superseded', current.get('trace_id'), call_id=call_id,
+                          status=current.get('status'))
                 return
+            trace_log('support.ai.response', current.get('trace_id'), call_id=call_id,
+                      escalates=reply.escalate, reply_chars=len(reply.reply))
             service.add_turn(call_id, "AI Agent", reply.reply)
             if reply.escalate:
                 service.enqueue(call_id, "AI requested technician assistance")
                 handoff_message(call_id)
         except Exception:
+            current = service.get(call_id)
+            trace_log('support.ai.response.failed', current.get('trace_id'), call_id=call_id,
+                      reason='generation_or_save_error')
             service.enqueue(call_id, "AI assistance is unavailable")
             handoff_message(call_id)
         finally:
@@ -568,9 +627,12 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
             if call.get('issue_resolved') is not None and not call.get('issue_resolution_applied'):
                 apply_chat_resolution(call_id, background_tasks)
             service.refresh_knowledge(call_id)
-        except Exception:
+        except Exception as error:
             # The AI couldn't read the request (for example Gemini is down): hand the chat to a technician instead of
             # leaving the customer watching the typing dots.
+            current = service.get(call_id)
+            trace_log('support.triage.failed', current.get('trace_id'), call_id=call_id,
+                      error_type=type(error).__name__, action='handoff')
             logging.getLogger(__name__).warning('Chat triage failed for %s; handing to a technician', call_id)
             service.repository.mutate(lambda db: db['calls'][call_id].setdefault('typing', {}).update(agent=0), call_ids=(call_id,))
             if service.get(call_id)['status'] not in TERMINAL:

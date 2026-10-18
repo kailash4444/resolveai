@@ -7,6 +7,7 @@ import threading
 
 from realapp.incident_context import knowledge_context
 from realapp.models import KnowledgeArticleInput, KnowledgeContent, WorkNote
+from realapp.tracing import trace_log
 
 logger = logging.getLogger(__name__)
 
@@ -64,12 +65,24 @@ class ResolvedKnowledgePublisher:
             return
 
         ticket_id = case.ticket.id
+        source_trace_id = case.ticket.trace_id
+        if not source_trace_id and case.ticket.call_id:
+            try:
+                source_trace_id = (self.call_lookup(case.ticket.call_id) or {}).get('trace_id', '')
+            except Exception:
+                pass
+        trace_log('support.knowledge.publish.started', source_trace_id,
+                  case_id=case.id, ticket_id=ticket_id)
         articles = self.knowledge_store.list_knowledge()
         if any(ticket_id in article.source_ticket_ids for article in articles):
+            trace_log('support.knowledge.publish.skipped', source_trace_id,
+                      case_id=case.id, ticket_id=ticket_id, reason='ticket_already_linked')
             return
 
         # Fixed by the AI's own self-help from an existing article: nothing new to learn.
         if case.assist is not None and case.assist.status == "resolved":
+            trace_log('support.knowledge.publish.skipped', source_trace_id,
+                      case_id=case.id, ticket_id=ticket_id, reason='resolved_from_existing_knowledge')
             return
 
         context, _ = knowledge_context([case], self.call_lookup)
@@ -77,6 +90,9 @@ class ResolvedKnowledgePublisher:
         if duplicate:
             logger.info('Knowledge already covers resolved incident ticket=%s article=%s', ticket_id, duplicate.id)
             self._note(case_id, f'Knowledge : already covered by {duplicate.id}; no duplicate article created')
+            trace_log('support.knowledge.publish.skipped', source_trace_id,
+                      case_id=case.id, ticket_id=ticket_id, article_id=duplicate.id,
+                      reason='existing_article_covers_resolution')
             return
         try:
             content, drafted_by = self.engine.draft_knowledge(context), "AI draft"
@@ -96,16 +112,25 @@ class ResolvedKnowledgePublisher:
                 "tags": _merge_text(duplicate.tags, content.tags),
                 "resolution": "\n".join(_merge_text([duplicate.resolution], [content.resolution])),
                 "source_ticket_ids": list(dict.fromkeys([*duplicate.source_ticket_ids, ticket_id]))[:20],
+                "source_trace_ids": list(dict.fromkeys([*duplicate.source_trace_ids, source_trace_id]))[:20]
+                if source_trace_id else duplicate.source_trace_ids,
             })
             self.knowledge_store.add_knowledge(updated)
             self._note(case_id, f"Knowledge : merged into {duplicate.id} ({drafted_by}) so the AI can reuse this fix")
+            trace_log('support.knowledge.article.linked', source_trace_id,
+                      case_id=case.id, ticket_id=ticket_id, article_id=duplicate.id,
+                      source_trace_ids=updated.source_trace_ids, action='merged')
             return
 
         article_id = "KB-AUTO-" + hashlib.sha256("|".join(key).encode()).hexdigest()[:12].upper()
         article = self.knowledge_store.add_knowledge(KnowledgeArticleInput(
-            id=article_id, **content.model_dump(), source_ticket_ids=[ticket_id]
+            id=article_id, **content.model_dump(), source_ticket_ids=[ticket_id],
+            source_trace_ids=[source_trace_id] if source_trace_id else [],
         ))
         self._note(case_id, f"Knowledge : saved as {getattr(article, 'id', article_id)} ({drafted_by}) so the AI can reuse this fix")
+        trace_log('support.knowledge.article.saved', source_trace_id,
+                  case_id=case.id, ticket_id=ticket_id, article_id=article.id,
+                  source_trace_ids=article.source_trace_ids, drafted_by=drafted_by)
 
     def _note(self, case_id: str, text: str) -> None:
         # Re-read so a concurrent edit (QA, comments) isn't overwritten.

@@ -13,8 +13,9 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Literal
 
 from realapp.models import AnalysisRequest, CaseRecord, RoutingDecision, Ticket, TranscriptTurn, Understanding, WorkNote
-from realapp.services import normalize_service, skill_matches
+from realapp.services import classify_routing_category, normalize_service, routing_category, skill_matches
 from realapp.calling_store import ACTIVE_CALLS, FINISHED_STATUSES
+from realapp.tracing import current_trace_id, new_trace_id, trace_log
 
 
 TERMINAL = set(FINISHED_STATUSES)
@@ -342,9 +343,12 @@ class CallingService:
                     and call.get('language', 'en') in tech.get('languages', [])
                     and (call.get('origin') == 'desk' or tech.get('voice_ready'))
                     and call.get('declined', {}).get(tech['id'], 0) < now]
-        service = normalize_service(call.get('service'))
-        specialists = [tech for tech in eligible if skill_matches(service, tech.get('skills', []))]
-        return specialists or [tech for tech in eligible if 'general' in tech.get('skills', [])]
+        category = call.get('routing_category') or routing_category(call.get('service'))
+        target = category if category in {'software', 'hardware'} else call.get('service')
+        specialists = [tech for tech in eligible if skill_matches(target, tech.get('skills', []))]
+        return specialists or [tech for tech in eligible if
+            tech['role'] == 'admin' or any(str(skill).strip().casefold() == 'general'
+                                           for skill in tech.get('skills', []))]
 
     def snapshot(self, actor=None):
         def read(db):
@@ -399,13 +403,15 @@ class CallingService:
     def by_sid(self, sid):
         return self.repository.read(lambda db: next((c for c in db["calls"].values() if c["provider_sid"] == sid), None))
 
-    def create_call(self, caller, origin="desk", provider_sid=None, language="en", customer_id=''):
+    def create_call(self, caller, origin="desk", provider_sid=None, language="en", customer_id='', trace_id=''):
+        trace_id = trace_id or current_trace_id() or new_trace_id()
         def create(db):
             existing = next((c for c in db["calls"].values() if provider_sid and c["provider_sid"] == provider_sid), None)
             if existing:
                 return existing
-            call = {"id": f"CALL-{uuid4().hex[:12].upper()}", "caller": caller, "origin": origin, 'customer_id':customer_id,
+            call = {"id": f"CALL-{uuid4().hex[:12].upper()}", "trace_id": trace_id, "caller": caller, "origin": origin, 'customer_id':customer_id,
                     "provider_sid": provider_sid, "language": language, "status": "Triage", "service": "General",
+                    "routing_category": "general",
                     "priority": "P3", "summary": "Understanding the customer issue", "reason": "", "case_id": None,
                     "technician_id": None, "technician_name": "", "last_offered_technician_id": None,
                     "last_offered_technician_name": "", "created_at": self.now(), "queued_at": None,
@@ -418,7 +424,9 @@ class CallingService:
             db["calls"][call["id"]] = call
             return call
         # Browser calls and chats have no provider id to de-duplicate, so they don't need to read every existing call.
-        return self.repository.mutate(create, call_ids=None if provider_sid else ())
+        call = self.repository.mutate(create, call_ids=None if provider_sid else ())
+        trace_log('support.call.created', call.get('trace_id'), call_id=call['id'], channel=origin)
+        return call
 
     def add_turn(self, call_id, speaker, text):
         def append(db):
@@ -436,6 +444,8 @@ class CallingService:
                 self._set_handoff_brief(call, call["handoff_brief"].get("handoff_reason"))
             return call
         call = self.repository.mutate(append, call_ids=(call_id,))
+        trace_log('support.conversation.turn', call.get('trace_id'), call_id=call_id,
+                  speaker=speaker, text_chars=len(text), turn_count=len(call['transcript']))
         if call["case_id"]:
             case = self.case_store.get_case(call["case_id"])
             if case:
@@ -574,6 +584,7 @@ class CallingService:
         query = self.knowledge_query(call)
         if not query or call['status'] in TERMINAL:
             return
+        started = time.monotonic()
         def status(db):
             db['calls'][call_id]['knowledge_status'] = 'searching'
         self.repository.mutate(status, call_ids=(call_id,))
@@ -589,12 +600,18 @@ class CallingService:
             current.update(knowledge_matches=result, knowledge_status='error' if error else 'ready',
                            knowledge_error=error, knowledge_updated_at=stamp(), knowledge_query=query)
         self.repository.mutate(save, call_ids=(call_id,))
+        trace_log('support.knowledge.retrieved', call.get('trace_id'), call_id=call_id,
+                  match_count=len(result), status='error' if error else 'ready',
+                  duration_ms=round((time.monotonic() - started) * 1000))
 
     def triage(self, call_id):
         call = self.get(call_id)
         if call["case_id"] or call.get('draft_case'):
             return call
         transcript = "\n".join(f"{t['speaker']}: {t['text']}" for t in call["transcript"])
+        customer_text = "\n".join(t['text'] for t in call['transcript'] if t.get('speaker') == 'Customer')
+        trace_log('support.triage.started', call.get('trace_id'), call_id=call_id,
+                  customer_turns=sum(t.get('speaker') == 'Customer' for t in call['transcript']))
         try:
             case = self.engine.analyze(AnalysisRequest(transcript=transcript, caller=call["caller"], channel="Voice" if call["origin"] != "desk" else "Service desk"))
         except Exception:
@@ -604,6 +621,10 @@ class CallingService:
                 routing=RoutingDecision(handler="Human", confidence=0, risk="High", rationale="AI is unavailable. A technician will triage this request."),
                 knowledge_matches=[], next_question="What is the impact?", recommended_action="Review the customer conversation.",
                 ticket=Ticket(id=f"INC-{uuid4().hex[:8].upper()}", short_description="Support request requiring technician triage", description=transcript[:4000], category="Incident", subcategory="Triage", service="General", priority="P3", assignment_group="Service Desk"), qa_checks=[])
+        category, category_evidence = classify_routing_category(customer_text, case.ticket.service)
+        if category_evidence and routing_category(case.ticket.service) != category:
+            case.ticket.service = {'software': 'Software & apps', 'hardware': 'Windows & devices'}[category]
+        case.ticket.trace_id = call.get('trace_id', '')
         # Identity-changing actions need an enterprise verification/action connector.
         # Until one exists, only public self-service guidance is eligible for AI.
         lower = transcript.lower()
@@ -642,6 +663,7 @@ class CallingService:
             current.update(case_id=(live or case.id) if desk else None,
                            draft_case=case.model_dump(mode='json') if not desk and not live else None,
                            service=case.ticket.service, priority=case.ticket.priority,
+                           routing_category=category,
                            summary=case.understanding.summary, reason=case.routing.rationale,
                            attempted_steps=case.attempted_steps, recommended_action=case.recommended_action,
                            next_question=case.next_question)
@@ -652,7 +674,14 @@ class CallingService:
                     self._set_handoff_brief(current, case.routing.rationale)
                 history(current, f"Routed to {'AI' if ai else 'technician queue'}: {case.routing.rationale}")
             return current
-        return self.repository.mutate(save, call_ids=(call_id,))
+        result = self.repository.mutate(save, call_ids=(call_id,))
+        trace_log('support.triage.decided', result.get('trace_id'), call_id=call_id,
+                  service=result.get('service'), routing_category=category,
+                  category_evidence=category_evidence, call_status=result.get('status'),
+                  handler=case.routing.handler,
+                  risk=case.routing.risk, confidence=case.routing.confidence,
+                  knowledge_matches=len(case.knowledge_matches))
+        return result
 
     def set_typing(self, call_id, who, seconds=5):
         """Chat typing signals: who is 'customer' or 'agent' (technician or AI). They expire unless renewed."""
@@ -684,20 +713,36 @@ class CallingService:
         return call.get('status') not in TERMINAL and (call.get('typing') or {}).get(who, 0) > self.now()
 
     def enqueue(self, call_id, reason):
+        before = self.get(call_id)
+        customer_text = '\n'.join(t.get('text', '') for t in before.get('transcript', [])
+                                   if t.get('speaker') == 'Customer')
+        category, category_evidence = classify_routing_category(customer_text, before.get('service'))
         def update(db):
             call = db["calls"][call_id]
             if call["status"] in TERMINAL or call["status"] in {"Ringing", "Connected"}:
                 return call
+            service = call.get('service') or 'General'
+            if category_evidence and routing_category(service) != category:
+                service = {'software': 'Software & apps', 'hardware': 'Windows & devices'}[category]
+            if call.get('routing_category') != category:
+                call['routing_wait_logged'] = False
             call.update(status="Queued", queued_at=call["queued_at"] or self.now(), reason=reason,
+                        service=service, routing_category=category,
                         ready_at=0 if call["origin"] == "desk" else None)
             self._set_handoff_brief(call, reason)
             history(call, f"Transferred to technician queue: {reason}")
             return call
         call = self.repository.mutate(update, call_ids=(call_id,))
+        if call.get('status') == 'Queued':
+            trace_log('support.routing.queued', call.get('trace_id'), call_id=call_id,
+                      service=call.get('service'), routing_category=call.get('routing_category'),
+                      category_evidence=category_evidence, reason=reason)
         if call["case_id"]:
             case = self.case_store.get_case(call["case_id"])
             if case:
                 case.routing.handler, case.routing.rationale, case.handler_label = "Human", reason, "Human handling"
+                case.ticket.service = call.get('service') or case.ticket.service
+                case.ticket.trace_id = call.get('trace_id', '')
                 self.case_store.save_case(case)
         return call
 
@@ -715,6 +760,8 @@ class CallingService:
             return []
 
         def route(db):
+            timed_out = []
+            waiting = []
             for tech in db["technicians"].values():
                 if now - tech["last_seen"] > self.settings.technician_heartbeat_seconds:
                     tech["voice_ready"] = False
@@ -724,13 +771,22 @@ class CallingService:
                 if call["status"] == "Queued" and now - call["queued_at"] >= self.settings.call_queue_timeout_seconds:
                     call.update(status="Callback requested", ended_at=now)
                     history(call, "Queue wait limit reached; follow-up required")
+                    timed_out.append(call.copy())
             queue = sorted((c for c in db["calls"].values() if c["status"] == "Queued" and c.get("ready_at") is not None and c["ready_at"] <= now),
                 key=lambda c: (int(c["priority"][1:]) - int((now - c["queued_at"]) // 60), c["queued_at"]))
             offers = []
             for call in queue:
                 candidates = self._routed_candidates(call, db["technicians"].values(), now)
                 if not candidates:
+                    if not call.get('routing_wait_logged'):
+                        call['routing_wait_logged'] = True
+                        waiting.append(call.copy())
                     continue
+                call['routing_wait_logged'] = False
+                category = call.get('routing_category') or routing_category(call.get('service'))
+                target = category if category in {'software', 'hardware'} else call.get('service')
+                match_type = ('specialist' if any(skill_matches(target, tech.get('skills', []))
+                    for tech in candidates) else 'general_fallback')
                 candidates.sort(key=lambda t: (t["last_assigned"], t["name"], t["id"]))
                 offer_count = min(3, max(1, self.settings.call_offer_technician_count))
                 offered = candidates[:offer_count]
@@ -739,12 +795,31 @@ class CallingService:
                 call.update(status="Ringing", technician_id=tech["id"], technician_name=tech["name"],
                     last_offered_technician_id=tech["id"], last_offered_technician_name=tech["name"],
                     offered_technician_ids=[candidate['id'] for candidate in offered],
+                    routing_match_type=match_type,
                     reserved_until=now + self.settings.call_reservation_seconds, dispatch_id=uuid4().hex, dispatch_sent=False,
                     pickup_claimed=False, pickup_claimed_at=None)
                 history(call, f"Offered to {', '.join(candidate['name'] for candidate in offered)}")
                 offers.append(call)
-            return offers
-        offers = self.repository.mutate(route, call_ids=ACTIVE_CALLS)
+            return offers, timed_out, waiting
+        offers, timed_out, waiting = self.repository.mutate(route, call_ids=ACTIVE_CALLS)
+        for call in waiting:
+            trace_log('support.routing.no_candidate', call.get('trace_id'), call_id=call['id'],
+                      service=call.get('service'), routing_category=call.get('routing_category'),
+                      reason='no_eligible_specialist_or_general_fallback',
+                      fallback_policy='specialist_first_general_fallback')
+        for call in offers:
+            trace_log('support.routing.offer', call.get('trace_id'), call_id=call['id'],
+                      service=call.get('service'), routing_category=call.get('routing_category'),
+                      match_type=call.get('routing_match_type', 'unknown'),
+                      offered_technician_ids=call.get('offered_technician_ids', []),
+                      selected_technician_id=call.get('technician_id'))
+        for call in timed_out:
+            trace_log('support.routing.timeout', call.get('trace_id'), call_id=call['id'],
+                      service=call.get('service'), routing_category=call.get('routing_category'),
+                      offered_before_timeout=bool(call.get('last_offered_technician_id')),
+                      last_offered_technician_id=call.get('last_offered_technician_id'),
+                      reason=('offers_declined_or_expired' if call.get('last_offered_technician_id')
+                              else 'no_eligible_specialist_or_general_technician'))
         # Desk incidents already exist before call dispatch. Give the lead offer recipient ownership
         # while the call is ringing so a missed offer cannot leave the incident without an assignee.
         for call in offers:
@@ -937,6 +1012,8 @@ class CallingService:
             history(call, "Call ended; incident remains available for updates" if status == "Completed" else status)
             return call
         call = self.repository.mutate(update, call_ids=(call_id,))
+        trace_log('support.call.finished', call.get('trace_id'), call_id=call_id,
+                  status=call.get('status'), case_id=call.get('case_id'))
         if call['origin'] == 'browser' and not call['case_id']:
             self.repository.mutate(lambda db: db['calls'][call_id].update(ticket_status='pending', ticket_postprocessing='pending'), call_ids=(call_id,))
             if self.on_ticket_pending:
@@ -985,12 +1062,14 @@ class CallingService:
             # Deterministic IDs make retrying publication safe after a restart.
             suffix = call_id.removeprefix('CALL-')
             case.id, case.ticket.id = 'CASE-' + suffix, 'INC-' + suffix
+            case.ticket.trace_id = call.get('trace_id', '')
             existing = self.case_store.get_case(case.id)
             if not existing or (live and existing.id == live.id):
                 case.customer_id = call.get('customer_id', '')
                 case.created_by = case.customer_id
                 case.transcript = [TranscriptTurn(**turn) for turn in turns]
                 case.ticket.call_id = call_id
+                case.ticket.trace_id = call.get('trace_id', '')
                 assigned_user_id = call.get('technician_id') or call.get('last_offered_technician_id') or ''
                 assigned_to = (call.get('technician_name') if call.get('technician_id')
                     else call.get('last_offered_technician_name', ''))
@@ -1023,6 +1102,9 @@ class CallingService:
                     author_type="Technician", text=note['text']) for note in call.get('technician_notes', [])
                     if not note.get('id') or note.get('id') not in existing_note_ids)
                 self.case_store.save_case(case)
+                trace_log('support.ticket.saved', call.get('trace_id'), call_id=call_id,
+                          case_id=case.id, ticket_id=case.ticket.id,
+                          routing_category=call.get('routing_category'), state=case.ticket.state)
             self._link_incident(call_id, case, 'Incident updated from the completed conversation' if live else 'Incident created from the completed conversation')
 
     def _link_incident(self, call_id, case, note):
@@ -1033,6 +1115,9 @@ class CallingService:
             current.pop('draft_case', None)
             history(current, note)
         self.repository.mutate(link, call_ids=(call_id,))
+        call = self.get(call_id)
+        trace_log('support.ticket.linked', call.get('trace_id'), call_id=call_id,
+                  case_id=case.id, ticket_id=case.ticket.id, note=note)
 
     def confirm_ai_resolution(self, call_id, expected_customer_turn=None):
         """Persist the conversation evidence before post-call incident generation."""
@@ -1121,6 +1206,14 @@ class CallingService:
             if isinstance(result, VoiceDecision):
                 current.update(service=result.service, summary=result.summary)
         self.repository.mutate(save, call_ids=(call_id,))
+        trace_log('support.ai.decision', call.get('trace_id'), call_id=call_id,
+                  service=(result.service if isinstance(result, VoiceDecision) else call.get('service')),
+                  routing_category=routing_category(result.service if isinstance(result, VoiceDecision)
+                                                    else call.get('service')),
+                  escalates=result.escalate,
+                  safe_guidance=result.safe_guidance if isinstance(result, VoiceDecision) else False,
+                  confidence=result.confidence if isinstance(result, VoiceDecision) else 0,
+                  turn=call.get('ai_turns', 0) + 1)
         return result
 
     def error(self, call_id, message):

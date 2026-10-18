@@ -101,12 +101,13 @@ def test_semantic_duplicate_is_checked_before_generation():
 def test_distinct_resolution_publishes_new_article_and_wakes_indexer():
     store = MemoryStore()
     engine = OpenAIEngine(Settings(llm_provider='mock'), store.list_knowledge)
-    case = incident(engine); store.save_case(case)
+    case = incident(engine); case.ticket.trace_id = 'a' * 32; store.save_case(case)
     engine.find_existing_knowledge = Mock(return_value=None)
     engine.draft_knowledge = Mock(return_value=KnowledgeContent(**new_article().model_dump(exclude={'id', 'source_ticket_ids'})))
     store.knowledge_changed = Mock()
     ResolvedKnowledgePublisher(store, store, engine, lambda _: None).publish(case.id)
     assert len(store.list_knowledge()) == 5
+    assert any('a' * 32 in article.source_trace_ids for article in store.list_knowledge())
     store.knowledge_changed.assert_called_once()
 
 

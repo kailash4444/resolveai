@@ -48,8 +48,56 @@ def test_initial_incident_and_activity_are_retained(service):
     ticket = service.case_store.get_case(call["case_id"]).ticket
     assert ticket.state == "New" and ticket.resolution == ""
     assert ticket.call_id == call["id"]
+    assert ticket.trace_id == call['trace_id']
     assert "Resolution" not in ticket.work_notes[0].text
     assert service.case_store.get_case(call["case_id"]).quality_score is None
+
+
+def test_explicit_software_question_only_routes_to_software_or_general_staff(service):
+    admin = service.create_technician(TechnicianCreate(name='Admin', username='admin',
+        password='test-password-12345', skills=['general']), first=True)
+    service.presence(admin['id'], 'Available')
+    software = technician(service, 'Software', ['software'])
+    technician(service, 'Hardware', ['hardware'])
+    call = service.create_call('Customer')
+    service.add_turn(call['id'], 'Customer',
+        'I have a software question: the payroll app will not open on my laptop.')
+    call = service.triage(call['id'])
+    assert call['routing_category'] == 'software'
+    assert call['service'] != 'General'
+    offer = service.dispatch()[0]
+    assert offer['technician_id'] == software['id']
+    assert offer['routing_match_type'] == 'specialist'
+
+
+def test_general_admin_is_fallback_when_category_specialist_is_unavailable(service):
+    admin = service.create_technician(TechnicianCreate(name='Admin', username='admin',
+        password='test-password-12345', skills=['general']), first=True)
+    service.presence(admin['id'], 'Available')
+    software = technician(service, 'Software', ['software'])
+    service.presence(software['id'], 'Offline')
+    call = service.create_call('Customer')
+    service.add_turn(call['id'], 'Customer', 'The company software application will not open today.')
+    call = service.triage(call['id'])
+    offer = service.dispatch()[0]
+    assert offer['technician_id'] == admin['id']
+    assert offer['routing_match_type'] == 'general_fallback'
+
+
+def test_admin_is_implicitly_general_fallback_even_without_general_tag(service):
+    admin = service.create_technician(TechnicianCreate(name='Admin', username='admin',
+        password='test-password-12345', skills=['software']), first=True)
+    service.presence(admin['id'], 'Available')
+    hardware = technician(service, 'Hardware', ['hardware'])
+    service.presence(hardware['id'], 'Offline')
+    call = service.create_call('Customer')
+    service.add_turn(call['id'], 'Customer', 'The laptop hardware will not power on.')
+    service.triage(call['id'])
+
+    offer = service.dispatch()[0]
+
+    assert offer['technician_id'] == admin['id']
+    assert offer['routing_match_type'] == 'general_fallback'
 
 
 def test_specialist_then_longest_idle_without_double_booking(service):

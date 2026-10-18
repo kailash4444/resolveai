@@ -164,7 +164,7 @@ class LiveKitTransport:
             except Exception:
                 await self.end(call['id'], 'Failed')
                 raise HTTPException(502, 'The voice connection could not start. Check that LiveKit is running and try again.') from None
-            return {'call_id': call['id'], 'access_token': secret,
+            return {'call_id': call['id'], 'trace_id': call.get('trace_id', ''), 'access_token': secret,
                     **self.connection(call, f"customer:{call['id']}", caller, 'customer')}
 
     def customer_call(self, call_id, secret):
@@ -177,7 +177,7 @@ class LiveKitTransport:
     @staticmethod
     def customer_status(call):
         return {
-            key: call.get(key) for key in ('id', 'status', 'technician_name', 'last_error')
+            key: call.get(key) for key in ('id', 'trace_id', 'routing_category', 'status', 'technician_name', 'last_error')
         } | {
             # The short-lived support token is scoped to this customer's call.
             # Return only their own transcript so the portal can show live captions.

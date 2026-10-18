@@ -26,6 +26,8 @@ def test_customer_chat_runs_from_start_to_technician_reply_and_end(webapp):
     started = casey.post('/api/support/chats', json={'description': 'Outlook closes whenever I open the shared team calendar.'})
     assert started.status_code == 201
     chat = started.json()
+    trace_id = started.headers['x-trace-id']
+    assert chat['trace_id'] == trace_id and len(trace_id) == 32
     assert chat['transcript'][0] == {'id': chat['transcript'][0]['id'], 'speaker': 'Customer', 'text': 'Outlook closes whenever I open the shared team calendar.', 'timestamp': chat['transcript'][0]['timestamp']}
     # Starting returns at once with the assistant typing; triage and the first reply follow in the background.
     assert chat['status'] == 'Triage' and chat['agent_typing'] is True
@@ -34,6 +36,7 @@ def test_customer_chat_runs_from_start_to_technician_reply_and_end(webapp):
 
     # The chat and its incident belong to the customer who started it.
     case = service.case_store.get_case(chat['case_id'])
+    assert case.ticket.trace_id == trace_id
     casey_id = service.authenticate(casey.cookies.get('resolveai_session'))['id']
     assert case.customer_id == casey_id
     assert any(c['id'] == chat['id'] and c['channel'] == 'chat' for c in casey.get('/api/customer/calls').json())
@@ -44,7 +47,9 @@ def test_customer_chat_runs_from_start_to_technician_reply_and_end(webapp):
     assert other.post(f"/api/support/chats/{chat['id']}/messages", json={'text': 'hi'}).status_code == 404
 
     assert casey.post(f"/api/support/chats/{chat['id']}/technician").json()['status'] == 'Queued'
-    assert casey.post(f"/api/support/chats/{chat['id']}/messages", json={'text': 'It started after the update.'}).json()['transcript'][-1]['text'] == 'It started after the update.'
+    continued = casey.post(f"/api/support/chats/{chat['id']}/messages", json={'text': 'It started after the update.'})
+    assert continued.headers['x-trace-id'] == trace_id
+    assert continued.json()['transcript'][-1]['text'] == 'It started after the update.'
 
     tara = _client(app, 'tara', 'tara-password-1234', 'technician')
     tara_id = service.authenticate(tara.cookies.get('resolveai_session'))['id']

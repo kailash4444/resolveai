@@ -36,6 +36,7 @@ from realapp.resolution_radar import ResolutionRadar, evidence_digest
 from realapp.incident_time_machine import compare_history, reconstruct as reconstruct_incident
 from realapp.handoff_graph import build_handoff_graph, guidance_context
 from realapp.technician_assignment import build_technician_profiles
+from realapp.tracing import trace_log
 
 
 settings = get_settings()
@@ -319,6 +320,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
 def analyze(request: AnalysisRequest, http: Request):
     try:
         case = engine.analyze(request)
+        case.ticket.trace_id = getattr(http.state, 'trace_id', '')
         owner = actor(http)
         case.created_by = owner['id']
         if owner['role'] == 'technician':
@@ -331,7 +333,10 @@ def analyze(request: AnalysisRequest, http: Request):
         ]
         initial_history = "\n".join(f"{label} : {value}" for label, value in initial_fields)
         case.ticket.work_notes.append(WorkNote(id=f"NOTE-{uuid4().hex[:8].upper()}", author="Ticket created", author_type="System", text=initial_history))
-        return store.save_case(case)
+        saved = store.save_case(case)
+        trace_log('support.ticket.created', saved.ticket.trace_id, case_id=saved.id,
+                  ticket_id=saved.ticket.id, source='analysis_request', service=saved.ticket.service)
+        return saved
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
@@ -409,6 +414,7 @@ async def customer_incident(http: Request, background_tasks: BackgroundTasks):
         recommended_action='Review and assign this incident.',
         ticket=Ticket(
             id=f'INC-{uuid4().hex[:8].upper()}',
+            trace_id=getattr(http.state, 'trace_id', ''),
             short_description=val.short_description,
             description=val.description,
             service=val.service,
@@ -435,7 +441,10 @@ async def customer_incident(http: Request, background_tasks: BackgroundTasks):
     # Analysis and AI assistance run after the response, so the customer gets their ticket number immediately.
     case.assist = AIAssist(status='pending', reason='The AI assistant is reviewing the report and any images.')
     background_tasks.add_task(run_incident_assist, case.id, attachments_with_content)
-    return visible_case(store.save_case(case), user)
+    saved = store.save_case(case)
+    trace_log('support.ticket.created', saved.ticket.trace_id, case_id=saved.id,
+              ticket_id=saved.ticket.id, source='customer_incident', service=saved.ticket.service)
+    return visible_case(saved, user)
 
 
 def analyse_images(case: CaseRecord, images: list[tuple[Attachment, bytes]]) -> tuple[VisualAnalysisPayload | None, str]:
@@ -701,6 +710,8 @@ def run_background_qa(case_id: str):
 
 
 def run_background_knowledge(case_id: str):
+    case = None
+    trace_id = ''
     def lookup_call(call_id):
         try:
             return app.state.calling.get(call_id)
@@ -710,8 +721,12 @@ def run_background_knowledge(case_id: str):
             return None
 
     try:
+        case = store.get_case(case_id)
+        trace_id = case.ticket.trace_id if case else ''
         ResolvedKnowledgePublisher(store, store, engine, lookup_call).publish(case_id)
     except Exception:
+        trace_log('support.knowledge.publish.failed', trace_id,
+                  case_id=case_id, ticket_id=case.ticket.id if case else '', reason='exception')
         logger.exception("Automatic knowledge publishing failed for incident %s", case_id)
 
 
@@ -819,6 +834,9 @@ def update_ticket(case_id: str, update: TicketUpdate, background_tasks: Backgrou
         background_tasks.add_task(run_background_qa, case.id)
         background_tasks.add_task(run_background_knowledge, case.id)
         background_tasks.add_task(run_background_radar, case.id)
+    trace_log('support.ticket.updated', case.ticket.trace_id,
+              case_id=case.id, ticket_id=case.ticket.id, state=case.ticket.state,
+              changed_fields=changed_fields)
     return visible_case(saved,user) if user else saved
 
 
@@ -1297,11 +1315,15 @@ def rerun_case_resolution_radar(case_id: str, http: Request, background_tasks: B
 @app.get("/api/knowledge", response_model=list[KnowledgeArticle])
 def list_knowledge(http: Request):
     user = actor(http)
-    visible_ids = {case.ticket.id for case in store.list_cases() if can_read(case, user)}
+    visible_cases = [case for case in store.list_cases() if can_read(case, user)]
+    visible_ids = {case.ticket.id for case in visible_cases}
+    visible_trace_ids = {case.ticket.trace_id for case in visible_cases if case.ticket.trace_id}
     articles = [article.model_copy(deep=True) for article in store.list_knowledge()]
     for article in articles:
         if user['role'] != 'admin':
             article.source_ticket_ids = [number for number in article.source_ticket_ids if number in visible_ids]
+            article.source_trace_ids = [trace_id for trace_id in article.source_trace_ids
+                                        if trace_id in visible_trace_ids]
     return articles
 
 
@@ -1311,8 +1333,17 @@ def add_knowledge(article: KnowledgeArticleInput, http: Request):
     if user['role'] not in {'admin', 'technician'}:
         raise HTTPException(403, 'Staff access is required to add knowledge.')
     if article.source_ticket_ids:
-        article.source_ticket_ids = [case.ticket.id for case in find_incidents(article.source_ticket_ids, user)]
-    return store.add_knowledge(article)
+        source_cases = find_incidents(article.source_ticket_ids, user)
+        article.source_ticket_ids = [case.ticket.id for case in source_cases]
+        article.source_trace_ids = list(dict.fromkeys(case.ticket.trace_id for case in source_cases
+                                                       if case.ticket.trace_id))[:20]
+    else:
+        article.source_trace_ids = []
+    saved = store.add_knowledge(article)
+    for trace_id in saved.source_trace_ids:
+        trace_log('support.knowledge.article.saved', trace_id,
+                  article_id=saved.id, source_ticket_ids=saved.source_ticket_ids, action='manual')
+    return saved
 
 
 def find_incidents(ticket_numbers, user):
@@ -1349,7 +1380,9 @@ def draft_knowledge_from_incidents(request: KnowledgeFromIncidentsRequest, http:
         raise HTTPException(503, str(error)) from error
     except Exception:
         raise HTTPException(502, 'The knowledge draft could not be generated. Please try again.') from None
-    article = KnowledgeArticleInput(**content.model_dump(), source_ticket_ids=[case.ticket.id for case in cases])
+    article = KnowledgeArticleInput(**content.model_dump(), source_ticket_ids=[case.ticket.id for case in cases],
+                                    source_trace_ids=list(dict.fromkeys(case.ticket.trace_id for case in cases
+                                                                        if case.ticket.trace_id))[:20])
     return {'article': article, 'warnings': warnings,
             'sources': [{'ticket_id': case.ticket.id, 'case_id': case.id, 'state': case.ticket.state,
                          'channel': case.channel} for case in cases]}

@@ -3,7 +3,8 @@ import re
 from pathlib import Path
 
 from realapp.models import CustomerIncidentCreate, TicketDraft, TicketUpdate
-from realapp.services import SERVICES, normalize_service, skill_matches
+from realapp.services import (SERVICES, classify_routing_category, normalize_service,
+                              routing_category, skill_matches)
 
 STATIC = Path(__file__).resolve().parents[1] / 'realapp' / 'static'
 
@@ -28,6 +29,19 @@ def test_tickets_old_and_new_are_normalised():
 def test_skills_match_the_service_family():
     assert skill_matches('Network & VPN', ['vpn'])
     assert not skill_matches('Printing', ['vpn', 'general'])
+    assert skill_matches('software', ['software'])
+    assert skill_matches('Business applications', ['software'])
+    assert skill_matches('Windows & devices', ['hardware'])
+    assert not skill_matches('Software & apps', ['hardware'])
+    assert routing_category('General') == 'general'
+
+
+def test_explicit_support_category_uses_customer_evidence_and_keeps_ambiguous_general():
+    category, evidence = classify_routing_category(
+        'I have a software question: the payroll app will not open on my laptop.', 'Windows & devices')
+    assert category == 'software' and evidence
+    assert classify_routing_category('My laptop will not power on.', 'General')[0] == 'hardware'
+    assert classify_routing_category('I need help but cannot describe the issue yet.', 'General') == ('general', [])
 
 
 def test_the_browser_lists_match_the_server_list():
