@@ -53,7 +53,6 @@ async def public_config() -> dict[str, Any]:
         "provider": settings.gemini_provider,
         "model": settings.gemini_model,
         "store": settings.store_mode,
-        "demo_enabled": settings.enable_demo_data,
     }
 
 
@@ -66,8 +65,6 @@ async def analyze(request: AnalyzeRequest):
 
 @app.post("/api/demo/{scenario}", response_model=CaseResult)
 async def run_demo(scenario: str):
-    if not settings.enable_demo_data:
-        raise HTTPException(status_code=404, detail="Demo data is disabled")
     if scenario not in {"vpn", "account", "sap"}:
         raise HTTPException(status_code=404, detail="Unknown demo scenario")
     result = await engine.analyze(demo_transcript(scenario), scenario)

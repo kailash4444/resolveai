@@ -65,7 +65,6 @@ class Settings(BaseSettings):
     chat_idle_close_seconds: int = 600
     ai_routing_confidence: float = 0.85
     firestore_collection: str = "resolveai_cases"
-    enable_demo_data: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

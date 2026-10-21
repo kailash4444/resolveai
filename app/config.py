@@ -2,13 +2,6 @@ from dataclasses import dataclass
 import os
 
 
-def _bool(name: str, default: bool) -> bool:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.lower() in {"1", "true", "yes", "on"}
-
-
 @dataclass(frozen=True)
 class Settings:
     app_name: str = os.getenv("APP_NAME", "ResolveAI")
@@ -22,7 +15,6 @@ class Settings:
     store_mode: str = os.getenv("STORE_MODE", "memory")
     firestore_collection: str = os.getenv("FIRESTORE_COLLECTION", "resolveai_cases")
     fallback_to_mock: bool = _bool("FALLBACK_TO_MOCK", False)
-    enable_demo_data: bool = _bool("ENABLE_DEMO_DATA", False)
 
 
 settings = Settings()

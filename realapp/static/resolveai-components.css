@@ -297,6 +297,17 @@ body[data-shell="public"] .shell__main{max-width:none;padding:0}
 .landing__links a:not(.btn):not(.icon-btn):hover{color:var(--text)}
 .landing__lede{font-size:clamp(17px,1.6vw,20px);margin:22px 0 30px;max-width:34ch}
 .landing__actions{display:flex;gap:12px;flex-wrap:wrap}
+.btn-demo{background:linear-gradient(120deg,#7c3aed,#2563eb);color:#fff;border:1px solid color-mix(in srgb,#7c3aed 65%,white);box-shadow:0 8px 24px color-mix(in srgb,#6d28d9 28%,transparent);font-weight:800}
+.btn-demo:hover{transform:translateY(-2px);box-shadow:0 12px 30px color-mix(in srgb,#6d28d9 36%,transparent)}
+.demo-roles{width:min(100%,1080px);padding:clamp(24px,5vw,56px)}
+.demo-roles__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:26px}
+.demo-role{display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:22px;background:var(--surface-2)}
+.demo-role h2{font-size:20px;margin:0}
+.demo-role .sec{flex:1;margin:0}
+.demo-role__icon{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:color-mix(in srgb,var(--edge) 14%,var(--surface));color:var(--edge);font-size:23px;font-weight:800}
+.demo-role .btn{width:100%;justify-content:center}
+.demo-roles__note{margin-top:18px}
+.demo-login:disabled{opacity:.65;cursor:wait}
 .landing__setup{display:flex;flex-direction:column;align-items:flex-start;gap:12px;max-width:560px}
 .trust{display:flex;flex-wrap:wrap;gap:8px 18px;margin:22px 0 0;padding:0;list-style:none;font-size:13px;font-weight:600;color:var(--text-3)}
 .trust li{display:inline-flex;align-items:center;gap:6px}
@@ -956,6 +967,7 @@ body[data-role="customer"] :is(.shell__main,.shell__notices){max-width:1440px}
   .role-card:hover::after{transform:scale(1.3)}
 }
 @media (max-width:1024px){.landing__hero{grid-template-columns:1fr;gap:32px}.demo{max-width:620px}}
+@media (max-width:760px){.demo-roles__grid{grid-template-columns:1fr}.demo-role{padding:18px}}
 @media (max-width:900px){.stats-row__list{grid-template-columns:1fr 1fr}}
 @media (max-width:768px){.marquee{margin-inline:-16px}}
 

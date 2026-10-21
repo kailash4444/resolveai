@@ -213,6 +213,7 @@ def _suggestion_feedback_from_comment(case: CaseRecord, note: WorkNote) -> None:
 @app.get("/", include_in_schema=False)
 @app.get("/login", include_in_schema=False)
 @app.get("/signup", include_in_schema=False)
+@app.get("/try-demo", include_in_schema=False)
 def index():
     return app_page("index.html")
 

@@ -50,6 +50,10 @@ class TechnicianCallNoteDraft(BaseModel):
     text: str = Field(default='', max_length=4000)
 
 
+class DemoLogin(BaseModel):
+    role: str = Field(pattern=r'^(admin|technician|customer)$')
+
+
 def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=()):
     service = CallingService(settings, create_calling_store(settings), store, engine)
     transport = LiveKitTransport(settings, service)
@@ -108,6 +112,11 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
     def local(request):
         return settings.environment == "local" and request.client.host in {"127.0.0.1", "::1", "testclient"} and request.url.hostname in {"127.0.0.1", "localhost", "::1", "testserver"}
 
+    def demo_workspaces_ready(accounts):
+        return (any(item['role'] == 'admin' for item in accounts)
+            and any(item['role'] == 'technician' for item in accounts)
+            and any(item['role'] == 'customer' for item in accounts))
+
     def user(request, admin=False, staff=False):
         # The API guard already looked the session up for this request; reuse it instead of reading it again.
         result = getattr(request.state, 'user', None) or service.authenticate(request.cookies.get("resolveai_session"))
@@ -128,7 +137,7 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
                 allowed = {str(request.base_url).rstrip("/"), settings.public_base_url.rstrip("/")}
                 if origin and origin not in allowed:
                     return JSONResponse({"detail": "Cross-site requests are not allowed."}, status_code=403)
-            public = path in {'/api/health','/api/auth/status','/api/auth/setup','/api/auth/login','/api/auth/register'} or path.startswith('/api/auth/oauth/')
+            public = path in {'/api/health','/api/auth/status','/api/auth/setup','/api/auth/login','/api/auth/register','/api/auth/demo'} or path.startswith('/api/auth/oauth/')
             if not public:
                 actor = service.authenticate(request.cookies.get('resolveai_session'))
                 if not actor:
@@ -209,9 +218,27 @@ def install_calling(app, settings, store, engine, update_ticket, resolved_tasks=
 
     @router.get("/api/auth/status")
     def auth_status(request: Request):
+        accounts = service.technicians()
         return {"setup_required": not service.has_users(), "user": service.authenticate(request.cookies.get("resolveai_session")),
                 "setup_token_required": not local(request), "login_required": True, "signup_enabled": settings.allow_customer_signup,
+                "demo_enabled": demo_workspaces_ready(accounts),
                 "oauth": oauth.providers(settings)}
+
+    @router.post('/api/auth/demo')
+    def demo_login(value: DemoLogin, request: Request, response: Response):
+        """Start a role-specific seeded demo session when all three demo workspaces are present."""
+        accounts = service.technicians()
+        if not demo_workspaces_ready(accounts):
+            raise HTTPException(404, 'An admin, technician, and customer account are required for the demo.')
+        if value.role == 'admin':
+            account = next((item for item in accounts if item['role'] == 'admin'), None)
+        else:
+            account = next((item for item in accounts if item['role'] == value.role), None)
+        if not account:
+            raise HTTPException(503, 'The demo workspace is being prepared. Please try again shortly.')
+        token, signed_in = service.start_session(account['id'])
+        cookie(response, token, request)
+        return signed_in
 
     # ---- Log in with Google / Microsoft ----
     # Start: remember this attempt (state, PKCE verifier, nonce, which log-in side) for 10 minutes in the shared store, so

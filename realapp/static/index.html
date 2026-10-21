@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/resolveai-components.css?v=20261017-handoff-layout1">
+  <link rel="stylesheet" href="/static/resolveai-components.css?v=20261020-demo-roles1">
   <script src="/static/theme.js?v=7"></script>
 </head>
 <body data-role="guest" data-shell="public" data-mode="focus">
@@ -65,7 +65,7 @@
           <p class="annc follow" style="--d:0ms"><em>New</em>Talk to support right in your browser</p>
           <h1 class="landing__title" id="heroTitle"><span class="rise" style="--i:0">Less</span> <span class="rise" style="--i:1">firefighting.</span><br><span class="rise rise--line" style="--i:3"><span class="sweep">More resolution.</span></span></h1>
           <p class="sec landing__lede follow" style="--d:350ms">AI that listens, investigates and suggests. People verify and resolve. From the first signal to verified closure.</p>
-          <div class="landing__actions follow" style="--d:450ms" id="roleSignInChoices"><a class="btn btn-primary btn-lg" href="/login">Log in <span aria-hidden="true">→</span></a><a class="btn btn-soft btn-lg" href="/signup">Create account</a></div>
+          <div class="landing__actions follow" style="--d:450ms" id="roleSignInChoices"><a class="btn btn-primary btn-lg" href="/login">Log in <span aria-hidden="true">→</span></a><a class="btn btn-soft btn-lg" href="/signup">Create account</a><a class="btn btn-demo btn-lg" id="tryDemoButton" href="/try-demo" hidden>Try the demo <span aria-hidden="true">↗</span></a></div>
           <p class="help landing__signin-note" id="landingSignInNote">Customers, technicians and administrators all log in from the same page.</p>
           <div class="card landing__setup" id="firstAdminSetup" hidden>
             <h2>Set up ResolveAI</h2>
@@ -149,6 +149,23 @@
         </section>
         </div>
         <footer class="muted landing__footer"><span>© 2026 ResolveAI</span><span>AI answers from approved knowledge. People make the call.</span></footer>
+      </div>
+      <div class="auth" id="demoPage" hidden>
+        <main class="auth__main">
+        <section class="auth__card card demo-roles" aria-labelledby="demoRolesTitle">
+          <a class="auth__back" href="/" aria-label="Back to home">← <span>Home</span></a>
+          <p class="kicker">Interactive product tour</p>
+          <h1 id="demoRolesTitle">Choose a workspace</h1>
+          <p class="sec">Explore ResolveAI using a ready-made demo account. Each workspace opens with realistic sample activity.</p>
+          <div class="demo-roles__grid">
+            <article class="demo-role card"><span class="demo-role__icon" aria-hidden="true">◉</span><h2>Administrator</h2><p class="sec">Review the full incident queue, quality audits, analytics, and team workspace.</p><button type="button" class="btn btn-primary demo-login" data-demo-role="admin">Try as admin <span aria-hidden="true">→</span></button></article>
+            <article class="demo-role card"><span class="demo-role__icon" aria-hidden="true">⌁</span><h2>Technician</h2><p class="sec">Work assigned incidents, inspect the investigation trail, and review support conversations.</p><button type="button" class="btn btn-primary demo-login" data-demo-role="technician">Try as technician <span aria-hidden="true">→</span></button></article>
+            <article class="demo-role card"><span class="demo-role__icon" aria-hidden="true">◎</span><h2>Customer</h2><p class="sec">Create a support request, chat with support, and follow your incident updates.</p><button type="button" class="btn btn-primary demo-login" data-demo-role="customer">Try as customer <span aria-hidden="true">→</span></button></article>
+          </div>
+          <p id="demoLoginMessage" class="form-message" role="status" aria-live="polite"></p>
+          <p class="help demo-roles__note">Demo workspaces use sample accounts and shared demonstration data.</p>
+        </section>
+        </main>
       </div>
 
       <div class="auth" id="authPage" hidden>
@@ -661,7 +678,7 @@
   <script src="/static/shell.js?v=20261017-b1"></script>
   <script src="/static/uploader.js?v=20261015-qa"></script>
   <script src="/static/app.js?v=20261018-customer-comment-outcomes2"></script>
-  <script src="/static/auth.js?v=17"></script>
+  <script src="/static/auth.js?v=19"></script>
   <script src="/static/landing.js?v=2"></script>
   <script src="/static/support-hub.js?v=14"></script>
   <script src="/static/resolution-radar.js?v=7"></script>

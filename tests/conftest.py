@@ -4,7 +4,6 @@ os.environ["LLM_PROVIDER"] = "mock"
 os.environ["DATA_BACKEND"] = "memory"
 os.environ["GEMINI_PROVIDER"] = "mock"
 os.environ["FALLBACK_TO_MOCK"] = "false"
-os.environ["ENABLE_DEMO_DATA"] = "true"
 os.environ["CALLING_BACKEND"] = "memory"
 # Never let a developer's real keys in .env reach the test run (no network calls, no quota use).
 for _name in ("GEMINI_API_KEY", "OPENAI_API_KEY", "LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"):

@@ -116,11 +116,15 @@
     window.Shell?.resetBack();   // signed out: the back arrow starts over at the next log in
     const path = location.pathname, oauthError = OAUTH_ERRORS[params().get('oauth_error')];
     $('#roleSignInChoices').hidden = !!auth.setup_required;
+    $('#tryDemoButton').hidden = !auth.demo_enabled || !!auth.setup_required;
     $('#firstAdminSetup').hidden = !auth.setup_required;
+    const wantsDemo = path === '/try-demo';
+    $('#demoPage').hidden = !wantsDemo || !auth.demo_enabled;
+    if (wantsDemo && !auth.demo_enabled) { history.replaceState(null, '', '/'); }
     // ?auth=login is the older log-in link (still used by some buttons and bookmarks); it opens /login.
     const wantsAuth = ['/login', '/signup'].includes(path) || params().get('auth') === 'login' || !!nextParam() || ['/portal', '/console', '/admin'].includes(path);
-    $('#landing').hidden = wantsAuth;
-    $('#authPage').hidden = !wantsAuth;
+    $('#landing').hidden = wantsAuth || wantsDemo;
+    $('#authPage').hidden = !wantsAuth || wantsDemo;
     if (!wantsAuth) return;
     // Keep ?next in the address bar so a refresh or back-navigation still knows where to go.
     const query = new URLSearchParams();
@@ -135,6 +139,22 @@
     if (oauthError) showError(oauthError, []);   // back from Google / Microsoft without logging in
     (mode === 'setup' || mode === 'signup' ? form.elements.name : mode === 'closed' ? $('#authTitle') : form.elements.username).focus({preventScroll: true});
   }
+
+  document.querySelectorAll('.demo-login').forEach(button => button.addEventListener('click', async () => {
+    const message = $('#demoLoginMessage');
+    document.querySelectorAll('.demo-login').forEach(item => { item.disabled = true; });
+    message.textContent = `Opening the ${button.dataset.demoRole} workspace…`;
+    try {
+      const account = await api('/api/auth/demo', {method: 'POST', body: JSON.stringify({role: button.dataset.demoRole})});
+      history.replaceState(null, '', window.Shell.home(account.role));
+      window.Shell.resetBack();
+      $('#demoPage').hidden = true; $('#appLoading').hidden = false;
+      await window.loadApplication();
+    } catch (err) {
+      message.textContent = err.message || 'The demo workspace could not be opened. Please try again.';
+      document.querySelectorAll('.demo-login').forEach(item => { item.disabled = false; });
+    }
+  }));
 
   function requestBody(values) {
     if (mode === 'setup') return ['/api/auth/setup', {name: values.name, username: values.username, password: values.password, setup_token: values.setup_token || ''}];
